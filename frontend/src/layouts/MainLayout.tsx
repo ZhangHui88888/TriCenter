@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Avatar, Dropdown, Space, theme, Switch, Tooltip } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Space, theme, Switch, Tooltip, Modal, message } from 'antd';
 import {
   DashboardOutlined,
   ShopOutlined,
@@ -11,9 +11,12 @@ import {
   MenuUnfoldOutlined,
   SunOutlined,
   MoonOutlined,
+  BookOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useThemeStore } from '@/stores/themeStore';
+import { useAuthStore } from '@/stores/authStore';
+import { authApi } from '@/services/api';
 
 const { Header, Sider, Content } = Layout;
 
@@ -32,6 +35,11 @@ const menuItems: MenuProps['items'] = [
     key: '/follow-up',
     icon: <FileTextOutlined />,
     label: '跟进记录',
+  },
+  {
+    key: '/dictionary',
+    icon: <BookOutlined />,
+    label: '数据字典',
   },
 ];
 
@@ -57,9 +65,31 @@ function MainLayout() {
   const location = useLocation();
   const { token } = theme.useToken();
   const { mode, toggleTheme } = useThemeStore();
+  const { user, clearAuth } = useAuthStore();
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     navigate(key);
+  };
+
+  const handleUserMenuClick: MenuProps['onClick'] = ({ key }) => {
+    if (key === 'logout') {
+      Modal.confirm({
+        title: '确认退出',
+        content: '确定要退出登录吗？',
+        okText: '确定',
+        cancelText: '取消',
+        onOk: async () => {
+          try {
+            await authApi.logout();
+          } catch (e) {
+            // 忽略登出接口错误
+          }
+          clearAuth();
+          message.success('已退出登录');
+          navigate('/login', { replace: true });
+        },
+      });
+    }
   };
 
   const getSelectedKeys = () => {
@@ -133,9 +163,9 @@ function MainLayout() {
             />
             {!collapsed && (
               <div>
-                <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>管理员</div>
+                <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>{user?.name || '用户'}</div>
                 <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
-                  admin@tricenter.com
+                  {user?.email || user?.username}
                 </div>
               </div>
             )}
@@ -169,10 +199,10 @@ function MainLayout() {
               />
             </Tooltip>
           </Space>
-          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+          <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
             <Space style={{ cursor: 'pointer' }}>
               <Avatar style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }} icon={<UserOutlined />} />
-              <span>管理员</span>
+              <span>{user?.name || '用户'}</span>
             </Space>
           </Dropdown>
         </Header>

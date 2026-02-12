@@ -1,5 +1,6 @@
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Row, Col, Statistic, Progress, Button, List, Typography } from 'antd';
+import { Card, Row, Col, Statistic, Progress, Button, List, Typography, Spin } from 'antd';
 import {
   ShopOutlined,
   ClockCircleOutlined,
@@ -12,19 +13,58 @@ import {
   FunnelPlotOutlined,
 } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
-import { funnelStages, districtStats, industryStats } from '@/data/mockData';
+import { dashboardApi } from '@/services/api';
 
 const { Title, Text } = Typography;
 
 function Dashboard() {
   const navigate = useNavigate();
-  
-  const totalEnterprises = funnelStages.reduce((sum, s) => sum + s.count, 0);
-  const signedCount = funnelStages
-    .filter(s => ['SIGNED', 'SETTLED', 'INCUBATING'].includes(s.code))
-    .reduce((sum, s) => sum + s.count, 0);
-  const hasDemandCount = funnelStages.find(s => s.code === 'HAS_DEMAND')?.count || 0;
-  const potentialCount = funnelStages.find(s => s.code === 'POTENTIAL')?.count || 0;
+  const [loading, setLoading] = useState(true);
+  const [overview, setOverview] = useState<any>(null);
+  const [funnelStats, setFunnelStats] = useState<any[]>([]);
+  const [districtStats, setDistrictStats] = useState<any[]>([]);
+  const [industryStats, setIndustryStats] = useState<any[]>([]);
+  const [pendingFollowUps, setPendingFollowUps] = useState<any>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const [overviewRes, funnelRes, districtRes, industryRes, pendingRes] = await Promise.all([
+          dashboardApi.getOverview(),
+          dashboardApi.getFunnelStats(),
+          dashboardApi.getDistrictStats(),
+          dashboardApi.getIndustryStats(),
+          dashboardApi.getPendingFollowUps(),
+        ]);
+        setOverview(overviewRes.data);
+        setFunnelStats(funnelRes.data || []);
+        setDistrictStats(districtRes.data || []);
+        setIndustryStats(industryRes.data || []);
+        setPendingFollowUps(pendingRes.data);
+      } catch (error) {
+        console.error('Failed to fetch dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div style={{ textAlign: 'center', padding: 100 }}>
+        <Spin size="large" />
+        <div style={{ marginTop: 16 }}>加载中...</div>
+      </div>
+    );
+  }
+
+  const totalEnterprises = overview?.totalEnterprises || 0;
+  const potentialCount = overview?.potentialCount || 0;
+  const hasDemandCount = overview?.hasDemandCount || 0;
+  const signedCount = overview?.signedSettledCount || 0;
+  const monthlyChange = overview?.monthlyChange || {};
 
   const stats = [
     { 
@@ -33,7 +73,7 @@ function Dashboard() {
       icon: <ShopOutlined />, 
       gradient: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       lightBg: 'rgba(102, 126, 234, 0.1)',
-      change: '+12',
+      change: `+${monthlyChange.total || 0}`,
       changeColor: '#667eea'
     },
     { 
@@ -42,7 +82,7 @@ function Dashboard() {
       icon: <ClockCircleOutlined />, 
       gradient: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
       lightBg: 'rgba(245, 87, 108, 0.1)',
-      change: '+8',
+      change: `+${monthlyChange.potential || 0}`,
       changeColor: '#f5576c'
     },
     { 
@@ -51,7 +91,7 @@ function Dashboard() {
       icon: <AimOutlined />, 
       gradient: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
       lightBg: 'rgba(79, 172, 254, 0.1)',
-      change: '+5',
+      change: `+${monthlyChange.hasDemand || 0}`,
       changeColor: '#4facfe'
     },
     { 
@@ -60,7 +100,7 @@ function Dashboard() {
       icon: <CheckCircleOutlined />, 
       gradient: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
       lightBg: 'rgba(67, 233, 123, 0.1)',
-      change: '+3',
+      change: `+${monthlyChange.signedSettled || 0}`,
       changeColor: '#43e97b'
     },
   ];
@@ -90,7 +130,7 @@ function Dashboard() {
     },
     series: [{
       type: 'bar',
-      data: districtStats.map((d, i) => ({
+      data: districtStats.map((d) => ({
         value: d.count,
         itemStyle: {
           color: {
@@ -162,20 +202,14 @@ function Dashboard() {
             <Card 
               hoverable 
               className="stat-card"
-              style={{ 
-                borderRadius: 16,
-                border: 'none',
-                background: '#fff'
-              }}
+              style={{ borderRadius: 16, border: 'none', background: '#fff' }}
               bodyStyle={{ padding: '24px' }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <Text type="secondary" style={{ fontSize: 14 }}>{stat.label}</Text>
                   <div style={{ 
-                    fontSize: 32, 
-                    fontWeight: 700, 
-                    margin: '12px 0 8px',
+                    fontSize: 32, fontWeight: 700, margin: '12px 0 8px',
                     background: stat.gradient,
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
@@ -184,33 +218,22 @@ function Dashboard() {
                     {stat.value}
                   </div>
                   <div style={{ 
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    padding: '4px 10px',
-                    borderRadius: 20,
-                    background: stat.lightBg,
-                    fontSize: 12,
-                    fontWeight: 500,
-                    color: stat.changeColor
+                    display: 'inline-flex', alignItems: 'center',
+                    padding: '4px 10px', borderRadius: 20,
+                    background: stat.lightBg, fontSize: 12,
+                    fontWeight: 500, color: stat.changeColor
                   }}>
                     <RiseOutlined style={{ marginRight: 4 }} />
                     {stat.change} 本月
                   </div>
                 </div>
-                <div
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: 16,
-                    background: stat.gradient,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 26,
-                    color: '#fff',
-                    boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.15)',
-                  }}
-                >
+                <div style={{
+                  width: 56, height: 56, borderRadius: 16,
+                  background: stat.gradient,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 26, color: '#fff',
+                  boxShadow: '0 8px 16px -4px rgba(0, 0, 0, 0.15)',
+                }}>
                   {stat.icon}
                 </div>
               </div>
@@ -222,15 +245,9 @@ function Dashboard() {
       <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
         <Col xs={24} lg={12}>
           <Card
-            title={
-              <span style={{ fontWeight: 600, fontSize: 16 }}>漏斗阶段分布</span>
-            }
+            title={<span style={{ fontWeight: 600, fontSize: 16 }}>漏斗阶段分布</span>}
             extra={
-              <Button 
-                type="link" 
-                onClick={() => navigate('/funnel')}
-                style={{ fontWeight: 500 }}
-              >
+              <Button type="link" onClick={() => navigate('/funnel')} style={{ fontWeight: 500 }}>
                 查看详情 <ArrowRightOutlined />
               </Button>
             }
@@ -238,7 +255,7 @@ function Dashboard() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <div style={{ padding: '4px 0' }}>
-              {funnelStages.map((stage, idx) => {
+              {funnelStats.map((stage, idx) => {
                 const gradients = [
                   'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
                   'linear-gradient(90deg, #f093fb 0%, #f5576c 100%)',
@@ -250,32 +267,12 @@ function Dashboard() {
                   'linear-gradient(90deg, #d299c2 0%, #fef9d7 100%)',
                 ];
                 return (
-                  <div
-                    key={stage.code}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      marginBottom: 16,
-                      gap: 16,
-                    }}
-                  >
-                    <span style={{ 
-                      width: 90, 
-                      fontSize: 13, 
-                      color: '#555',
-                      fontWeight: 500 
-                    }}>
-                      {stage.name}
-                    </span>
+                  <div key={stage.stage} style={{ display: 'flex', alignItems: 'center', marginBottom: 16, gap: 16 }}>
+                    <span style={{ width: 90, fontSize: 13, color: '#555', fontWeight: 500 }}>{stage.name}</span>
                     <div style={{ flex: 1, position: 'relative' }}>
-                      <div style={{
-                        height: 10,
-                        borderRadius: 5,
-                        background: '#f0f0f0',
-                        overflow: 'hidden'
-                      }}>
+                      <div style={{ height: 10, borderRadius: 5, background: '#f0f0f0', overflow: 'hidden' }}>
                         <div style={{
-                          width: `${(stage.count / totalEnterprises) * 100}%`,
+                          width: totalEnterprises > 0 ? `${(stage.count / totalEnterprises) * 100}%` : '0%',
                           height: '100%',
                           background: gradients[idx % gradients.length],
                           borderRadius: 5,
@@ -283,13 +280,7 @@ function Dashboard() {
                         }} />
                       </div>
                     </div>
-                    <span style={{ 
-                      width: 45, 
-                      textAlign: 'right', 
-                      fontWeight: 600,
-                      fontSize: 14,
-                      color: '#333'
-                    }}>
+                    <span style={{ width: 45, textAlign: 'right', fontWeight: 600, fontSize: 14, color: '#333' }}>
                       {stage.count}
                     </span>
                   </div>
@@ -326,94 +317,34 @@ function Dashboard() {
             bodyStyle={{ padding: '20px 24px' }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <Button
-                type="default"
-                icon={<PlusOutlined />}
-                block
-                size="large"
-                style={{ 
-                  textAlign: 'left', 
-                  height: 52, 
-                  background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
-                  borderColor: 'rgba(102, 126, 234, 0.3)',
-                  borderRadius: 12,
-                  fontWeight: 500
-                }}
-                onClick={() => navigate('/enterprise')}
-              >
+              <Button type="default" icon={<PlusOutlined />} block size="large"
+                style={{ textAlign: 'left', height: 52, background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)', borderColor: 'rgba(102, 126, 234, 0.3)', borderRadius: 12, fontWeight: 500 }}
+                onClick={() => navigate('/enterprise')}>
                 新增企业
               </Button>
-              <Button
-                type="default"
-                icon={<RiseOutlined />}
-                block
-                size="large"
-                style={{ 
-                  textAlign: 'left', 
-                  height: 52, 
-                  background: 'linear-gradient(135deg, rgba(67, 233, 123, 0.1) 0%, rgba(56, 249, 215, 0.1) 100%)',
-                  borderColor: 'rgba(67, 233, 123, 0.3)',
-                  borderRadius: 12,
-                  fontWeight: 500
-                }}
-                onClick={() => navigate('/follow-up')}
-              >
+              <Button type="default" icon={<RiseOutlined />} block size="large"
+                style={{ textAlign: 'left', height: 52, background: 'linear-gradient(135deg, rgba(67, 233, 123, 0.1) 0%, rgba(56, 249, 215, 0.1) 100%)', borderColor: 'rgba(67, 233, 123, 0.3)', borderRadius: 12, fontWeight: 500 }}
+                onClick={() => navigate('/follow-up')}>
                 添加跟进
               </Button>
-              <Button
-                type="default"
-                icon={<FunnelPlotOutlined />}
-                block
-                size="large"
-                style={{ 
-                  textAlign: 'left', 
-                  height: 52, 
-                  background: 'linear-gradient(135deg, rgba(240, 147, 251, 0.1) 0%, rgba(245, 87, 108, 0.1) 100%)',
-                  borderColor: 'rgba(240, 147, 251, 0.3)',
-                  borderRadius: 12,
-                  fontWeight: 500
-                }}
-                onClick={() => navigate('/funnel')}
-              >
+              <Button type="default" icon={<FunnelPlotOutlined />} block size="large"
+                style={{ textAlign: 'left', height: 52, background: 'linear-gradient(135deg, rgba(240, 147, 251, 0.1) 0%, rgba(245, 87, 108, 0.1) 100%)', borderColor: 'rgba(240, 147, 251, 0.3)', borderRadius: 12, fontWeight: 500 }}
+                onClick={() => navigate('/funnel')}>
                 漏斗分析
               </Button>
             </div>
-            <div style={{ 
-              marginTop: 20, 
-              paddingTop: 20, 
-              borderTop: '1px solid #f0f0f0' 
-            }}>
+            <div style={{ marginTop: 20, paddingTop: 20, borderTop: '1px solid #f0f0f0' }}>
               <Text strong style={{ fontSize: 14, color: '#333' }}>待跟进提醒</Text>
               <List
                 size="small"
                 style={{ marginTop: 12 }}
                 dataSource={[
-                  { 
-                    icon: <WarningOutlined />, 
-                    text: '12家企业超过30天未跟进',
-                    bg: 'linear-gradient(135deg, rgba(250, 173, 20, 0.15) 0%, rgba(255, 193, 7, 0.1) 100%)',
-                    color: '#d48806'
-                  },
-                  { 
-                    icon: <ClockCircleOutlined />, 
-                    text: '5家企业本周需回访',
-                    bg: 'linear-gradient(135deg, rgba(79, 172, 254, 0.15) 0%, rgba(0, 242, 254, 0.1) 100%)',
-                    color: '#1890ff'
-                  },
+                  { icon: <WarningOutlined />, text: `${pendingFollowUps?.overdue30Days || 0}家企业超过30天未跟进`, bg: 'linear-gradient(135deg, rgba(250, 173, 20, 0.15) 0%, rgba(255, 193, 7, 0.1) 100%)', color: '#d48806' },
+                  { icon: <ClockCircleOutlined />, text: `${pendingFollowUps?.needFollowThisWeek || 0}家企业本周需回访`, bg: 'linear-gradient(135deg, rgba(79, 172, 254, 0.15) 0%, rgba(0, 242, 254, 0.1) 100%)', color: '#1890ff' },
                 ]}
                 renderItem={(item) => (
                   <List.Item style={{ padding: '6px 0', border: 'none' }}>
-                    <div style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: 10, 
-                      fontSize: 13, 
-                      color: '#555',
-                      padding: '10px 14px',
-                      borderRadius: 10,
-                      background: item.bg,
-                      width: '100%'
-                    }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, color: '#555', padding: '10px 14px', borderRadius: 10, background: item.bg, width: '100%' }}>
                       <span style={{ color: item.color, fontSize: 16 }}>{item.icon}</span>
                       <span style={{ fontWeight: 500 }}>{item.text}</span>
                     </div>

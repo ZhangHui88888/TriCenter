@@ -113,7 +113,6 @@ export const enterprises: Enterprise[] = [
     domestic_revenue: '1000-5000',
     crossborder_revenue: '200-500',
     funnel_stage: 'HAS_DEMAND',
-    assignee: '张明',
     source: '调研',
     contacts: [
       { name: '王总', phone: '13800138001', position: '总经理', is_primary: true },
@@ -139,7 +138,6 @@ export const enterprises: Enterprise[] = [
     domestic_revenue: '5000以上',
     crossborder_revenue: '1000-5000',
     funnel_stage: 'SIGNED',
-    assignee: '李华',
     source: '转介绍',
     contacts: [
       { name: '陈董', phone: '13900139001', position: '董事长', is_primary: true }
@@ -164,7 +162,6 @@ export const enterprises: Enterprise[] = [
     domestic_revenue: '500-1000',
     crossborder_revenue: '0',
     funnel_stage: 'POTENTIAL',
-    assignee: '王芳',
     source: '活动',
     contacts: [
       { name: '刘总', phone: '13700137001', position: '总经理', is_primary: true }
@@ -189,7 +186,6 @@ export const enterprises: Enterprise[] = [
     domestic_revenue: '5000以上',
     crossborder_revenue: '500-1000',
     funnel_stage: 'SETTLED',
-    assignee: '张明',
     source: '主动咨询',
     contacts: [
       { name: '赵总', phone: '13600136001', position: '总经理', is_primary: true },
@@ -215,7 +211,6 @@ export const enterprises: Enterprise[] = [
     domestic_revenue: '1000-5000',
     crossborder_revenue: '200以下',
     funnel_stage: 'NO_DEMAND',
-    assignee: '李华',
     source: '调研',
     contacts: [
       { name: '孙总', phone: '13500135001', position: '总经理', is_primary: true }
@@ -240,7 +235,6 @@ export const enterprises: Enterprise[] = [
     domestic_revenue: '1000-5000',
     crossborder_revenue: '0',
     funnel_stage: 'NO_INTENTION',
-    assignee: '王芳',
     source: '调研',
     contacts: [
       { name: '吴总', phone: '13400134001', position: '总经理', is_primary: true }
@@ -265,7 +259,6 @@ export const enterprises: Enterprise[] = [
     domestic_revenue: '500-1000',
     crossborder_revenue: '200-500',
     funnel_stage: 'INCUBATING',
-    assignee: '张明',
     source: '转介绍',
     contacts: [
       { name: '郑总', phone: '13300133001', position: '总经理', is_primary: true },

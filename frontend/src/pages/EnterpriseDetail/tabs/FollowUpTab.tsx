@@ -1,4 +1,4 @@
-import { Card, Table, Button, Space, Tag, Typography } from 'antd';
+import { Card, Table, Button, Space, Typography } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
@@ -7,6 +7,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { FollowUpTabProps } from '../types';
+import StageChangeIndicator from '../components/StageChangeIndicator';
 
 const { Text } = Typography;
 
@@ -25,18 +26,21 @@ export default function FollowUpTab({
     {
       title: '阶段变化',
       key: 'stage_change',
-      width: 180,
+      width: 280,
       render: (_: unknown, record: { stage_before?: string; stage_after?: string }) => {
         if (record.stage_before && record.stage_after && record.stage_before !== record.stage_after) {
+          const stageBefore = getStageInfo(record.stage_before);
+          const stageAfter = getStageInfo(record.stage_after);
           return (
-            <span>
-              <Tag color={getStageInfo(record.stage_before).color}>{getStageInfo(record.stage_before).name}</Tag>
-              →
-              <Tag color={getStageInfo(record.stage_after).color}>{getStageInfo(record.stage_after).name}</Tag>
-            </span>
+            <StageChangeIndicator
+              stageBefore={stageBefore}
+              stageAfter={stageAfter}
+            />
           );
         }
-        return '-';
+        return (
+          <span style={{ color: '#bfbfbf', fontSize: 13 }}>—</span>
+        );
       },
     },
     {

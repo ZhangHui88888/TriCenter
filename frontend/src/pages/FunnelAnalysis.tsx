@@ -1,11 +1,88 @@
-import { Card, Row, Col, Typography, Table, Progress } from 'antd';
+import { useState, useEffect } from 'react';
+import { Card, Row, Col, Typography, Table, Progress, Spin } from 'antd';
 import { ArrowRightOutlined, RiseOutlined, ArrowUpOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
-import { funnelStages, conversionData } from '@/data/mockData';
+import { dashboardApi } from '@/services/api';
 
 const { Title, Text } = Typography;
 
+// 漏斗阶段配置
+const FUNNEL_STAGES_CONFIG = [
+  { code: 'POTENTIAL', name: '潜在企业', color: '#94a3b8' },
+  { code: 'NO_DEMAND', name: '无明确需求', color: '#fbbf24' },
+  { code: 'NO_INTENTION', name: '没有合作意向', color: '#ef4444' },
+  { code: 'HAS_DEMAND', name: '有明确需求', color: '#3b82f6' },
+  { code: 'SIGNED', name: '已签约', color: '#8b5cf6' },
+  { code: 'SETTLED', name: '已入驻', color: '#10b981' },
+  { code: 'INCUBATING', name: '重点孵化', color: '#f97316' },
+];
+
+// 转化数据（待后端API开发后替换）
+const defaultConversionData = [
+  { from: '潜在企业', to: '有明确需求', count: 0, rate: 0 },
+  { from: '潜在企业', to: '无明确需求', count: 0, rate: 0 },
+  { from: '无明确需求', to: '有明确需求', count: 0, rate: 0 },
+  { from: '无明确需求', to: '没有合作意向', count: 0, rate: 0 },
+  { from: '有明确需求', to: '已签约', count: 0, rate: 0 },
+  { from: '已签约', to: '已入驻', count: 0, rate: 0 },
+  { from: '已入驻', to: '重点孵化', count: 0, rate: 0 },
+];
+
 function FunnelAnalysis() {
+  const [loading, setLoading] = useState(true);
+  const [funnelStages, setFunnelStages] = useState<any[]>([]);
+  const [conversionData, setConversionData] = useState(defaultConversionData);
+  
+  // 加载漏斗数据
+  const fetchFunnelData = async () => {
+    setLoading(true);
+    try {
+      const response = await dashboardApi.getFunnelStats();
+      if (response.data) {
+        // 合并配置和数据
+        const stages = FUNNEL_STAGES_CONFIG.map(config => {
+          const data = response.data.find((d: any) => d.code === config.code);
+          return {
+            ...config,
+            count: data?.count || 0,
+          };
+        });
+        setFunnelStages(stages);
+        
+        // 计算转化数据
+        const newConversionData = [
+          { from: '潜在企业', to: '有明确需求', count: 0, rate: 0 },
+          { from: '潜在企业', to: '无明确需求', count: 0, rate: 0 },
+          { from: '无明确需求', to: '有明确需求', count: 0, rate: 0 },
+          { from: '无明确需求', to: '没有合作意向', count: 0, rate: 0 },
+          { from: '有明确需求', to: '已签约', count: 0, rate: 0 },
+          { from: '已签约', to: '已入驻', count: 0, rate: 0 },
+          { from: '已入驻', to: '重点孵化', count: 0, rate: 0 },
+        ];
+        
+        // 根据阶段数据计算转化率
+        const getCount = (name: string) => stages.find((s: any) => s.name === name)?.count || 0;
+        newConversionData.forEach(item => {
+          const fromCount = getCount(item.from);
+          const toCount = getCount(item.to);
+          item.count = toCount;
+          item.rate = fromCount > 0 ? Math.round((toCount / fromCount) * 100 * 10) / 10 : 0;
+        });
+        setConversionData(newConversionData);
+      }
+    } catch (error) {
+      console.error('Failed to fetch funnel data:', error);
+      // 使用默认空数据
+      setFunnelStages(FUNNEL_STAGES_CONFIG.map(c => ({ ...c, count: 0 })));
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  useEffect(() => {
+    fetchFunnelData();
+  }, []);
+
   const totalEnterprises = funnelStages.reduce((sum, s) => sum + s.count, 0);
   
   const potentialCount = funnelStages.find(s => s.code === 'POTENTIAL')?.count || 0;
@@ -129,12 +206,13 @@ function FunnelAnalysis() {
         <Text type="secondary">企业转化漏斗分析与趋势</Text>
       </div>
 
-      <Row gutter={[16, 16]}>
-        <Col xs={24} lg={14}>
-          <Card title="转化漏斗">
-            <ReactECharts option={funnelOption} style={{ height: 400 }} />
-          </Card>
-        </Col>
+      <Spin spinning={loading}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} lg={14}>
+            <Card title="转化漏斗">
+              <ReactECharts option={funnelOption} style={{ height: 400 }} />
+            </Card>
+          </Col>
         <Col xs={24} lg={10}>
           <Card title="阶段转化率" style={{ marginBottom: 16 }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -270,6 +348,7 @@ function FunnelAnalysis() {
           </Card>
         </Col>
       </Row>
+      </Spin>
     </div>
   );
 }

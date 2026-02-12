@@ -7,6 +7,9 @@ import EnterpriseList from './pages/EnterpriseList'
 import EnterpriseDetail from './pages/EnterpriseDetail'
 import FollowUpRecords from './pages/FollowUpRecords'
 import FunnelAnalysis from './pages/FunnelAnalysis'
+import DataDictionary from './pages/DataDictionary'
+import Login from './pages/Login'
+import AuthGuard from './components/AuthGuard'
 import { useThemeStore } from './stores/themeStore'
 import { lightTheme, darkTheme } from './theme/themeConfig'
 
@@ -19,13 +22,22 @@ function App() {
       <div className={mode === 'dark' ? 'dark-mode' : 'light-mode'}>
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<MainLayout />}>
+            {/* 登录页面 */}
+            <Route path="/login" element={<Login />} />
+            
+            {/* 需要认证的页面 */}
+            <Route path="/" element={
+              <AuthGuard>
+                <MainLayout />
+              </AuthGuard>
+            }>
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="enterprise" element={<EnterpriseList />} />
               <Route path="enterprise/:id" element={<EnterpriseDetail />} />
               <Route path="funnel" element={<FunnelAnalysis />} />
               <Route path="follow-up" element={<FollowUpRecords />} />
+              <Route path="dictionary" element={<DataDictionary />} />
             </Route>
           </Routes>
         </BrowserRouter>

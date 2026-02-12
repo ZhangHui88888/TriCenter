@@ -672,3 +672,59 @@ body {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.4; }
 }
+
+
+/* ===== 阶段选择器样式 ===== */
+.stage-selector .ant-select-selector {
+  height: 52px !important;
+  padding: 8px 16px !important;
+  border-radius: 12px !important;
+  border: 1px solid #e2e8f0 !important;
+  background: linear-gradient(135deg, #fafbfc 0%, #f1f5f9 100%) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04) !important;
+  transition: all 0.25s ease !important;
+}
+
+.stage-selector .ant-select-selector:hover {
+  border-color: #667eea !important;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.15) !important;
+}
+
+.stage-selector.ant-select-focused .ant-select-selector {
+  border-color: #667eea !important;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+}
+
+.stage-selector .ant-select-selection-item {
+  display: flex !important;
+  align-items: center !important;
+  line-height: 34px !important;
+}
+
+.stage-selector .ant-select-arrow {
+  color: #667eea !important;
+  font-size: 12px !important;
+}
+
+/* 下拉菜单样式 */
+.ant-select-dropdown {
+  border-radius: 12px !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12) !important;
+  padding: 6px !important;
+}
+
+.ant-select-item {
+  border-radius: 8px !important;
+  padding: 10px 12px !important;
+  margin: 2px 0 !important;
+  transition: all 0.2s ease !important;
+}
+
+.ant-select-item-option-active {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.05) 100%) !important;
+}
+
+.ant-select-item-option-selected {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.1) 100%) !important;
+  font-weight: 600 !important;
+}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import dayjs from 'dayjs';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -18,6 +18,7 @@ import {
   message,
   Collapse,
   Cascader,
+  Spin,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -36,14 +37,37 @@ import {
   CloseOutlined,
   DownOutlined,
   RightOutlined,
+  ArrowRightOutlined,
+  RiseOutlined,
+  FallOutlined,
 } from '@ant-design/icons';
-import { Rate, Switch } from 'antd';
+import { Rate, Switch, Slider } from 'antd';
 import { Form, Input, DatePicker } from 'antd';
 import { FOLLOW_UP_TYPES } from '@/utils/constants';
-import { enterprises, funnelStages, followUpRecords, industryCategories } from '@/data/mockData';
 import { dimensions, calculateRequirements, groupRequirementsByPhase, dimensionRequirementMapping, type RequirementItem } from '@/data/requirementsData';
+import { enterpriseApi, optionsApi } from '@/services/api';
+
+// 漏斗阶段配置
+const FUNNEL_STAGES = [
+  { code: 'POTENTIAL', name: '潜在企业', color: '#94a3b8' },
+  { code: 'NO_DEMAND', name: '无明确需求', color: '#fbbf24' },
+  { code: 'NO_INTENTION', name: '没有合作意向', color: '#ef4444' },
+  { code: 'HAS_DEMAND', name: '有明确需求', color: '#3b82f6' },
+  { code: 'SIGNED', name: '已签约', color: '#8b5cf6' },
+  { code: 'SETTLED', name: '已入驻', color: '#10b981' },
+  { code: 'INCUBATING', name: '重点孵化', color: '#f97316' },
+];
 
 const { Title, Text } = Typography;
+
+// 阶段顺序映射，用于判断升级/降级
+const stageOrder: Record<string, number> = {
+  '潜在企业': 1,
+  '有明确需求': 2,
+  '已对接': 3,
+  '已签约': 4,
+  '已落地': 5,
+};
 
 function EnterpriseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -63,6 +87,14 @@ function EnterpriseDetail() {
   const [isCrossborderPlatformModalOpen, setIsCrossborderPlatformModalOpen] = useState(false);
   const [isCrossborderBasicModalOpen, setIsCrossborderBasicModalOpen] = useState(false);
   const [isMarketModalOpen, setIsMarketModalOpen] = useState(false);
+  // 目标市场数据状态
+  const [targetMarkets, setTargetMarkets] = useState<{market: string; percentage: number}[]>([
+    { market: '北美', percentage: 40 },
+    { market: '欧洲', percentage: 30 },
+    { market: '东南亚', percentage: 20 },
+    { market: '大洋洲', percentage: 10 },
+  ]);
+  const [marketForm] = Form.useForm();
   const [isCrossborderNeedsModalOpen, setIsCrossborderNeedsModalOpen] = useState(false);
   const [isTriCenterCoopModalOpen, setIsTriCenterCoopModalOpen] = useState(false);
   const [isCrossborderPainModalOpen, setIsCrossborderPainModalOpen] = useState(false);
@@ -73,12 +105,14 @@ function EnterpriseDetail() {
   const [isCompetitionModalOpen, setIsCompetitionModalOpen] = useState(false);
   const [isCompetitorModalOpen, setIsCompetitorModalOpen] = useState(false);
   const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
+  const [competitionPosition, setCompetitionPosition] = useState('medium'); // 行业竞争地位: leader/medium/startup
+  const [competitionDesc, setCompetitionDesc] = useState('在常州园艺制品行业处于中等偏上水平，具有一定的市场份额和品牌知名度');
   const [editingFollowUp, setEditingFollowUp] = useState<any>(null);
   const [isCooperating, setIsCooperating] = useState(true);
   const [hasForeignTrade, setHasForeignTrade] = useState(true);
   const [hasCrossborderEcommerce, setHasCrossborderEcommerce] = useState(true);
   const [isSurveyed, setIsSurveyed] = useState(false);
-  const [selectedCrossborderPlatforms, setSelectedCrossborderPlatforms] = useState<string[]>(['亚马逊', '阿里国际站']);
+  const [selectedCrossborderPlatforms, setSelectedCrossborderPlatforms] = useState<string[]>(['亚马逊 (Amazon)', '阿里国际站 (Alibaba.com)']);
   const [selectedStage, setSelectedStage] = useState('');
   const [removedRequirements, setRemovedRequirements] = useState<string[]>([]);
   const [customRequirements, setCustomRequirements] = useState<{id: string; name: string; description: string; phase: string; category: string}[]>([]);
@@ -90,6 +124,8 @@ function EnterpriseDetail() {
   const [tradeChangeDirection, setTradeChangeDirection] = useState<'up' | 'down'>('up');
   const [editingTradeChange, setEditingTradeChange] = useState<{name: string; rate: string} | null>(null);
   const [tradeChangeForm] = Form.useForm();
+  const [isTradePerformanceModalOpen, setIsTradePerformanceModalOpen] = useState(false);
+  const [tradePerformanceForm] = Form.useForm();
   
   // 外贸业绩变化数据 - type: region(区域) / country(国家)
   const [marketChanges, setMarketChanges] = useState({
@@ -118,7 +154,162 @@ function EnterpriseDetail() {
   const [brandForm] = Form.useForm();
   const [patentForm] = Form.useForm();
 
-  const enterprise = enterprises.find(e => e.id === Number(id));
+  // 企业数据状态
+  const [enterprise, setEnterprise] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [enterpriseRecords, setEnterpriseRecords] = useState<any[]>([]);
+  const [industryCategories, setIndustryCategories] = useState<any[]>([]);
+  
+  // 选项数据状态
+  const [staffSizeOptions, setStaffSizeOptions] = useState<any[]>([]);
+  const [domesticRevenueOptions, setDomesticRevenueOptions] = useState<any[]>([]);
+  const [crossBorderRevenueOptions, setCrossBorderRevenueOptions] = useState<any[]>([]);
+  const [sourceOptions, setSourceOptions] = useState<any[]>([]);
+
+  // 加载行业分类
+  useEffect(() => {
+    const fetchIndustries = async () => {
+      try {
+        const response = await optionsApi.getIndustries();
+        if (response.data) {
+          // 转换为Cascader需要的格式
+          const convertToOptions = (items: any[]): any[] => {
+            return items.map(item => ({
+              value: item.id,
+              label: item.name,
+              children: item.children ? convertToOptions(item.children) : undefined,
+            }));
+          };
+          setIndustryCategories(convertToOptions(response.data));
+        }
+      } catch (error) {
+        console.error('Failed to fetch industries:', error);
+      }
+    };
+    fetchIndustries();
+  }, []);
+
+  // 加载选项数据
+  useEffect(() => {
+    const fetchOptions = async () => {
+      try {
+        const [staffSize, domesticRevenue, crossBorderRevenue, source] = await Promise.all([
+          optionsApi.getOptions('staff_size'),
+          optionsApi.getOptions('domestic_revenue'),
+          optionsApi.getOptions('cross_border_revenue'),
+          optionsApi.getOptions('source'),
+        ]);
+        if (staffSize.data) setStaffSizeOptions(staffSize.data.map((o: any) => ({ label: o.label, value: o.id })));
+        if (domesticRevenue.data) setDomesticRevenueOptions(domesticRevenue.data.map((o: any) => ({ label: o.label, value: o.id })));
+        if (crossBorderRevenue.data) setCrossBorderRevenueOptions(crossBorderRevenue.data.map((o: any) => ({ label: o.label, value: o.id })));
+        if (source.data) setSourceOptions(source.data.map((o: any) => ({ label: o.label, value: o.id })));
+      } catch (error) {
+        console.error('Failed to fetch options:', error);
+      }
+    };
+    fetchOptions();
+  }, []);
+
+  // 从API获取企业详情
+  useEffect(() => {
+    const fetchEnterprise = async () => {
+      if (!id) return;
+      setLoading(true);
+      try {
+        const response = await enterpriseApi.getDetail(Number(id));
+        if (response.data) {
+          // 转换API响应字段名为前端使用的字段名
+          const data = response.data;
+          setEnterprise({
+            id: data.id,
+            enterprise_name: data.name,
+            unified_credit_code: data.creditCode,
+            province: data.province,
+            city: data.city,
+            district: data.district,
+            detailed_address: data.address,
+            industry: data.industryName,
+            industry_id: data.industryId,
+            enterprise_type: data.enterpriseType,
+            employee_scale: data.staffSizeLabel,
+            staff_size_id: data.staffSizeId,
+            website: data.website,
+            domestic_revenue: data.domesticRevenueLabel,
+            domestic_revenue_id: data.domesticRevenueId,
+            crossborder_revenue: data.crossBorderRevenueLabel,
+            crossborder_revenue_id: data.crossBorderRevenueId,
+            source: data.sourceLabel,
+            source_id: data.sourceId,
+            funnel_stage: data.stage,
+            stage_name: data.stageName,
+            stage_color: data.stageColor,
+            contacts: data.contacts || [],
+            has_own_brand: data.hasOwnBrand,
+            brand_names: data.brandNames,
+            target_region_ids: data.targetRegionIds,
+            target_country_ids: data.targetCountryIds,
+            trade_mode_id: data.tradeModeId,
+            trade_mode: data.tradeModeLabel,
+            has_import_export_license: data.hasImportExportLicense,
+            customs_declaration_mode: data.customsDeclarationMode,
+            trade_team_mode_id: data.tradeTeamModeId,
+            trade_team_mode: data.tradeTeamModeLabel,
+            trade_team_size: data.tradeTeamSize,
+            has_domestic_ecommerce: data.hasDomesticEcommerce,
+            last_year_revenue: data.lastYearRevenue,
+            year_before_last_revenue: data.yearBeforeLastRevenue,
+            has_cross_border: data.hasCrossBorder,
+            cross_border_ratio: data.crossBorderRatio,
+            cross_border_logistics: data.crossBorderLogistics,
+            payment_settlement: data.paymentSettlement,
+            cross_border_team_size: data.crossBorderTeamSize,
+            using_erp: data.usingErp,
+            transformation_willingness: data.transformationWillingness,
+            investment_willingness: data.investmentWillingness,
+            cross_border_platforms: data.crossBorderPlatforms,
+            target_markets: data.targetMarkets,
+            service_cooperation_rating: data.serviceCooperationRating,
+            investment_cooperation_rating: data.investmentCooperationRating,
+            incubation_cooperation_rating: data.incubationCooperationRating,
+            brand_cooperation_rating: data.brandCooperationRating,
+            training_cooperation_rating: data.trainingCooperationRating,
+            overall_cooperation_rating: data.overallCooperationRating,
+            benchmark_possibility: data.benchmarkPossibility,
+            additional_notes: data.additionalNotes,
+            has_policy_support: data.hasPolicySupport,
+            enjoyed_policies: data.enjoyedPolicies,
+            competition_position: data.competitionPosition,
+            competition_description: data.competitionDescription,
+            pain_points: data.painPoints,
+            tricenter_demands: data.tricenterDemands,
+            tricenter_concerns: data.tricenterConcerns,
+            products: data.products || [],
+            patents: data.patents || [],
+            created_at: data.createdAt,
+            updated_at: data.updatedAt,
+          });
+        }
+      } catch (error: any) {
+        console.error('Failed to fetch enterprise:', error);
+        message.error('获取企业详情失败');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEnterprise();
+  }, [id]);
+
+  // 加载中状态
+  if (loading) {
+    return (
+      <Card>
+        <div style={{ textAlign: 'center', padding: 48 }}>
+          <Spin size="large" />
+          <div style={{ marginTop: 16 }}>加载中...</div>
+        </div>
+      </Card>
+    );
+  }
 
   if (!enterprise) {
     return (
@@ -134,11 +325,10 @@ function EnterpriseDetail() {
   }
 
   const getStageInfo = (code: string) => {
-    return funnelStages.find(s => s.code === code) || { name: code, color: '#94a3b8' };
+    return FUNNEL_STAGES.find(s => s.code === code) || { name: code, color: '#94a3b8' };
   };
 
   const stageInfo = getStageInfo(enterprise.funnel_stage);
-  const enterpriseRecords = followUpRecords.filter(r => r.enterprise_id === enterprise.id);
 
   const handleStageChange = () => {
     message.success('阶段变更成功');
@@ -180,20 +370,89 @@ function EnterpriseDetail() {
     });
   };
 
-  const handleEditEnterprise = () => {
-    editForm.validateFields().then(() => {
+  const handleEditEnterprise = async () => {
+    try {
+      const values = await editForm.validateFields();
+      // 处理行业ID（Cascader返回数组，取最后一个值）
+      const industryId = Array.isArray(values.industry_id) 
+        ? values.industry_id[values.industry_id.length - 1] 
+        : values.industry_id;
+      // 构建更新数据
+      const updateData = {
+        name: values.enterprise_name,
+        creditCode: values.unified_credit_code,
+        province: values.province,
+        city: values.city,
+        district: values.district,
+        address: values.detailed_address,
+        industryId: industryId,
+        enterpriseType: values.enterprise_type,
+        staffSizeId: values.staff_size_id,
+        website: values.website,
+        domesticRevenueId: values.domestic_revenue_id,
+        crossBorderRevenueId: values.crossborder_revenue_id,
+        sourceId: values.source_id,
+      };
+      await enterpriseApi.update(enterprise.id, updateData);
+      // 重新获取企业详情以更新显示
+      const response = await enterpriseApi.getDetail(enterprise.id);
+      if (response.data) {
+        const data = response.data;
+        setEnterprise({
+          ...enterprise,
+          enterprise_name: data.name,
+          unified_credit_code: data.creditCode,
+          province: data.province,
+          city: data.city,
+          district: data.district,
+          detailed_address: data.address,
+          industry: data.industryName,
+          industry_id: data.industryId,
+          enterprise_type: data.enterpriseType,
+          employee_scale: data.staffSizeLabel,
+          staff_size_id: data.staffSizeId,
+          website: data.website,
+          domestic_revenue: data.domesticRevenueLabel,
+          domestic_revenue_id: data.domesticRevenueId,
+          crossborder_revenue: data.crossBorderRevenueLabel,
+          crossborder_revenue_id: data.crossBorderRevenueId,
+          source: data.sourceLabel,
+          source_id: data.sourceId,
+        });
+      }
       message.success('企业信息更新成功');
       setIsEditEnterpriseOpen(false);
       editForm.resetFields();
-    });
+    } catch (error: any) {
+      if (error.errorFields) return; // 表单验证错误
+      message.error(error.message || '更新失败');
+    }
   };
 
-  const handleEditContact = () => {
-    editForm.validateFields().then(() => {
+  const handleEditContact = async () => {
+    try {
+      const values = await editForm.validateFields();
+      // 构建联系人数据
+      const contacts = [{
+        name: values.contact_name,
+        phone: values.contact_phone,
+        position: values.contact_position,
+        isPrimary: true,
+      }];
+      // 调用API更新联系人
+      await enterpriseApi.update(enterprise.id, { contacts });
+      // 更新本地状态
+      setEnterprise({
+        ...enterprise,
+        contacts: contacts,
+      });
       message.success('联系人信息更新成功');
       setIsEditContactOpen(false);
       editForm.resetFields();
-    });
+    } catch (error: any) {
+      if (error.errorFields) return;
+      message.error(error.message || '更新失败');
+    }
   };
 
   const handleAddProduct = () => {
@@ -276,20 +535,30 @@ function EnterpriseDetail() {
     if (section === 'enterprise') {
       editForm.setFieldsValue({
         enterprise_name: enterprise.enterprise_name,
+        unified_credit_code: enterprise.unified_credit_code,
         province: enterprise.province,
         city: enterprise.city,
         district: enterprise.district,
-        industry: enterprise.industry,
+        industry_id: enterprise.industry_id ? [enterprise.industry_id] : undefined,
         enterprise_type: enterprise.enterprise_type,
-        employee_scale: enterprise.employee_scale,
+        staff_size_id: enterprise.staff_size_id,
         detailed_address: enterprise.detailed_address,
-        domestic_revenue: enterprise.domestic_revenue,
-        crossborder_revenue: enterprise.crossborder_revenue,
-        source: enterprise.source,
+        domestic_revenue_id: enterprise.domestic_revenue_id,
+        crossborder_revenue_id: enterprise.crossborder_revenue_id,
+        source_id: enterprise.source_id,
         website: enterprise.website,
       });
       setIsEditEnterpriseOpen(true);
     } else if (section === 'contact') {
+      // 设置联系人表单值
+      const primaryContact = enterprise.contacts?.find((c: any) => c.isPrimary) || enterprise.contacts?.[0];
+      if (primaryContact) {
+        editForm.setFieldsValue({
+          contact_name: primaryContact.name,
+          contact_phone: primaryContact.phone,
+          contact_position: primaryContact.position,
+        });
+      }
       setIsEditContactOpen(true);
     }
   };
@@ -302,18 +571,108 @@ function EnterpriseDetail() {
     {
       title: '阶段变化',
       key: 'stage_change',
-      width: 180,
+      width: 320,
       render: (_: unknown, record: { stage_before?: string; stage_after?: string }) => {
         if (record.stage_before && record.stage_after && record.stage_before !== record.stage_after) {
+          const stageBefore = getStageInfo(record.stage_before);
+          const stageAfter = getStageInfo(record.stage_after);
+          const beforeOrder = stageOrder[stageBefore.name] || 0;
+          const afterOrder = stageOrder[stageAfter.name] || 0;
+          const isUpgrade = afterOrder > beforeOrder;
+          const themeColor = isUpgrade ? '#52c41a' : '#faad14';
+
           return (
-            <span>
-              <Tag color={getStageInfo(record.stage_before).color}>{getStageInfo(record.stage_before).name}</Tag>
-              →
-              <Tag color={getStageInfo(record.stage_after).color}>{getStageInfo(record.stage_after).name}</Tag>
-            </span>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 12px',
+                borderRadius: 20,
+                background: isUpgrade 
+                  ? 'linear-gradient(135deg, rgba(82,196,26,0.08) 0%, rgba(255,255,255,0.95) 100%)'
+                  : 'linear-gradient(135deg, rgba(250,173,20,0.08) 0%, rgba(255,255,255,0.95) 100%)',
+                border: `1px solid ${isUpgrade ? 'rgba(82,196,26,0.2)' : 'rgba(250,173,20,0.2)'}`,
+              }}
+            >
+              {/* 起始阶段 */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 10px',
+                  borderRadius: 12,
+                  background: `${stageBefore.color}12`,
+                  border: `1px solid ${stageBefore.color}30`,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: stageBefore.color,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: stageBefore.color,
+                    opacity: 0.6,
+                  }}
+                />
+                {stageBefore.name}
+              </div>
+
+              {/* 箭头指示器 */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  padding: '4px 8px',
+                  borderRadius: 10,
+                  background: `${themeColor}15`,
+                }}
+              >
+                {isUpgrade ? (
+                  <RiseOutlined style={{ fontSize: 14, color: themeColor }} />
+                ) : (
+                  <FallOutlined style={{ fontSize: 14, color: themeColor }} />
+                )}
+                <ArrowRightOutlined style={{ fontSize: 12, color: themeColor }} />
+              </div>
+
+              {/* 目标阶段 */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 10px',
+                  borderRadius: 12,
+                  background: `${stageAfter.color}20`,
+                  border: `1px solid ${stageAfter.color}50`,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: stageAfter.color,
+                  whiteSpace: 'nowrap',
+                  boxShadow: `0 2px 8px ${stageAfter.color}20`,
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: stageAfter.color,
+                  }}
+                />
+                {stageAfter.name}
+              </div>
+            </div>
           );
         }
-        return '-';
+        return <span style={{ color: '#bfbfbf', fontSize: 13 }}>—</span>;
       },
     },
     {
@@ -493,252 +852,121 @@ function EnterpriseDetail() {
               </Button>
             }
           >
-          {/* 产品卡片 */}
-          <div style={{ 
-            marginBottom: 16, 
-            borderRadius: 8, 
-            borderLeft: '4px solid #667eea',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-            background: '#fff',
-            padding: 16
-          }}>
-          <Card 
-            size="small" 
-            style={{ 
-              border: 'none',
-              boxShadow: 'none',
-              background: 'transparent'
-            }} 
-            extra={
-              <Space size={4}>
-                <Button 
-                  type="link" 
-                  size="small" 
-                  icon={<EditOutlined />} 
-                  style={{ fontWeight: 500 }}
-                  onClick={() => handleEditProduct({
-                    name: '园艺工具套装',
-                    application: '家庭园艺、户外休闲',
-                    certifications: ['CE认证', 'SGS认证'],
-                    overseas_market: '欧美、东南亚',
-                    annual_sales: 800,
-                    local_procurement: 70,
-                    automation_level: '高（80%）',
-                    annual_capacity: '30万件',
-                    logistics_partners: ['DHL', '顺丰']
-                  })}
-                >
-                  编辑
-                </Button>
-                <Button 
-                  type="link" 
-                  size="small" 
-                  danger
-                  icon={<DeleteOutlined />} 
-                  style={{ fontWeight: 500 }}
-                  onClick={() => handleDeleteProduct('园艺工具套装')}
-                >
-                  删除
-                </Button>
-              </Space>
-            }
-          >
-            {/* 产品头部 */}
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'flex-start',
-              marginBottom: 20,
-              paddingBottom: 16,
-              borderBottom: '1px solid #f5f5f5'
-            }}>
-              <div>
-                <Text strong style={{ fontSize: 16, fontWeight: 600 }}>园艺工具套装</Text>
-                <div style={{ color: '#888', fontSize: 13, marginTop: 6 }}>
-                  应用领域：家庭园艺、户外休闲
-                </div>
-              </div>
-              <Space size={8}>
-                <span style={{
-                  padding: '4px 12px',
-                  background: 'linear-gradient(135deg, rgba(67,233,123,0.15) 0%, rgba(56,249,215,0.1) 100%)',
-                  borderRadius: 6,
-                  color: '#389e0d',
-                  fontSize: 12,
-                  fontWeight: 500
-                }}>CE认证</span>
-                <span style={{
-                  padding: '4px 12px',
-                  background: 'linear-gradient(135deg, rgba(102,126,234,0.15) 0%, rgba(118,75,162,0.1) 100%)',
-                  borderRadius: 6,
-                  color: '#667eea',
-                  fontSize: 12,
-                  fontWeight: 500
-                }}>SGS认证</span>
-              </Space>
-            </div>
-
-            {/* 销售市场信息 */}
-            <Row gutter={24} style={{ marginBottom: 20 }}>
-              <Col span={8}>
-                <div style={{
-                  padding: '14px 16px',
-                  background: '#fafbfc',
-                  borderRadius: 10
-                }}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>
-                    主要销售区域
-                  </Text>
-                  <div style={{ fontWeight: 600, color: '#333' }}>欧美、东南亚</div>
-                </div>
-              </Col>
-              <Col span={8}>
-                <div style={{
-                  padding: '14px 16px',
-                  background: '#fafbfc',
-                  borderRadius: 10
-                }}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>
-                    主要销售国家
-                  </Text>
-                  <div style={{ fontWeight: 600, color: '#333' }}>美国、德国、日本</div>
-                </div>
-              </Col>
-              <Col span={8}>
-                <div style={{
-                  padding: '14px 16px',
-                  background: 'linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.05) 100%)',
-                  borderRadius: 10
-                }}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>
-                    年销售额
-                  </Text>
-                  <div style={{ fontWeight: 700, color: '#667eea', fontSize: 16 }}>800万元</div>
-                </div>
-              </Col>
-            </Row>
-
-            {/* 供应链与产能 */}
-            <div style={{ 
-              padding: '16px',
-              background: '#fafbfc',
-              borderRadius: 10
-            }}>
-              <Text strong style={{ fontSize: 14, marginBottom: 14, display: 'block', color: '#333' }}>
-                供应链与产能
-              </Text>
-              <Row gutter={24}>
-                <Col span={6}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                    原材料本地采购
-                  </Text>
-                  <div style={{ fontWeight: 600, color: '#43e97b', fontSize: 15 }}>70%</div>
-                </Col>
-                <Col span={6}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                    设备自动化程度
-                  </Text>
-                  <div style={{ fontWeight: 600, color: '#333' }}>高（80%）</div>
-                </Col>
-                <Col span={6}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                    年产能
-                  </Text>
-                  <div style={{ fontWeight: 600, color: '#333' }}>30万件</div>
-                </Col>
-                <Col span={6}>
-                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>
-                    物流合作方
-                  </Text>
-                  <Space size={6}>
-                    <span style={{
-                      padding: '2px 8px',
-                      background: '#fff',
-                      border: '1px solid #e0e0e0',
-                      borderRadius: 4,
-                      fontSize: 12
-                    }}>DHL</span>
-                    <span style={{
-                      padding: '2px 8px',
-                      background: '#fff',
-                      border: '1px solid #e0e0e0',
-                      borderRadius: 4,
-                      fontSize: 12
-                    }}>顺丰</span>
+          {/* 产品卡片列表 */}
+          {enterprise.products && enterprise.products.length > 0 ? (
+            enterprise.products.map((product: any) => (
+              <div key={product.id} style={{ 
+                marginBottom: 16, 
+                borderRadius: 8, 
+                borderLeft: '4px solid #667eea',
+                boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+                background: '#fff',
+                padding: 16
+              }}>
+              <Card 
+                size="small" 
+                style={{ border: 'none', boxShadow: 'none', background: 'transparent' }} 
+                extra={
+                  <Space size={4}>
+                    <Button type="link" size="small" icon={<EditOutlined />} style={{ fontWeight: 500 }}
+                      onClick={() => handleEditProduct(product)}>编辑</Button>
+                    <Button type="link" size="small" danger icon={<DeleteOutlined />} style={{ fontWeight: 500 }}
+                      onClick={() => handleDeleteProduct(product.name)}>删除</Button>
                   </Space>
-                </Col>
-              </Row>
-            </div>
-          </Card>
-          </div>
+                }
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #f5f5f5' }}>
+                  <div>
+                    <Text strong style={{ fontSize: 16, fontWeight: 600 }}>{product.name}</Text>
+                    {product.categoryName && <div style={{ color: '#888', fontSize: 13, marginTop: 6 }}>产品品类：{product.categoryName}</div>}
+                  </div>
+                  <Space size={8}>
+                    {product.certificationNames?.map((cert: string, idx: number) => (
+                      <span key={idx} style={{ padding: '4px 12px', background: idx % 2 === 0 ? 'linear-gradient(135deg, rgba(67,233,123,0.15) 0%, rgba(56,249,215,0.1) 100%)' : 'linear-gradient(135deg, rgba(102,126,234,0.15) 0%, rgba(118,75,162,0.1) 100%)', borderRadius: 6, color: idx % 2 === 0 ? '#389e0d' : '#667eea', fontSize: 12, fontWeight: 500 }}>{cert}</span>
+                    ))}
+                  </Space>
+                </div>
+                <Row gutter={24} style={{ marginBottom: 20 }}>
+                  <Col span={8}>
+                    <div style={{ padding: '14px 16px', background: '#fafbfc', borderRadius: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售区域</Text>
+                      <div style={{ fontWeight: 600, color: '#333' }}>{product.targetRegionNames?.join('、') || '-'}</div>
+                    </div>
+                  </Col>
+                  <Col span={8}>
+                    <div style={{ padding: '14px 16px', background: '#fafbfc', borderRadius: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售国家</Text>
+                      <div style={{ fontWeight: 600, color: '#333' }}>{product.targetCountryIds?.join('、') || '-'}</div>
+                    </div>
+                  </Col>
+                  <Col span={8}>
+                    <div style={{ padding: '14px 16px', background: 'linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.05) 100%)', borderRadius: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>年销售额</Text>
+                      <div style={{ fontWeight: 700, color: '#667eea', fontSize: 16 }}>{product.annualSales || '-'}</div>
+                    </div>
+                  </Col>
+                </Row>
+                <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                  <Text strong style={{ fontSize: 14, marginBottom: 14, display: 'block', color: '#333' }}>供应链与产能</Text>
+                  <Row gutter={24}>
+                    <Col span={6}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>原材料本地采购</Text>
+                      <div style={{ fontWeight: 600, color: '#43e97b', fontSize: 15 }}>{product.localProcurementRatio || '-'}</div>
+                    </Col>
+                    <Col span={6}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>设备自动化程度</Text>
+                      <div style={{ fontWeight: 600, color: '#333' }}>{product.automationLevelName || '-'}</div>
+                    </Col>
+                    <Col span={6}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>年产能</Text>
+                      <div style={{ fontWeight: 600, color: '#333' }}>{product.annualCapacity || '-'}</div>
+                    </Col>
+                    <Col span={6}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>物流合作方</Text>
+                      <Space size={6} wrap>
+                        {product.logisticsPartnerNames?.map((p: string, i: number) => (
+                          <span key={i} style={{ padding: '2px 8px', background: '#fff', border: '1px solid #e0e0e0', borderRadius: 4, fontSize: 12 }}>{p}</span>
+                        )) || '-'}
+                      </Space>
+                    </Col>
+                  </Row>
+                </div>
+              </Card>
+              </div>
+            ))
+          ) : (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>暂无产品信息，点击"添加产品"按钮添加</div>
+          )}
           </Card>
 
           {/* 自主品牌 */}
           <Card
             size="small"
             title={<span style={{ fontWeight: 600, fontSize: 15, color: '#43e97b' }}>自主品牌</span>}
-            style={{ 
-              marginBottom: 16, 
-              borderRadius: 8, 
-              border: 'none',
-              borderLeft: '3px solid #43e97b',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
-            }}
+            style={{ marginBottom: 16, borderRadius: 8, border: 'none', borderLeft: '3px solid #43e97b', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
             headStyle={{ borderBottom: '1px solid #f0f0f0' }}
             extra={
-              <Button 
-                type="link" 
-                size="small" 
-                icon={<EditOutlined />} 
-                style={{ fontWeight: 500 }}
+              <Button type="link" size="small" icon={<EditOutlined />} style={{ fontWeight: 500 }}
                 onClick={() => {
-                  brandForm.setFieldsValue({
-                    has_brand: true,
-                    brand_names: ['GreenLife', 'OutdoorPro']
-                  });
+                  brandForm.setFieldsValue({ has_brand: enterprise.has_own_brand, brand_names: enterprise.brand_names || [] });
                   setIsBrandModalOpen(true);
-                }}
-              >
-                编辑
-              </Button>
+                }}>编辑</Button>
             }
           >
             <Row gutter={24}>
               <Col span={8}>
-                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>
-                  是否有自主品牌
-                </Text>
-                <span style={{
-                  padding: '4px 12px',
-                  background: 'linear-gradient(135deg, rgba(67,233,123,0.15) 0%, rgba(56,249,215,0.1) 100%)',
-                  borderRadius: 6,
-                  color: '#389e0d',
-                  fontSize: 12,
-                  fontWeight: 600
-                }}>是</span>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否有自主品牌</Text>
+                <span style={{ padding: '4px 12px', background: enterprise.has_own_brand ? 'linear-gradient(135deg, rgba(67,233,123,0.15) 0%, rgba(56,249,215,0.1) 100%)' : 'rgba(0,0,0,0.04)', borderRadius: 6, color: enterprise.has_own_brand ? '#389e0d' : '#999', fontSize: 12, fontWeight: 600 }}>{enterprise.has_own_brand ? '是' : '否'}</span>
               </Col>
               <Col span={16}>
-                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>
-                  品牌名称
-                </Text>
-                <Space size={8}>
-                  <span style={{
-                    padding: '5px 14px',
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    borderRadius: 20,
-                    color: '#fff',
-                    fontSize: 13,
-                    fontWeight: 500
-                  }}>GreenLife</span>
-                  <span style={{
-                    padding: '5px 14px',
-                    background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-                    borderRadius: 20,
-                    color: '#fff',
-                    fontSize: 13,
-                    fontWeight: 500
-                  }}>OutdoorPro</span>
-                </Space>
+                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>品牌名称</Text>
+                {enterprise.brand_names && enterprise.brand_names.length > 0 ? (
+                  <Space size={8} wrap>
+                    {enterprise.brand_names.map((brand: string, idx: number) => (
+                      <span key={idx} style={{ padding: '5px 14px', background: idx % 2 === 0 ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: 20, color: '#fff', fontSize: 13, fontWeight: 500 }}>{brand}</span>
+                    ))}
+                  </Space>
+                ) : <span style={{ color: '#999' }}>-</span>}
               </Col>
             </Row>
           </Card>
@@ -747,130 +975,38 @@ function EnterpriseDetail() {
           <Card
             size="small"
             title={<span style={{ fontWeight: 600, fontSize: 15, color: '#f97316' }}>核心技术/专利</span>}
-            style={{ 
-              borderRadius: 8, 
-              border: 'none',
-              borderLeft: '3px solid #f97316',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
-            }}
+            style={{ borderRadius: 8, border: 'none', borderLeft: '3px solid #f97316', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
             headStyle={{ borderBottom: '1px solid #f0f0f0' }}
             extra={
-              <Button 
-                type="primary" 
-                size="small" 
-                icon={<PlusOutlined />}
-                onClick={handleAddPatent}
-                style={{
-                  borderRadius: 6,
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  border: 'none',
-                  fontWeight: 500
-                }}
-              >
-                添加专利
-              </Button>
+              <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleAddPatent}
+                style={{ borderRadius: 6, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none', fontWeight: 500 }}>添加专利</Button>
             }
           >
-            <Space direction="vertical" style={{ width: '100%' }} size={12}>
-              <div style={{
-                padding: '16px 20px',
-                background: 'linear-gradient(135deg, rgba(67,233,123,0.1) 0%, rgba(56,249,215,0.05) 100%)',
-                borderRadius: 10,
-                border: '1px solid rgba(67,233,123,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 10,
-                    background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <SafetyCertificateOutlined style={{ color: '#fff', fontSize: 20 }} />
-                  </div>
-                  <div>
-                    <Text strong style={{ fontSize: 14, display: 'block' }}>环保材料应用技术</Text>
-                    <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-                      专利号：<span style={{ fontFamily: 'monospace' }}>ZL2023XXXXXXXX.X</span> | 
-                      <span style={{ color: '#43e97b', fontWeight: 500, marginLeft: 4 }}>发明专利</span>
+            {enterprise.patents && enterprise.patents.length > 0 ? (
+              <Space direction="vertical" style={{ width: '100%' }} size={12}>
+                {enterprise.patents.map((patent: any, idx: number) => (
+                  <div key={patent.id} style={{ padding: '16px 20px', background: idx % 2 === 0 ? 'linear-gradient(135deg, rgba(67,233,123,0.1) 0%, rgba(56,249,215,0.05) 100%)' : 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)', borderRadius: 10, border: idx % 2 === 0 ? '1px solid rgba(67,233,123,0.2)' : '1px solid rgba(102,126,234,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: idx % 2 === 0 ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <SafetyCertificateOutlined style={{ color: '#fff', fontSize: 20 }} />
+                      </div>
+                      <div>
+                        <Text strong style={{ fontSize: 14, display: 'block' }}>{patent.name}</Text>
+                        <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+                          专利号：<span style={{ fontFamily: 'monospace' }}>{patent.patentNo || '-'}</span>
+                        </div>
+                      </div>
                     </div>
+                    <Space size={4}>
+                      <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEditPatent(patent)} />
+                      <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeletePatent(patent.name)} />
+                    </Space>
                   </div>
-                </div>
-                <Space size={4}>
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    icon={<EditOutlined />}
-                    onClick={() => handleEditPatent({
-                      name: '环保材料应用技术',
-                      patent_no: 'ZL2023XXXXXXXX.X',
-                      type: '发明专利'
-                    })}
-                  />
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={() => handleDeletePatent('环保材料应用技术')}
-                  />
-                </Space>
-              </div>
-              <div style={{
-                padding: '16px 20px',
-                background: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)',
-                borderRadius: 10,
-                border: '1px solid rgba(102,126,234,0.2)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: 10,
-                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <SafetyCertificateOutlined style={{ color: '#fff', fontSize: 20 }} />
-                  </div>
-                  <div>
-                    <Text strong style={{ fontSize: 14, display: 'block' }}>可折叠户外家具结构设计</Text>
-                    <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-                      专利号：<span style={{ fontFamily: 'monospace' }}>ZL2024XXXXXXXX.X</span> | 
-                      <span style={{ color: '#667eea', fontWeight: 500, marginLeft: 4 }}>实用新型</span>
-                    </div>
-                  </div>
-                </div>
-                <Space size={4}>
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    icon={<EditOutlined />}
-                    onClick={() => handleEditPatent({
-                      name: '可折叠户外家具结构设计',
-                      patent_no: 'ZL2024XXXXXXXX.X',
-                      type: '实用新型'
-                    })}
-                  />
-                  <Button 
-                    type="text" 
-                    size="small" 
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={() => handleDeletePatent('可折叠户外家具结构设计')}
-                  />
-                </Space>
-              </div>
-            </Space>
+                ))}
+              </Space>
+            ) : (
+              <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>暂无专利信息，点击"添加专利"按钮添加</div>
+            )}
           </Card>
         </div>
       ),
@@ -972,12 +1108,6 @@ function EnterpriseDetail() {
                   </div>
                 </Col>
                 <Col span={8}>
-                  <div style={{ padding: '16px', background: 'linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.05) 100%)', borderRadius: 10 }}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>外贸数据(万元)</Text>
-                    <div style={{ fontWeight: 700, color: '#667eea', fontSize: 20 }}>1500</div>
-                  </div>
-                </Col>
-                <Col span={8}>
                   <div style={{ padding: '16px', background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.05) 100%)', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否有国内电商经验</Text>
                     <span style={{ padding: '4px 12px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: 20, color: '#fff', fontWeight: 500, fontSize: 12 }}>是</span>
@@ -992,7 +1122,7 @@ function EnterpriseDetail() {
               title={<span style={{ fontWeight: 600, fontSize: 15 }}>外贸业绩分析</span>}
               style={{ marginTop: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
               headStyle={{ borderBottom: '1px solid #f0f0f0' }}
-              extra={<Button type="link" icon={<EditOutlined />} style={{ fontWeight: 500 }}>编辑</Button>}
+              extra={<Button type="link" icon={<EditOutlined />} style={{ fontWeight: 500 }} onClick={() => setIsTradePerformanceModalOpen(true)}>编辑</Button>}
             >
               {/* 核心指标 - 年份动态计算 */}
               {(() => {
@@ -1379,24 +1509,44 @@ function EnterpriseDetail() {
             <Space size={16} wrap>
               {(() => {
                 const platformConfigs: Record<string, { name: string; subName: string; letter: string; gradient: string; border: string; shadow: string }> = {
-                  '亚马逊': { name: '亚马逊', subName: 'Amazon', letter: 'A', gradient: 'linear-gradient(135deg, rgba(250,140,22,0.1) 0%, rgba(250,173,20,0.05) 100%)', border: '1px solid rgba(250,140,22,0.2)', shadow: '0 4px 12px rgba(250,140,22,0.3)' },
-                  '阿里国际站': { name: '阿里国际站', subName: 'Alibaba.com', letter: '阿', gradient: 'linear-gradient(135deg, rgba(212,56,13,0.1) 0%, rgba(245,87,108,0.05) 100%)', border: '1px solid rgba(212,56,13,0.2)', shadow: '0 4px 12px rgba(212,56,13,0.3)' },
-                  'eBay': { name: 'eBay', subName: 'eBay.com', letter: 'E', gradient: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)', border: '1px solid rgba(102,126,234,0.2)', shadow: '0 4px 12px rgba(102,126,234,0.3)' },
-                  'Wish': { name: 'Wish', subName: 'Wish.com', letter: 'W', gradient: 'linear-gradient(135deg, rgba(0,150,199,0.1) 0%, rgba(0,199,190,0.05) 100%)', border: '1px solid rgba(0,150,199,0.2)', shadow: '0 4px 12px rgba(0,150,199,0.3)' },
-                  'Shopee': { name: 'Shopee', subName: 'Shopee.com', letter: 'S', gradient: 'linear-gradient(135deg, rgba(238,77,45,0.1) 0%, rgba(255,107,53,0.05) 100%)', border: '1px solid rgba(238,77,45,0.2)', shadow: '0 4px 12px rgba(238,77,45,0.3)' },
-                  'Lazada': { name: 'Lazada', subName: 'Lazada.com', letter: 'L', gradient: 'linear-gradient(135deg, rgba(15,76,129,0.1) 0%, rgba(29,161,242,0.05) 100%)', border: '1px solid rgba(15,76,129,0.2)', shadow: '0 4px 12px rgba(15,76,129,0.3)' },
+                  '亚马逊 (Amazon)': { name: '亚马逊', subName: 'Amazon', letter: 'A', gradient: 'linear-gradient(135deg, rgba(250,140,22,0.1) 0%, rgba(250,173,20,0.05) 100%)', border: '1px solid rgba(250,140,22,0.2)', shadow: '0 4px 12px rgba(250,140,22,0.3)' },
+                  '阿里国际站 (Alibaba.com)': { name: '阿里国际站', subName: 'Alibaba.com', letter: '阿', gradient: 'linear-gradient(135deg, rgba(212,56,13,0.1) 0%, rgba(245,87,108,0.05) 100%)', border: '1px solid rgba(212,56,13,0.2)', shadow: '0 4px 12px rgba(212,56,13,0.3)' },
                   'TikTok Shop': { name: 'TikTok Shop', subName: 'TikTok', letter: 'T', gradient: 'linear-gradient(135deg, rgba(0,0,0,0.1) 0%, rgba(105,201,208,0.05) 100%)', border: '1px solid rgba(0,0,0,0.2)', shadow: '0 4px 12px rgba(0,0,0,0.2)' },
-                  '独立站': { name: '独立站', subName: 'Independent Site', letter: '独', gradient: 'linear-gradient(135deg, rgba(67,233,123,0.1) 0%, rgba(56,249,215,0.05) 100%)', border: '1px solid rgba(67,233,123,0.2)', shadow: '0 4px 12px rgba(67,233,123,0.3)' },
+                  '速卖通 (AliExpress)': { name: '速卖通', subName: 'AliExpress', letter: 'A', gradient: 'linear-gradient(135deg, rgba(255,77,79,0.1) 0%, rgba(255,107,53,0.05) 100%)', border: '1px solid rgba(255,77,79,0.2)', shadow: '0 4px 12px rgba(255,77,79,0.3)' },
+                  'eBay': { name: 'eBay', subName: 'eBay.com', letter: 'E', gradient: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)', border: '1px solid rgba(102,126,234,0.2)', shadow: '0 4px 12px rgba(102,126,234,0.3)' },
+                  '独立站 (Shopify)': { name: '独立站', subName: 'Shopify', letter: '独', gradient: 'linear-gradient(135deg, rgba(67,233,123,0.1) 0%, rgba(56,249,215,0.05) 100%)', border: '1px solid rgba(67,233,123,0.2)', shadow: '0 4px 12px rgba(67,233,123,0.3)' },
+                  'Temu': { name: 'Temu', subName: 'Temu.com', letter: 'T', gradient: 'linear-gradient(135deg, rgba(255,107,53,0.1) 0%, rgba(255,140,22,0.05) 100%)', border: '1px solid rgba(255,107,53,0.2)', shadow: '0 4px 12px rgba(255,107,53,0.3)' },
+                  'SHEIN': { name: 'SHEIN', subName: 'SHEIN.com', letter: 'S', gradient: 'linear-gradient(135deg, rgba(0,0,0,0.1) 0%, rgba(64,64,64,0.05) 100%)', border: '1px solid rgba(0,0,0,0.2)', shadow: '0 4px 12px rgba(0,0,0,0.2)' },
+                  '沃尔玛 (Walmart)': { name: '沃尔玛', subName: 'Walmart', letter: 'W', gradient: 'linear-gradient(135deg, rgba(0,113,220,0.1) 0%, rgba(0,150,255,0.05) 100%)', border: '1px solid rgba(0,113,220,0.2)', shadow: '0 4px 12px rgba(0,113,220,0.3)' },
+                  'Lazada': { name: 'Lazada', subName: 'Lazada.com', letter: 'L', gradient: 'linear-gradient(135deg, rgba(15,76,129,0.1) 0%, rgba(29,161,242,0.05) 100%)', border: '1px solid rgba(15,76,129,0.2)', shadow: '0 4px 12px rgba(15,76,129,0.3)' },
+                  'Shopee': { name: 'Shopee', subName: 'Shopee.com', letter: 'S', gradient: 'linear-gradient(135deg, rgba(238,77,45,0.1) 0%, rgba(255,107,53,0.05) 100%)', border: '1px solid rgba(238,77,45,0.2)', shadow: '0 4px 12px rgba(238,77,45,0.3)' },
+                  'Wish': { name: 'Wish', subName: 'Wish.com', letter: 'W', gradient: 'linear-gradient(135deg, rgba(0,150,199,0.1) 0%, rgba(0,199,190,0.05) 100%)', border: '1px solid rgba(0,150,199,0.2)', shadow: '0 4px 12px rgba(0,150,199,0.3)' },
+                  'Etsy': { name: 'Etsy', subName: 'Etsy.com', letter: 'E', gradient: 'linear-gradient(135deg, rgba(242,101,34,0.1) 0%, rgba(255,140,22,0.05) 100%)', border: '1px solid rgba(242,101,34,0.2)', shadow: '0 4px 12px rgba(242,101,34,0.3)' },
+                  'Wayfair': { name: 'Wayfair', subName: 'Wayfair.com', letter: 'W', gradient: 'linear-gradient(135deg, rgba(124,58,237,0.1) 0%, rgba(139,92,246,0.05) 100%)', border: '1px solid rgba(124,58,237,0.2)', shadow: '0 4px 12px rgba(124,58,237,0.3)' },
+                  'Mercado Libre': { name: 'Mercado Libre', subName: 'MercadoLibre', letter: 'M', gradient: 'linear-gradient(135deg, rgba(255,229,0,0.1) 0%, rgba(255,235,59,0.05) 100%)', border: '1px solid rgba(255,229,0,0.2)', shadow: '0 4px 12px rgba(255,229,0,0.3)' },
+                  '乐天 (Rakuten)': { name: '乐天', subName: 'Rakuten', letter: 'R', gradient: 'linear-gradient(135deg, rgba(191,0,0,0.1) 0%, rgba(220,38,38,0.05) 100%)', border: '1px solid rgba(191,0,0,0.2)', shadow: '0 4px 12px rgba(191,0,0,0.3)' },
+                  '京东国际 (JD Global)': { name: '京东国际', subName: 'JD Global', letter: '京', gradient: 'linear-gradient(135deg, rgba(225,37,27,0.1) 0%, rgba(239,68,68,0.05) 100%)', border: '1px solid rgba(225,37,27,0.2)', shadow: '0 4px 12px rgba(225,37,27,0.3)' },
+                  '其他': { name: '其他', subName: 'Other', letter: '其', gradient: 'linear-gradient(135deg, rgba(156,163,175,0.1) 0%, rgba(209,213,219,0.05) 100%)', border: '1px solid rgba(156,163,175,0.2)', shadow: '0 4px 12px rgba(156,163,175,0.3)' },
                 };
                 const iconColors: Record<string, string> = {
-                  '亚马逊': 'linear-gradient(135deg, #fa8c16 0%, #faad14 100%)',
-                  '阿里国际站': 'linear-gradient(135deg, #d4380d 0%, #f5222d 100%)',
-                  'eBay': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  'Wish': 'linear-gradient(135deg, #0096c7 0%, #00c7be 100%)',
-                  'Shopee': 'linear-gradient(135deg, #ee4d2d 0%, #ff6b35 100%)',
-                  'Lazada': 'linear-gradient(135deg, #0f4c81 0%, #1da1f2 100%)',
+                  '亚马逊 (Amazon)': 'linear-gradient(135deg, #fa8c16 0%, #faad14 100%)',
+                  '阿里国际站 (Alibaba.com)': 'linear-gradient(135deg, #d4380d 0%, #f5222d 100%)',
                   'TikTok Shop': 'linear-gradient(135deg, #000000 0%, #69c9d0 100%)',
-                  '独立站': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                  '速卖通 (AliExpress)': 'linear-gradient(135deg, #ff4d4f 0%, #ff6b35 100%)',
+                  'eBay': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                  '独立站 (Shopify)': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+                  'Temu': 'linear-gradient(135deg, #ff6b35 0%, #fa8c16 100%)',
+                  'SHEIN': 'linear-gradient(135deg, #000000 0%, #404040 100%)',
+                  '沃尔玛 (Walmart)': 'linear-gradient(135deg, #0071dc 0%, #0096ff 100%)',
+                  'Lazada': 'linear-gradient(135deg, #0f4c81 0%, #1da1f2 100%)',
+                  'Shopee': 'linear-gradient(135deg, #ee4d2d 0%, #ff6b35 100%)',
+                  'Wish': 'linear-gradient(135deg, #0096c7 0%, #00c7be 100%)',
+                  'Etsy': 'linear-gradient(135deg, #f26522 0%, #fa8c16 100%)',
+                  'Wayfair': 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
+                  'Mercado Libre': 'linear-gradient(135deg, #ffe500 0%, #ffeb3b 100%)',
+                  '乐天 (Rakuten)': 'linear-gradient(135deg, #bf0000 0%, #dc2626 100%)',
+                  '京东国际 (JD Global)': 'linear-gradient(135deg, #e1251b 0%, #ef4444 100%)',
+                  '其他': 'linear-gradient(135deg, #9ca3af 0%, #d1d5db 100%)',
                 };
                 return selectedCrossborderPlatforms.map((platform) => {
                   const config = platformConfigs[platform] || { name: platform, subName: '', letter: platform.charAt(0), gradient: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)', border: '1px solid rgba(102,126,234,0.2)', shadow: '0 4px 12px rgba(102,126,234,0.3)' };
@@ -1498,54 +1648,31 @@ function EnterpriseDetail() {
             extra={<Button type="link" size="small" icon={<EditOutlined />} style={{ fontWeight: 500 }} onClick={() => setIsMarketModalOpen(true)}>编辑</Button>}
           >
             <Row gutter={16}>
-              <Col span={6}>
-                <div style={{ padding: '16px', background: 'linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.05) 100%)', borderRadius: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <Text style={{ fontWeight: 500 }}>北美市场</Text>
-                    <Text strong style={{ color: '#667eea', fontSize: 16 }}>40%</Text>
-                  </div>
-                  <div style={{ height: 8, background: '#e8e8e8', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: '40%', height: '100%', background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)', borderRadius: 4 }} />
-                  </div>
-                  <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>美国、加拿大</Text>
-                </div>
-              </Col>
-              <Col span={6}>
-                <div style={{ padding: '16px', background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.05) 100%)', borderRadius: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <Text style={{ fontWeight: 500 }}>欧洲市场</Text>
-                    <Text strong style={{ color: '#43e97b', fontSize: 16 }}>30%</Text>
-                  </div>
-                  <div style={{ height: 8, background: '#e8e8e8', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: '30%', height: '100%', background: 'linear-gradient(90deg, #43e97b 0%, #38f9d7 100%)', borderRadius: 4 }} />
-                  </div>
-                  <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>德国、英国、法国</Text>
-                </div>
-              </Col>
-              <Col span={6}>
-                <div style={{ padding: '16px', background: 'linear-gradient(135deg, rgba(250,140,22,0.08) 0%, rgba(250,173,20,0.05) 100%)', borderRadius: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <Text style={{ fontWeight: 500 }}>东南亚市场</Text>
-                    <Text strong style={{ color: '#fa8c16', fontSize: 16 }}>20%</Text>
-                  </div>
-                  <div style={{ height: 8, background: '#e8e8e8', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: '20%', height: '100%', background: 'linear-gradient(90deg, #fa8c16 0%, #faad14 100%)', borderRadius: 4 }} />
-                  </div>
-                  <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>新加坡、马来西亚</Text>
-                </div>
-              </Col>
-              <Col span={6}>
-                <div style={{ padding: '16px', background: 'linear-gradient(135deg, rgba(240,147,251,0.08) 0%, rgba(245,87,108,0.05) 100%)', borderRadius: 12 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <Text style={{ fontWeight: 500 }}>其他市场</Text>
-                    <Text strong style={{ color: '#f093fb', fontSize: 16 }}>10%</Text>
-                  </div>
-                  <div style={{ height: 8, background: '#e8e8e8', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: '10%', height: '100%', background: 'linear-gradient(90deg, #f093fb 0%, #f5576c 100%)', borderRadius: 4 }} />
-                  </div>
-                  <Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>澳大利亚、日本</Text>
-                </div>
-              </Col>
+              {targetMarkets.map((item, index) => {
+                const colors = [
+                  { bg: 'rgba(102,126,234,0.08)', bgEnd: 'rgba(118,75,162,0.05)', bar: '#667eea', barEnd: '#764ba2', text: '#667eea' },
+                  { bg: 'rgba(67,233,123,0.08)', bgEnd: 'rgba(56,249,215,0.05)', bar: '#43e97b', barEnd: '#38f9d7', text: '#43e97b' },
+                  { bg: 'rgba(250,140,22,0.08)', bgEnd: 'rgba(250,173,20,0.05)', bar: '#fa8c16', barEnd: '#faad14', text: '#fa8c16' },
+                  { bg: 'rgba(240,147,251,0.08)', bgEnd: 'rgba(245,87,108,0.05)', bar: '#f093fb', barEnd: '#f5576c', text: '#f093fb' },
+                  { bg: 'rgba(24,144,255,0.08)', bgEnd: 'rgba(64,169,255,0.05)', bar: '#1890ff', barEnd: '#40a9ff', text: '#1890ff' },
+                  { bg: 'rgba(114,46,209,0.08)', bgEnd: 'rgba(157,78,221,0.05)', bar: '#722ed1', barEnd: '#9d4edd', text: '#722ed1' },
+                ];
+                const color = colors[index % colors.length];
+                const colSpan = targetMarkets.length <= 4 ? 6 : targetMarkets.length <= 6 ? 4 : 3;
+                return (
+                  <Col span={colSpan} key={index} style={{ marginBottom: 12 }}>
+                    <div style={{ padding: '16px', background: `linear-gradient(135deg, ${color.bg} 0%, ${color.bgEnd} 100%)`, borderRadius: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <Text style={{ fontWeight: 500 }}>{item.market || '未设置'}</Text>
+                        <Text strong style={{ color: color.text, fontSize: 16 }}>{item.percentage}%</Text>
+                      </div>
+                      <div style={{ height: 8, background: '#e8e8e8', borderRadius: 4, overflow: 'hidden' }}>
+                        <div style={{ width: `${item.percentage}%`, height: '100%', background: `linear-gradient(90deg, ${color.bar} 0%, ${color.barEnd} 100%)`, borderRadius: 4 }} />
+                      </div>
+                    </div>
+                  </Col>
+                );
+              })}
             </Row>
           </Card>
           </div>
@@ -2230,63 +2357,255 @@ function EnterpriseDetail() {
           >
             {isCooperating ? (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <Text strong style={{ fontSize: 14 }}>合作项目</Text>
-                  <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setIsTriCenterCoopModalOpen(true)} style={{ borderRadius: 6, background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', border: 'none' }}>添加项目</Button>
-                </div>
-                <Space direction="vertical" style={{ width: '100%' }} size={10}>
-                  {['跨境电商运营培训', '平台资源对接', '品牌孵化服务'].map((text, idx) => (
-                    <div key={idx} style={{ 
-                      background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.05) 100%)', 
-                      padding: '12px 16px', 
-                      borderRadius: 10,
-                      border: '1px solid rgba(67,233,123,0.15)',
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 8, height: 8, background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: '50%' }} />
-                        <Text style={{ fontWeight: 500 }}>{text}</Text>
-                      </div>
-                      <Space size={4}>
-                        <Button type="text" size="small" icon={<EditOutlined />} onClick={() => setIsTriCenterCoopModalOpen(true)} />
-                        <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => message.success('删除成功')} />
-                      </Space>
+                <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>合作项目</Text>
+                <Select
+                  mode="multiple"
+                  style={{ width: '100%' }}
+                  placeholder="请选择合作项目"
+                  defaultValue={['ecommerce_training', 'platform_resource', 'brand_incubation']}
+                  onChange={(value) => message.success('合作项目已更新')}
+                  optionLabelProp="label"
+                  options={[
+                    { 
+                      label: '跨境电商运营培训', 
+                      value: 'ecommerce_training',
+                      icon: '📚',
+                      color: '#1890ff'
+                    },
+                    { 
+                      label: '平台资源对接', 
+                      value: 'platform_resource',
+                      icon: '🔗',
+                      color: '#52c41a'
+                    },
+                    { 
+                      label: '品牌孵化服务', 
+                      value: 'brand_incubation',
+                      icon: '🚀',
+                      color: '#722ed1'
+                    },
+                    { 
+                      label: '代运营服务', 
+                      value: 'agency_operation',
+                      icon: '⚙️',
+                      color: '#fa8c16'
+                    },
+                    { 
+                      label: '人才招聘', 
+                      value: 'talent_recruitment',
+                      icon: '👥',
+                      color: '#eb2f96'
+                    },
+                    { 
+                      label: '政策申报', 
+                      value: 'policy_application',
+                      icon: '📋',
+                      color: '#13c2c2'
+                    },
+                    { 
+                      label: '海外仓服务', 
+                      value: 'overseas_warehouse',
+                      icon: '🏭',
+                      color: '#2f54eb'
+                    },
+                    { 
+                      label: '物流解决方案', 
+                      value: 'logistics_solution',
+                      icon: '🚚',
+                      color: '#faad14'
+                    },
+                    { 
+                      label: '营销推广服务', 
+                      value: 'marketing_promotion',
+                      icon: '📢',
+                      color: '#f5222d'
+                    },
+                    { 
+                      label: '共享办公工位', 
+                      value: 'shared_office',
+                      icon: '🏢',
+                      color: '#a0d911'
+                    },
+                    { 
+                      label: '法务咨询服务', 
+                      value: 'legal_consulting',
+                      icon: '⚖️',
+                      color: '#597ef7'
+                    },
+                    { 
+                      label: '金融服务对接', 
+                      value: 'financial_service',
+                      icon: '💰',
+                      color: '#ffc53d'
+                    },
+                    { 
+                      label: '其他', 
+                      value: 'other',
+                      icon: '📦',
+                      color: '#8c8c8c'
+                    },
+                  ]}
+                  tagRender={(props) => {
+                    const { label, value, closable, onClose } = props;
+                    const projectOptions: Record<string, { icon: string; color: string }> = {
+                      'ecommerce_training': { icon: '📚', color: '#1890ff' },
+                      'platform_resource': { icon: '🔗', color: '#52c41a' },
+                      'brand_incubation': { icon: '🚀', color: '#722ed1' },
+                      'agency_operation': { icon: '⚙️', color: '#fa8c16' },
+                      'talent_recruitment': { icon: '👥', color: '#eb2f96' },
+                      'policy_application': { icon: '📋', color: '#13c2c2' },
+                      'overseas_warehouse': { icon: '🏭', color: '#2f54eb' },
+                      'logistics_solution': { icon: '🚚', color: '#faad14' },
+                      'marketing_promotion': { icon: '📢', color: '#f5222d' },
+                      'shared_office': { icon: '🏢', color: '#a0d911' },
+                      'legal_consulting': { icon: '⚖️', color: '#597ef7' },
+                      'financial_service': { icon: '💰', color: '#ffc53d' },
+                      'other': { icon: '📦', color: '#8c8c8c' },
+                    };
+                    const option = projectOptions[value as string] || { icon: '📦', color: '#8c8c8c' };
+                    return (
+                      <Tag
+                        closable={closable}
+                        onClose={onClose}
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: 4,
+                          padding: '4px 8px',
+                          borderRadius: 6,
+                          background: `${option.color}10`,
+                          border: `1px solid ${option.color}30`,
+                          color: option.color,
+                          fontWeight: 500,
+                          marginRight: 4,
+                        }}
+                      >
+                        <span style={{ fontSize: 14 }}>{option.icon}</span>
+                        <span>{label}</span>
+                      </Tag>
+                    );
+                  }}
+                  optionRender={(option) => (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 16 }}>{(option.data as any).icon}</span>
+                      <span>{option.label}</span>
                     </div>
-                  ))}
-                </Space>
+                  )}
+                />
               </div>
             ) : (
               <div>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-                  <Text strong style={{ fontSize: 14 }}>不合作原因</Text>
-                  <Button type="primary" size="small" icon={<PlusOutlined />} onClick={() => setIsTriCenterCoopModalOpen(true)} style={{ borderRadius: 6, background: 'linear-gradient(135deg, #ff6b6b 0%, #ffa07a 100%)', border: 'none' }}>添加原因</Button>
-                </div>
-                <Space direction="vertical" style={{ width: '100%' }} size={10}>
-                  {['暂无合作意向，企业自有团队较完善'].map((text, idx) => (
-                    <div key={idx} style={{ 
-                      background: 'linear-gradient(135deg, rgba(255,107,107,0.08) 0%, rgba(255,160,122,0.05) 100%)', 
-                      padding: '12px 16px', 
-                      borderRadius: 10, 
-                      border: '1px solid rgba(255,107,107,0.2)',
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'space-between'
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{ width: 8, height: 8, background: 'linear-gradient(135deg, #ff6b6b 0%, #ffa07a 100%)', borderRadius: '50%' }} />
-                        <Text style={{ color: '#cf1322' }}>{text}</Text>
-                      </div>
-                      <Space size={4}>
-                        <Button type="text" size="small" icon={<EditOutlined />} onClick={() => setIsTriCenterCoopModalOpen(true)} />
-                        <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => message.success('删除成功')} />
-                      </Space>
-                    </div>
-                  ))}
-                </Space>
+                <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>不合作主要顾虑</Text>
+                <Select
+                  mode="multiple"
+                  style={{ width: '100%' }}
+                  placeholder="请选择不合作的主要顾虑"
+                  defaultValue={['no_intention', 'own_team']}
+                  onChange={(value) => message.success('顾虑信息已更新')}
+                  options={[
+                    { label: '暂无合作意向', value: 'no_intention' },
+                    { label: '企业自有团队较完善', value: 'own_team' },
+                    { label: '服务费用顾虑', value: 'cost_concern' },
+                    { label: '对服务效果存疑', value: 'effect_doubt' },
+                    { label: '时机不成熟', value: 'timing_not_right' },
+                    { label: '已有其他合作方', value: 'other_partner' },
+                    { label: '内部决策流程未通过', value: 'internal_decision' },
+                    { label: '企业资源有限', value: 'resource_limited' },
+                    { label: '战略方向不匹配', value: 'strategy_mismatch' },
+                    { label: '其他', value: 'other' },
+                  ]}
+                />
               </div>
             )}
+          </Card>
+
+          {/* 三中心评估 */}
+          <Card 
+            title={<span style={{ fontWeight: 600, fontSize: 15 }}>三中心评估</span>}
+            size="small" 
+            style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }} 
+            headStyle={{ borderBottom: '1px solid #f5f5f5' }}
+          >
+            {/* 合作可能性评分 */}
+            <div style={{ marginBottom: 20 }}>
+              <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>合作可能性评分</Text>
+              <Row gutter={[16, 16]}>
+                {[
+                  { label: '企业服务合作', value: 4, color: '#667eea' },
+                  { label: '招商入驻合作', value: 3, color: '#43e97b' },
+                  { label: '孵化转型合作', value: 5, color: '#f97316' },
+                  { label: '品牌营销合作', value: 4, color: '#ec4899' },
+                  { label: '人才培训合作', value: 3, color: '#8b5cf6' },
+                  { label: '跨境整体方案', value: 4, color: '#06b6d4' },
+                ].map((item, idx) => (
+                  <Col span={8} key={idx}>
+                    <div style={{ 
+                      padding: '14px 16px', 
+                      background: '#fafbfc', 
+                      borderRadius: 10,
+                      borderLeft: `3px solid ${item.color}`
+                    }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>{item.label}</Text>
+                      <Rate 
+                        defaultValue={item.value} 
+                        style={{ fontSize: 14 }} 
+                        onChange={(value) => message.success(`${item.label}评分已更新为${value}星`)}
+                      />
+                    </div>
+                  </Col>
+                ))}
+              </Row>
+            </div>
+
+            {/* 标杆企业可能性 */}
+            <div style={{ marginBottom: 20 }}>
+              <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>标杆企业可能性</Text>
+              <div style={{ 
+                padding: '16px', 
+                background: 'linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.05) 100%)', 
+                borderRadius: 10 
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <Text style={{ fontWeight: 500 }}>成为标杆企业的可能性</Text>
+                  <Text strong style={{ fontSize: 18, color: '#667eea' }}>75%</Text>
+                </div>
+                <Slider
+                  defaultValue={75}
+                  min={0}
+                  max={100}
+                  step={1}
+                  tooltip={{ formatter: (value) => `${value}%` }}
+                  onChangeComplete={(value) => message.success(`标杆企业可能性已更新为${value}%`)}
+                  styles={{
+                    track: { background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)' },
+                    rail: { background: '#e8e8e8' },
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* 其它补充说明 */}
+            <div>
+              <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>其它补充说明</Text>
+              <Input.TextArea 
+                defaultValue="该企业在园艺工具领域有较强的生产能力和品牌基础，跨境电商转型意愿强烈，建议重点跟进孵化转型合作。企业负责人对三中心服务表示认可，后续可安排深度对接。"
+                rows={3}
+                style={{ borderRadius: 10, marginBottom: 12 }}
+              />
+              <div style={{ textAlign: 'right' }}>
+                <Button 
+                  type="primary" 
+                  onClick={() => message.success('补充说明已保存')}
+                  style={{ 
+                    borderRadius: 6, 
+                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+                    border: 'none' 
+                  }}
+                >
+                  保存
+                </Button>
+              </div>
+            </div>
           </Card>
         </div>
       ),
@@ -2345,87 +2664,45 @@ function EnterpriseDetail() {
             size="small" 
             style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
             headStyle={{ borderBottom: '1px solid #f5f5f5' }}
-            extra={<Button type="link" size="small" icon={<EditOutlined />} style={{ fontWeight: 500 }} onClick={() => setIsCompetitionModalOpen(true)}>编辑</Button>}
           >
             <Row gutter={16} style={{ textAlign: 'center', marginBottom: 16 }}>
               {[
-                { label: '头部企业', selected: false },
-                { label: '中型企业', selected: true },
-                { label: '初创企业', selected: false },
-              ].map((item, idx) => (
-                <Col span={8} key={idx}>
-                  <div style={{ 
-                    padding: '16px',
-                    background: item.selected ? 'linear-gradient(135deg, rgba(102,126,234,0.15) 0%, rgba(118,75,162,0.1) 100%)' : '#fafafa',
-                    border: item.selected ? '2px solid #667eea' : '1px solid #f0f0f0',
-                    borderRadius: 10,
-                    cursor: 'pointer',
-                    transition: 'all 0.3s'
-                  }}>
-                    <Text strong={item.selected} type={item.selected ? undefined : 'secondary'} style={{ color: item.selected ? '#667eea' : undefined }}>
-                      {item.label} {item.selected && '✓'}
-                    </Text>
-                  </div>
-                </Col>
-              ))}
+                { label: '头部企业', value: 'leader' },
+                { label: '中型企业', value: 'medium' },
+                { label: '初创企业', value: 'startup' },
+              ].map((item, idx) => {
+                const isSelected = item.value === competitionPosition;
+                return (
+                  <Col span={8} key={idx}>
+                    <div 
+                      style={{ 
+                        padding: '16px',
+                        background: isSelected ? 'linear-gradient(135deg, rgba(102,126,234,0.15) 0%, rgba(118,75,162,0.1) 100%)' : '#fafafa',
+                        border: isSelected ? '2px solid #667eea' : '1px solid #f0f0f0',
+                        borderRadius: 10,
+                        cursor: 'pointer',
+                        transition: 'all 0.3s'
+                      }}
+                      onClick={() => {
+                        setCompetitionPosition(item.value);
+                        message.success(`行业竞争地位已更新为"${item.label}"`);
+                      }}
+                    >
+                      <Text strong={isSelected} type={isSelected ? undefined : 'secondary'} style={{ color: isSelected ? '#667eea' : undefined }}>
+                        {item.label} {isSelected && '✓'}
+                      </Text>
+                    </div>
+                  </Col>
+                );
+              })}
             </Row>
-            <div style={{ padding: '12px 16px', background: '#fafbfc', borderRadius: 10, color: '#666', fontSize: 13 }}>
-              在常州园艺制品行业处于中等偏上水平，具有一定的市场份额和品牌知名度
-            </div>
-          </Card>
-
-          {/* 主要竞争对手 */}
-          <Card 
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>主要竞争对手</span>}
-            size="small" 
-            style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
-            headStyle={{ borderBottom: '1px solid #f5f5f5' }}
-            extra={<Button type="link" size="small" icon={<EditOutlined />} style={{ fontWeight: 500 }} onClick={() => setIsCompetitorModalOpen(true)}>编辑</Button>}
-          >
-            <Space direction="vertical" style={{ width: '100%' }} size={12}>
-              {[
-                { name: 'XX园艺集团', desc: '行业龙头 | 年营收10亿+', level: '强竞争', color: '#f5222d', gradient: 'rgba(245,34,45,0.1)' },
-                { name: 'YY户外用品有限公司', desc: '同规模企业 | 年营收3亿', level: '中等竞争', color: '#fa8c16', gradient: 'rgba(250,140,22,0.1)' },
-                { name: 'ZZ工贸有限公司', desc: '新兴竞争者 | 年营收1亿', level: '潜在竞争', color: '#faad14', gradient: 'rgba(250,173,20,0.1)' },
-              ].map((item, idx) => (
-                <div key={idx} style={{ 
-                  padding: '16px 20px',
-                  background: '#fafbfc',
-                  borderRadius: 12,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center'
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{ 
-                      width: 44, 
-                      height: 44, 
-                      borderRadius: 12, 
-                      background: `linear-gradient(135deg, ${item.gradient} 0%, transparent 100%)`,
-                      border: `1px solid ${item.color}30`,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center'
-                    }}>
-                      <ShopOutlined style={{ fontSize: 22, color: item.color }} />
-                    </div>
-                    <div>
-                      <Text strong style={{ fontSize: 14 }}>{item.name}</Text>
-                      <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>{item.desc}</div>
-                    </div>
-                  </div>
-                  <span style={{ 
-                    padding: '4px 12px', 
-                    background: `linear-gradient(135deg, ${item.gradient} 0%, transparent 100%)`,
-                    border: `1px solid ${item.color}40`,
-                    borderRadius: 20,
-                    color: item.color,
-                    fontSize: 12,
-                    fontWeight: 500
-                  }}>{item.level}</span>
-                </div>
-              ))}
-            </Space>
+            <Input.TextArea 
+              value={competitionDesc}
+              onChange={(e) => setCompetitionDesc(e.target.value)}
+              rows={2}
+              style={{ borderRadius: 10 }}
+              onBlur={() => message.success('竞争地位描述已保存')}
+            />
           </Card>
 
           {/* 当前面临风险 */}
@@ -2648,74 +2925,98 @@ function EnterpriseDetail() {
             </div>
             
             {/* 右侧操作区 */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'stretch', gap: 12 }}>
               {/* 录入时间 */}
               <div style={{ 
                 textAlign: 'center',
-                padding: '10px 18px',
-                background: 'linear-gradient(135deg, #fafbfc 0%, #f1f5f9 100%)',
+                padding: '12px 20px',
+                background: '#fff',
                 borderRadius: 12,
                 border: '1px solid #e2e8f0',
-                minWidth: 100,
+                minWidth: 120,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
               }}>
-                <Text type="secondary" style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5 }}>录入时间</Text>
+                <Text type="secondary" style={{ fontSize: 11, letterSpacing: 0.5 }}>录入时间</Text>
                 <div style={{ fontWeight: 600, color: '#334155', marginTop: 4, fontSize: 14 }}>
                   {enterprise.created_at}
                 </div>
               </div>
               
-              {/* 漏斗阶段按钮 */}
-              <div
-                style={{
-                  padding: '14px 22px',
-                  borderRadius: 12,
-                  background: `linear-gradient(135deg, ${stageInfo.color} 0%, ${stageInfo.color}cc 100%)`,
-                  color: '#fff',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  boxShadow: `0 6px 20px ${stageInfo.color}35`,
-                  transition: 'all 0.25s ease',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 10,
-                  minWidth: 120,
-                  justifyContent: 'center',
-                }}
-                onClick={() => {
-                  setSelectedStage(enterprise.funnel_stage);
-                  setIsStageModalOpen(true);
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = `0 8px 25px ${stageInfo.color}45`;
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = `0 6px 20px ${stageInfo.color}35`;
-                }}
-              >
-                <span style={{ fontSize: 14 }}>{stageInfo.name}</span>
-                <span style={{ opacity: 0.8, fontSize: 10 }}>▼</span>
+              {/* 漏斗阶段下拉选择器 */}
+              <div style={{ 
+                padding: '12px 20px',
+                background: '#fff',
+                borderRadius: 12,
+                border: '1px solid #e2e8f0',
+                minWidth: 120,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                textAlign: 'center',
+              }}>
+                <Text type="secondary" style={{ fontSize: 11, letterSpacing: 0.5 }}>当前阶段</Text>
+                <Select
+                  value={enterprise.funnel_stage}
+                  onChange={async (value) => {
+                    try {
+                      // 调用API更新阶段
+                      await enterpriseApi.updateStage(enterprise.id, value);
+                      // 更新本地状态
+                      setEnterprise({ ...enterprise, funnel_stage: value });
+                      setSelectedStage(value);
+                      message.success('阶段已更新');
+                    } catch (error: any) {
+                      message.error(error.message || '阶段更新失败');
+                    }
+                  }}
+                  variant="borderless"
+                  style={{ 
+                    marginTop: 2,
+                    marginLeft: -8,
+                    marginRight: -8,
+                  }}
+                  dropdownStyle={{ borderRadius: 8 }}
+                  options={FUNNEL_STAGES.map(stage => ({
+                    label: (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: stage.color,
+                        }} />
+                        <span>{stage.name}</span>
+                      </div>
+                    ),
+                    value: stage.code,
+                  }))}
+                  labelRender={(props) => {
+                    const stage = FUNNEL_STAGES.find(s => s.code === props.value);
+                    if (!stage) return props.label;
+                    return (
+                      <div style={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'center',
+                        gap: 6,
+                        fontWeight: 600,
+                        fontSize: 14,
+                        color: stage.color,
+                      }}>
+                        <span style={{
+                          width: 8,
+                          height: 8,
+                          borderRadius: '50%',
+                          background: stage.color,
+                        }} />
+                        <span>{stage.name}</span>
+                      </div>
+                    );
+                  }}
+                />
               </div>
-              
-              {/* 编辑按钮 */}
-              <Button 
-                icon={<EditOutlined />} 
-                onClick={() => openEditModal('enterprise')}
-                style={{
-                  height: 48,
-                  paddingLeft: 20,
-                  paddingRight: 20,
-                  borderRadius: 12,
-                  fontWeight: 500,
-                  border: '1px solid #e2e8f0',
-                  background: '#fff',
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-                  transition: 'all 0.25s ease',
-                }}
-              >
-                编辑
-              </Button>
             </div>
           </div>
         </div>
@@ -2748,7 +3049,7 @@ function EnterpriseDetail() {
             style={{ width: '100%' }}
             value={selectedStage}
             onChange={setSelectedStage}
-            options={funnelStages.map(s => ({
+            options={FUNNEL_STAGES.map(s => ({
               label: (
                 <Space>
                   <Badge color={s.color} />
@@ -2797,7 +3098,7 @@ function EnterpriseDetail() {
                 <Select 
                   placeholder="如无变化可不选" 
                   allowClear 
-                  options={funnelStages.map(s => ({ label: s.name, value: s.code }))} 
+                  options={FUNNEL_STAGES.map(s => ({ label: s.name, value: s.code }))} 
                 />
               </Form.Item>
             </Col>
@@ -2846,7 +3147,7 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="industry" label="所属行业">
+              <Form.Item name="industry_id" label="所属行业">
                 <Cascader 
                   options={industryCategories} 
                   placeholder="请选择行业"
@@ -2856,6 +3157,7 @@ function EnterpriseDetail() {
                         (option.label as string).toLowerCase().includes(inputValue.toLowerCase())
                       ),
                   }}
+                  changeOnSelect
                 />
               </Form.Item>
             </Col>
@@ -2870,13 +3172,8 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="employee_scale" label="人员规模">
-                <Select options={[
-                  { label: '50人以下', value: '50人以下' },
-                  { label: '50-200人', value: '50-200人' },
-                  { label: '200-500人', value: '200-500人' },
-                  { label: '500人以上', value: '500人以上' },
-                ]} />
+              <Form.Item name="staff_size_id" label="人员规模">
+                <Select options={staffSizeOptions} placeholder="请选择" />
               </Form.Item>
             </Col>
             <Col span={24}>
@@ -2927,36 +3224,18 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="domestic_revenue" label="国内营收(万元)">
-                <Select placeholder="请选择" options={[
-                  { label: '200以下', value: '200以下' },
-                  { label: '200-500', value: '200-500' },
-                  { label: '500-1000', value: '500-1000' },
-                  { label: '1000-5000', value: '1000-5000' },
-                  { label: '5000以上', value: '5000以上' },
-                ]} />
+              <Form.Item name="domestic_revenue_id" label="国内营收(万元)">
+                <Select placeholder="请选择" options={domesticRevenueOptions} allowClear />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="crossborder_revenue" label="跨境营收(万元)">
-                <Select placeholder="请选择" options={[
-                  { label: '0', value: '0' },
-                  { label: '200以下', value: '200以下' },
-                  { label: '200-500', value: '200-500' },
-                  { label: '500-1000', value: '500-1000' },
-                  { label: '1000-5000', value: '1000-5000' },
-                  { label: '5000以上', value: '5000以上' },
-                ]} />
+              <Form.Item name="crossborder_revenue_id" label="跨境营收(万元)">
+                <Select placeholder="请选择" options={crossBorderRevenueOptions} allowClear />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="source" label="企业来源">
-                <Select placeholder="请选择" options={[
-                  { label: '调研', value: '调研' },
-                  { label: '推荐', value: '推荐' },
-                  { label: '活动', value: '活动' },
-                  { label: '主动咨询', value: '主动咨询' },
-                ]} />
+              <Form.Item name="source_id" label="企业来源">
+                <Select placeholder="请选择" options={sourceOptions} allowClear />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -3055,8 +3334,75 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="application" label="应用领域">
-                <Input placeholder="如：家庭园艺、户外休闲" />
+              <Form.Item name="category" label="产品品类">
+                <Cascader 
+                  placeholder="请选择产品品类"
+                  options={[
+                    {
+                      value: 1,
+                      label: '园艺工具',
+                      children: [
+                        {
+                          value: 101,
+                          label: '园艺手工具',
+                          children: [
+                            { value: 10101, label: '铲子' },
+                            { value: 10102, label: '剪刀' },
+                            { value: 10103, label: '耙子' },
+                            { value: 10104, label: '锄头' },
+                          ]
+                        },
+                        { value: 102, label: '园艺电动工具' },
+                        { value: 103, label: '园艺装饰品' },
+                        { value: 104, label: '花盆花器' },
+                        { value: 105, label: '灌溉设备' },
+                      ]
+                    },
+                    {
+                      value: 2,
+                      label: '电动工具',
+                      children: [
+                        { value: 201, label: '电钻' },
+                        { value: 202, label: '电锯' },
+                        { value: 203, label: '角磨机' },
+                        { value: 204, label: '电动扳手' },
+                        { value: 205, label: '抛光机' },
+                      ]
+                    },
+                    {
+                      value: 3,
+                      label: '家居用品',
+                      children: [
+                        { value: 301, label: '厨房用品' },
+                        { value: 302, label: '卫浴用品' },
+                        { value: 303, label: '收纳整理' },
+                        { value: 304, label: '家居装饰' },
+                        { value: 305, label: '清洁用品' },
+                      ]
+                    },
+                    {
+                      value: 4,
+                      label: '户外运动',
+                      children: [
+                        { value: 401, label: '露营装备' },
+                        { value: 402, label: '运动器材' },
+                        { value: 403, label: '户外服装' },
+                        { value: 404, label: '登山装备' },
+                      ]
+                    },
+                    {
+                      value: 6,
+                      label: '电子产品',
+                      children: [
+                        { value: 601, label: '消费电子' },
+                        { value: 602, label: '智能硬件' },
+                        { value: 603, label: '电子配件' },
+                        { value: 604, label: '照明产品' },
+                      ]
+                    },
+                  ]}
+                  showSearch
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -3321,11 +3667,6 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="外贸数据(万元)">
-                <Input type="number" defaultValue={1500} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
               <Form.Item label="是否有国内电商经验">
                 <Select defaultValue={true} options={[{ label: '是', value: true }, { label: '否', value: false }]} />
               </Form.Item>
@@ -3364,8 +3705,43 @@ function EnterpriseDetail() {
         width={400}
       >
         <Form form={reasonForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="reason" label={reasonType === 'growth' ? '增长原因' : '下降原因'} rules={[{ required: true, message: '请输入原因' }]}>
-            <Input.TextArea rows={3} placeholder="请输入原因" />
+          <Form.Item name="reason" label={reasonType === 'growth' ? '增长原因' : '下降原因'} rules={[{ required: true, message: '请选择原因' }]}>
+            <Select
+              placeholder="请选择原因"
+              options={reasonType === 'growth' ? [
+                { label: '东南亚市场需求旺盛', value: '东南亚市场需求旺盛' },
+                { label: '跨境电商渠道拓展成功', value: '跨境电商渠道拓展成功' },
+                { label: '新产品线上市表现良好', value: '新产品线上市表现良好' },
+                { label: '品牌升级带动销量', value: '品牌升级带动销量' },
+                { label: '价格优势明显', value: '价格优势明显' },
+                { label: '产品质量提升', value: '产品质量提升' },
+                { label: '大客户开发成功', value: '大客户开发成功' },
+                { label: '平台流量扶持', value: '平台流量扶持' },
+                { label: '政策红利', value: '政策红利' },
+                { label: '供应链优化降本增效', value: '供应链优化降本增效' },
+                { label: '营销推广效果显著', value: '营销推广效果显著' },
+                { label: '季节性旺季', value: '季节性旺季' },
+                { label: '其他', value: '其他' },
+              ] : [
+                { label: '欧美市场竞争加剧', value: '欧美市场竞争加剧' },
+                { label: '传统B2B订单减少', value: '传统B2B订单减少' },
+                { label: '部分品类价格下降', value: '部分品类价格下降' },
+                { label: '原材料成本上涨', value: '原材料成本上涨' },
+                { label: '汇率波动影响', value: '汇率波动影响' },
+                { label: '物流成本上升', value: '物流成本上升' },
+                { label: '目标国政策变化', value: '目标国政策变化' },
+                { label: '产品质量问题', value: '产品质量问题' },
+                { label: '主要客户流失', value: '主要客户流失' },
+                { label: '平台规则调整', value: '平台规则调整' },
+                { label: '季节性淡季', value: '季节性淡季' },
+                { label: '供应链问题', value: '供应链问题' },
+                { label: '其他', value: '其他' },
+              ]}
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -3407,7 +3783,93 @@ function EnterpriseDetail() {
                 }));
               }
             } else {
-              const newItem = { name: values.name, rate: values.rate };
+              // 品类变化
+              let categoryName = '';
+              if (values.category) {
+                // 从级联选择器获取完整路径的标签
+                const findCategoryPath = (options, targetPath, currentPath = []) => {
+                  for (const option of options) {
+                    const newPath = [...currentPath, option.label];
+                    if (option.value === targetPath[targetPath.length - 1]) {
+                      return newPath.join(' > ');
+                    }
+                    if (option.children) {
+                      const result = findCategoryPath(option.children, targetPath, newPath);
+                      if (result) return result;
+                    }
+                  }
+                  return null;
+                };
+                
+                const categoryOptions = [
+                  {
+                    value: 1,
+                    label: '园艺工具',
+                    children: [
+                      {
+                        value: 101,
+                        label: '园艺手工具',
+                        children: [
+                          { value: 10101, label: '铲子' },
+                          { value: 10102, label: '剪刀' },
+                          { value: 10103, label: '耙子' },
+                          { value: 10104, label: '锄头' },
+                        ]
+                      },
+                      { value: 102, label: '园艺电动工具' },
+                      { value: 103, label: '园艺装饰品' },
+                      { value: 104, label: '花盆花器' },
+                      { value: 105, label: '灌溉设备' },
+                    ]
+                  },
+                  {
+                    value: 2,
+                    label: '电动工具',
+                    children: [
+                      { value: 201, label: '电钻' },
+                      { value: 202, label: '电锯' },
+                      { value: 203, label: '角磨机' },
+                      { value: 204, label: '电动扳手' },
+                      { value: 205, label: '抛光机' },
+                    ]
+                  },
+                  {
+                    value: 3,
+                    label: '家居用品',
+                    children: [
+                      { value: 301, label: '厨房用品' },
+                      { value: 302, label: '卫浴用品' },
+                      { value: 303, label: '收纳整理' },
+                      { value: 304, label: '家居装饰' },
+                      { value: 305, label: '清洁用品' },
+                    ]
+                  },
+                  {
+                    value: 4,
+                    label: '户外运动',
+                    children: [
+                      { value: 401, label: '露营装备' },
+                      { value: 402, label: '运动器材' },
+                      { value: 403, label: '户外服装' },
+                      { value: 404, label: '登山装备' },
+                    ]
+                  },
+                  {
+                    value: 6,
+                    label: '电子产品',
+                    children: [
+                      { value: 601, label: '消费电子' },
+                      { value: 602, label: '智能硬件' },
+                      { value: 603, label: '电子配件' },
+                      { value: 604, label: '照明产品' },
+                    ]
+                  },
+                ];
+                
+                categoryName = findCategoryPath(categoryOptions, values.category) || '未知品类';
+              }
+              
+              const newItem = { name: categoryName, rate: values.rate };
               if (editingTradeChange) {
                 setCategoryChanges(prev => ({
                   ...prev,
@@ -3480,13 +3942,129 @@ function EnterpriseDetail() {
                 )}
               </Form.Item>
             </>
+          ) : tradeChangeType === 'category' ? (
+            <Form.Item name="category" label="产品品类" rules={[{ required: true, message: '请选择品类' }]}>
+              <Cascader 
+                placeholder="请选择产品品类"
+                options={[
+                  {
+                    value: 1,
+                    label: '园艺工具',
+                    children: [
+                      {
+                        value: 101,
+                        label: '园艺手工具',
+                        children: [
+                          { value: 10101, label: '铲子' },
+                          { value: 10102, label: '剪刀' },
+                          { value: 10103, label: '耙子' },
+                          { value: 10104, label: '锄头' },
+                        ]
+                      },
+                      { value: 102, label: '园艺电动工具' },
+                      { value: 103, label: '园艺装饰品' },
+                      { value: 104, label: '花盆花器' },
+                      { value: 105, label: '灌溉设备' },
+                    ]
+                  },
+                  {
+                    value: 2,
+                    label: '电动工具',
+                    children: [
+                      { value: 201, label: '电钻' },
+                      { value: 202, label: '电锯' },
+                      { value: 203, label: '角磨机' },
+                      { value: 204, label: '电动扳手' },
+                      { value: 205, label: '抛光机' },
+                    ]
+                  },
+                  {
+                    value: 3,
+                    label: '家居用品',
+                    children: [
+                      { value: 301, label: '厨房用品' },
+                      { value: 302, label: '卫浴用品' },
+                      { value: 303, label: '收纳整理' },
+                      { value: 304, label: '家居装饰' },
+                      { value: 305, label: '清洁用品' },
+                    ]
+                  },
+                  {
+                    value: 4,
+                    label: '户外运动',
+                    children: [
+                      { value: 401, label: '露营装备' },
+                      { value: 402, label: '运动器材' },
+                      { value: 403, label: '户外服装' },
+                      { value: 404, label: '登山装备' },
+                    ]
+                  },
+                  {
+                    value: 6,
+                    label: '电子产品',
+                    children: [
+                      { value: 601, label: '消费电子' },
+                      { value: 602, label: '智能硬件' },
+                      { value: 603, label: '电子配件' },
+                      { value: 604, label: '照明产品' },
+                    ]
+                  },
+                ]}
+                showSearch
+                displayRender={(labels) => labels.join(' > ')}
+              />
+            </Form.Item>
           ) : (
-            <Form.Item name="name" label={tradeChangeType === 'mode' ? '模式名称' : '品类名称'} rules={[{ required: true, message: '请输入名称' }]}>
+            <Form.Item name="name" label="模式名称" rules={[{ required: true, message: '请输入名称' }]}>
               <Input placeholder="请输入名称" />
             </Form.Item>
           )}
           <Form.Item name="rate" label="变化率" rules={[{ required: true, message: '请输入变化率' }]}>
             <Input placeholder={tradeChangeDirection === 'up' ? '例如: +25%' : '例如: -8%'} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 外贸业绩分析编辑模态框 */}
+      <Modal
+        title="编辑外贸业绩分析"
+        open={isTradePerformanceModalOpen}
+        onOk={() => {
+          tradePerformanceForm.validateFields().then(values => {
+            message.success('外贸业绩分析更新成功');
+            setIsTradePerformanceModalOpen(false);
+          });
+        }}
+        onCancel={() => setIsTradePerformanceModalOpen(false)}
+        width={800}
+        okText="保存"
+        cancelText="取消"
+      >
+        <Form form={tradePerformanceForm} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item 
+                label={`${new Date().getFullYear() - 2}年外贸营业额(万元)`}
+                name="yearBeforeLastRevenue"
+                initialValue={1280}
+                rules={[{ required: true, message: '请输入营业额' }]}
+              >
+                <Input type="number" placeholder="请输入营业额" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item 
+                label={`${new Date().getFullYear() - 1}年外贸营业额(万元)`}
+                name="lastYearRevenue"
+                initialValue={1500}
+                rules={[{ required: true, message: '请输入营业额' }]}
+              >
+                <Input type="number" placeholder="请输入营业额" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item label="备注说明" name="remark">
+            <Input.TextArea rows={3} placeholder="可以添加业绩变化的说明..." />
           </Form.Item>
         </Form>
       </Modal>
@@ -3507,16 +4085,31 @@ function EnterpriseDetail() {
               mode="multiple"
               value={selectedCrossborderPlatforms}
               onChange={setSelectedCrossborderPlatforms}
+              placeholder="请选择跨境平台"
               options={[
-                { label: '亚马逊', value: '亚马逊' },
-                { label: '阿里国际站', value: '阿里国际站' },
-                { label: 'eBay', value: 'eBay' },
-                { label: 'Wish', value: 'Wish' },
-                { label: 'Shopee', value: 'Shopee' },
-                { label: 'Lazada', value: 'Lazada' },
+                { label: '亚马逊 (Amazon)', value: '亚马逊 (Amazon)' },
+                { label: '阿里国际站 (Alibaba.com)', value: '阿里国际站 (Alibaba.com)' },
                 { label: 'TikTok Shop', value: 'TikTok Shop' },
-                { label: '独立站', value: '独立站' },
+                { label: '速卖通 (AliExpress)', value: '速卖通 (AliExpress)' },
+                { label: 'eBay', value: 'eBay' },
+                { label: '独立站 (Shopify)', value: '独立站 (Shopify)' },
+                { label: 'Temu', value: 'Temu' },
+                { label: 'SHEIN', value: 'SHEIN' },
+                { label: '沃尔玛 (Walmart)', value: '沃尔玛 (Walmart)' },
+                { label: 'Lazada', value: 'Lazada' },
+                { label: 'Shopee', value: 'Shopee' },
+                { label: 'Wish', value: 'Wish' },
+                { label: 'Etsy', value: 'Etsy' },
+                { label: 'Wayfair', value: 'Wayfair' },
+                { label: 'Mercado Libre', value: 'Mercado Libre' },
+                { label: '乐天 (Rakuten)', value: '乐天 (Rakuten)' },
+                { label: '京东国际 (JD Global)', value: '京东国际 (JD Global)' },
+                { label: '其他', value: '其他' },
               ]}
+              showSearch
+              filterOption={(input, option) =>
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+              }
             />
           </Form.Item>
         </Form>
@@ -3546,12 +4139,50 @@ function EnterpriseDetail() {
             </Col>
             <Col span={12}>
               <Form.Item label="跨境物流模式">
-                <Input defaultValue="海运、FBA" />
+                <Select 
+                  defaultValue="fba" 
+                  placeholder="请选择物流模式"
+                  options={[
+                    { label: '海运', value: '海运' },
+                    { label: '空运', value: '空运' },
+                    { label: '国际快递', value: '国际快递' },
+                    { label: 'FBA (亚马逊物流)', value: 'FBA (亚马逊物流)' },
+                    { label: '海外仓', value: '海外仓' },
+                    { label: '一件代发', value: '一件代发' },
+                    { label: '中国邮政小包', value: '中国邮政小包' },
+                    { label: '专线物流', value: '专线物流' },
+                    { label: '铁路运输', value: '铁路运输' },
+                    { label: '混合模式', value: '混合模式' },
+                    { label: '其他', value: '其他' },
+                  ]}
+                  showSearch
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item label="支付结算方式">
-                <Select defaultValue="FOB" options={[{ label: 'FOB', value: 'FOB' }, { label: 'CIF', value: 'CIF' }, { label: 'EXW', value: 'EXW' }]} />
+                <Select 
+                  defaultValue="FOB (离岸价)" 
+                  placeholder="请选择结算方式"
+                  options={[
+                    { label: 'FOB (离岸价)', value: 'FOB (离岸价)' },
+                    { label: 'CIF (到岸价)', value: 'CIF (到岸价)' },
+                    { label: 'EXW (工厂交货)', value: 'EXW (工厂交货)' },
+                    { label: 'DDP (完税后交货)', value: 'DDP (完税后交货)' },
+                    { label: '现款现货', value: '现款现货' },
+                    { label: '账期30天', value: '账期30天' },
+                    { label: '账期60天', value: '账期60天' },
+                    { label: '账期90天', value: '账期90天' },
+                    { label: '信用证 (L/C)', value: '信用证 (L/C)' },
+                    { label: '电汇 (T/T)', value: '电汇 (T/T)' },
+                    { label: 'PayPal', value: 'PayPal' },
+                    { label: 'Stripe', value: 'Stripe' },
+                    { label: '支付宝国际', value: '支付宝国际' },
+                    { label: '平台代收', value: '平台代收' },
+                    { label: '其他', value: '其他' },
+                  ]}
+                  showSearch
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -3561,7 +4192,23 @@ function EnterpriseDetail() {
             </Col>
             <Col span={12}>
               <Form.Item label="是否在用ERP">
-                <Input defaultValue="是（用友U8）" />
+                <Select 
+                  defaultValue="是（用友U8）" 
+                  placeholder="请选择"
+                  options={[
+                    { label: '是（用友U8）', value: '是（用友U8）' },
+                    { label: '是（金蝶K3）', value: '是（金蝶K3）' },
+                    { label: '是（SAP）', value: '是（SAP）' },
+                    { label: '是（Oracle）', value: '是（Oracle）' },
+                    { label: '是（浪潮）', value: '是（浪潮）' },
+                    { label: '是（鼎捷）', value: '是（鼎捷）' },
+                    { label: '是（管家婆）', value: '是（管家婆）' },
+                    { label: '是（速达）', value: '是（速达）' },
+                    { label: '是（其他ERP）', value: '是（其他ERP）' },
+                    { label: '否', value: '否' },
+                  ]}
+                  showSearch
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -3588,30 +4235,72 @@ function EnterpriseDetail() {
         cancelText="取消"
         width={600}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item label="北美市场占比(%)">
-                <Input type="number" defaultValue={40} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="欧洲市场占比(%)">
-                <Input type="number" defaultValue={30} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="东南亚市场占比(%)">
-                <Input type="number" defaultValue={20} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="其他市场占比(%)">
-                <Input type="number" defaultValue={10} />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
+        <div style={{ marginTop: 16 }}>
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text type="secondary">总占比: <Text strong style={{ color: targetMarkets.reduce((sum, m) => sum + m.percentage, 0) === 100 ? '#52c41a' : '#ff4d4f' }}>{targetMarkets.reduce((sum, m) => sum + m.percentage, 0)}%</Text></Text>
+            <Button 
+              type="dashed" 
+              icon={<PlusOutlined />} 
+              onClick={() => setTargetMarkets([...targetMarkets, { market: '', percentage: 0 }])}
+            >
+              添加市场
+            </Button>
+          </div>
+          {targetMarkets.map((item, index) => (
+            <div key={index} style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center' }}>
+              <Select
+                style={{ flex: 1 }}
+                placeholder="选择市场"
+                value={item.market || undefined}
+                onChange={(value) => {
+                  const newMarkets = [...targetMarkets];
+                  newMarkets[index].market = value;
+                  setTargetMarkets(newMarkets);
+                }}
+                showSearch
+                options={[
+                  { label: '北美', value: '北美' },
+                  { label: '欧洲', value: '欧洲' },
+                  { label: '东南亚', value: '东南亚' },
+                  { label: '东亚', value: '东亚' },
+                  { label: '南亚', value: '南亚' },
+                  { label: '中东', value: '中东' },
+                  { label: '非洲', value: '非洲' },
+                  { label: '南美', value: '南美' },
+                  { label: '大洋洲', value: '大洋洲' },
+                ]}
+              />
+              <Input
+                style={{ width: 100 }}
+                type="number"
+                min={0}
+                max={100}
+                suffix="%"
+                value={item.percentage}
+                onChange={(e) => {
+                  const newMarkets = [...targetMarkets];
+                  newMarkets[index].percentage = Number(e.target.value) || 0;
+                  setTargetMarkets(newMarkets);
+                }}
+              />
+              <Button 
+                type="text" 
+                danger 
+                icon={<DeleteOutlined />}
+                onClick={() => {
+                  const newMarkets = targetMarkets.filter((_, i) => i !== index);
+                  setTargetMarkets(newMarkets);
+                }}
+                disabled={targetMarkets.length <= 1}
+              />
+            </div>
+          ))}
+          {targetMarkets.reduce((sum, m) => sum + m.percentage, 0) !== 100 && (
+            <div style={{ color: '#ff4d4f', fontSize: 12, marginTop: 8 }}>
+              <WarningOutlined /> 占比总和应为100%
+            </div>
+          )}
+        </div>
       </Modal>
 
       {/* 跨境需求和痛点编辑模态框 */}
@@ -3794,12 +4483,21 @@ function EnterpriseDetail() {
           <Form.Item label="已享受政策">
             <Select
               mode="multiple"
-              defaultValue={['跨境电商扶持资金', '外贸稳增长补贴']}
+              defaultValue={['cross_border_fund', 'trade_growth_subsidy']}
               options={[
-                { label: '跨境电商扶持资金', value: '跨境电商扶持资金' },
-                { label: '外贸稳增长补贴', value: '外贸稳增长补贴' },
-                { label: '品牌出海补贴', value: '品牌出海补贴' },
-                { label: '人才引进补贴', value: '人才引进补贴' },
+                { label: '跨境电商扶持资金', value: 'cross_border_fund' },
+                { label: '外贸稳增长补贴', value: 'trade_growth_subsidy' },
+                { label: '品牌出海补贴', value: 'brand_overseas_subsidy' },
+                { label: '人才引进补贴', value: 'talent_subsidy' },
+                { label: '跨境电商出口退税', value: 'export_tax_rebate' },
+                { label: '海外仓补贴', value: 'overseas_warehouse_subsidy' },
+                { label: '产品认证补贴', value: 'certification_subsidy' },
+                { label: '展会补贴', value: 'exhibition_subsidy' },
+                { label: '物流补贴', value: 'logistics_subsidy' },
+                { label: '培训补贴', value: 'training_subsidy' },
+                { label: '创新研发资金', value: 'innovation_fund' },
+                { label: '中小企业扶持', value: 'sme_support' },
+                { label: '其他', value: 'other' },
               ]}
             />
           </Form.Item>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Card,
   Table,
@@ -15,6 +15,7 @@ import {
   Typography,
   Statistic,
   message,
+  Spin,
 } from 'antd';
 import {
   SearchOutlined,
@@ -23,11 +24,36 @@ import {
   VideoCameraOutlined,
   TeamOutlined,
   FileTextOutlined,
+  ArrowRightOutlined,
+  RiseOutlined,
+  FallOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { followUpRecords, funnelStages, enterprises } from '@/data/mockData';
+import { followUpApi, enterpriseApi, dashboardApi } from '@/services/api';
 import { FOLLOW_UP_TYPES } from '@/utils/constants';
 import type { FollowUpRecord } from '@/types';
+
+// 漏斗阶段配置
+const FUNNEL_STAGES = [
+  { code: 'POTENTIAL', name: '潜在企业', color: '#94a3b8' },
+  { code: 'NO_DEMAND', name: '无明确需求', color: '#fbbf24' },
+  { code: 'NO_INTENTION', name: '没有合作意向', color: '#ef4444' },
+  { code: 'HAS_DEMAND', name: '有明确需求', color: '#3b82f6' },
+  { code: 'SIGNED', name: '已签约', color: '#8b5cf6' },
+  { code: 'SETTLED', name: '已入驻', color: '#10b981' },
+  { code: 'INCUBATING', name: '重点孵化', color: '#f97316' },
+];
+
+// 阶段顺序映射
+const stageOrder: Record<string, number> = {
+  'POTENTIAL': 1,
+  'NO_DEMAND': 2,
+  'NO_INTENTION': 3,
+  'HAS_DEMAND': 4,
+  'SIGNED': 5,
+  'SETTLED': 6,
+  'INCUBATING': 7,
+};
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
@@ -37,16 +63,106 @@ function FollowUpRecords() {
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
+  
+  // API数据状态
+  const [loading, setLoading] = useState(true);
+  const [followUpRecords, setFollowUpRecords] = useState<any[]>([]);
+  const [enterprises, setEnterprises] = useState<any[]>([]);
+  const [stats, setStats] = useState({
+    monthCount: 0,
+    weekCount: 0,
+    todayCount: 0,
+    pendingCount: 0,
+  });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [total, setTotal] = useState(0);
+  
+  // 加载跟进记录
+  const fetchFollowUpRecords = async () => {
+    setLoading(true);
+    try {
+      const response = await followUpApi.getList({
+        page,
+        pageSize,
+        type: typeFilter || undefined,
+      });
+      if (response.data) {
+        const list = (response.data.list || []).map((item: any) => ({
+          id: item.id,
+          enterprise_id: item.enterpriseId,
+          enterprise_name: item.enterpriseName,
+          follow_up_date: item.followUpDate,
+          follow_up_person: item.followUpPerson,
+          follow_up_type: item.followUpType,
+          content: item.content,
+          overall_status: item.overallStatus,
+          next_step: item.nextPlan,
+          stage_before: item.stageBefore,
+          stage_after: item.stageAfter,
+        }));
+        setFollowUpRecords(list);
+        setTotal(response.data.total || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch follow-up records:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // 加载企业列表（用于新增跟进时选择）
+  const fetchEnterprises = async () => {
+    try {
+      const response = await enterpriseApi.getList({ pageSize: 1000 });
+      if (response.data?.list) {
+        setEnterprises(response.data.list.map((e: any) => ({
+          id: e.id,
+          enterprise_name: e.name,
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to fetch enterprises:', error);
+    }
+  };
+  
+  // 加载统计数据
+  const fetchStats = async () => {
+    try {
+      const response = await dashboardApi.getPendingFollowUps();
+      if (response.data) {
+        setStats({
+          monthCount: response.data.monthCount || 0,
+          weekCount: response.data.weekCount || 0,
+          todayCount: response.data.todayCount || 0,
+          pendingCount: response.data.pendingCount || 0,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to fetch stats:', error);
+    }
+  };
+  
+  useEffect(() => {
+    fetchEnterprises();
+    fetchStats();
+  }, []);
+  
+  useEffect(() => {
+    fetchFollowUpRecords();
+  }, [page, pageSize, typeFilter]);
 
   const getStageInfo = (code: string) => {
-    return funnelStages.find(s => s.code === code) || { name: code, color: '#94a3b8' };
+    const stage = FUNNEL_STAGES.find(s => s.code === code);
+    return stage || { name: code, color: '#94a3b8' };
   };
 
+  // 前端搜索过滤
   const filteredRecords = followUpRecords.filter(r => {
-    const matchesSearch = r.enterprise_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      r.content.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesType = !typeFilter || r.follow_up_type === typeFilter;
-    return matchesSearch && matchesType;
+    const matchesSearch = !searchTerm || 
+      r.enterprise_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.content?.toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesSearch;
   });
 
   const getTypeIcon = (type: string) => {
@@ -96,35 +212,142 @@ function FollowUpRecords() {
     {
       title: '阶段变化',
       key: 'stage_change',
-      width: 200,
+      width: 320,
       render: (_, record) => {
         if (record.stage_before && record.stage_after && record.stage_before !== record.stage_after) {
+          const stageBefore = getStageInfo(record.stage_before);
+          const stageAfter = getStageInfo(record.stage_after);
+          const beforeOrder = stageOrder[record.stage_before] || 0;
+          const afterOrder = stageOrder[record.stage_after] || 0;
+          const isUpgrade = afterOrder > beforeOrder;
+          const themeColor = isUpgrade ? '#52c41a' : '#faad14';
+
           return (
-            <Space>
-              <Tag color={getStageInfo(record.stage_before).color}>{getStageInfo(record.stage_before).name}</Tag>
-              →
-              <Tag color={getStageInfo(record.stage_after).color}>{getStageInfo(record.stage_after).name}</Tag>
-            </Space>
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 8,
+                padding: '6px 12px',
+                borderRadius: 20,
+                background: isUpgrade 
+                  ? 'linear-gradient(135deg, rgba(82,196,26,0.08) 0%, rgba(255,255,255,0.95) 100%)'
+                  : 'linear-gradient(135deg, rgba(250,173,20,0.08) 0%, rgba(255,255,255,0.95) 100%)',
+                border: `1px solid ${isUpgrade ? 'rgba(82,196,26,0.2)' : 'rgba(250,173,20,0.2)'}`,
+              }}
+            >
+              {/* 起始阶段 */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 10px',
+                  borderRadius: 12,
+                  background: `${stageBefore.color}12`,
+                  border: `1px solid ${stageBefore.color}30`,
+                  fontSize: 12,
+                  fontWeight: 500,
+                  color: stageBefore.color,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: stageBefore.color,
+                    opacity: 0.6,
+                  }}
+                />
+                {stageBefore.name}
+              </div>
+
+              {/* 箭头指示器 */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 2,
+                  padding: '4px 8px',
+                  borderRadius: 10,
+                  background: `${themeColor}15`,
+                }}
+              >
+                {isUpgrade ? (
+                  <RiseOutlined style={{ fontSize: 14, color: themeColor }} />
+                ) : (
+                  <FallOutlined style={{ fontSize: 14, color: themeColor }} />
+                )}
+                <ArrowRightOutlined style={{ fontSize: 12, color: themeColor }} />
+              </div>
+
+              {/* 目标阶段 */}
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '4px 10px',
+                  borderRadius: 12,
+                  background: `${stageAfter.color}20`,
+                  border: `1px solid ${stageAfter.color}50`,
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: stageAfter.color,
+                  whiteSpace: 'nowrap',
+                  boxShadow: `0 2px 8px ${stageAfter.color}20`,
+                }}
+              >
+                <span
+                  style={{
+                    width: 6,
+                    height: 6,
+                    borderRadius: '50%',
+                    background: stageAfter.color,
+                  }}
+                />
+                {stageAfter.name}
+              </div>
+            </div>
           );
         }
-        return <span style={{ color: '#999' }}>-</span>;
+        return <span style={{ color: '#bfbfbf', fontSize: 13 }}>—</span>;
       },
     },
   ];
 
-  const handleAddRecord = () => {
-    form.validateFields().then(() => {
+  const handleAddRecord = async () => {
+    try {
+      const values = await form.validateFields();
+      const data = {
+        enterpriseId: values.enterprise_id,
+        followUpType: values.follow_up_type,
+        followUpDate: values.follow_up_date?.format('YYYY-MM-DD'),
+        content: values.content,
+        overallStatus: values.overall_status,
+        nextPlan: values.next_step,
+        stageAfter: values.stage_after,
+        serviceProvider: values.service_provider,
+      };
+      await followUpApi.create(data);
       message.success('跟进记录添加成功');
       setIsModalOpen(false);
       form.resetFields();
-    });
+      fetchFollowUpRecords();
+      fetchStats();
+    } catch (error: any) {
+      if (error.errorFields) return; // 表单验证错误
+      message.error(error.message || '添加失败');
+    }
   };
 
-  const stats = [
-    { title: '本月跟进', value: 28, icon: <FileTextOutlined style={{ color: '#1890ff' }} /> },
-    { title: '本周跟进', value: 8, icon: <PhoneOutlined style={{ color: '#52c41a' }} /> },
-    { title: '今日跟进', value: 2, icon: <TeamOutlined style={{ color: '#722ed1' }} /> },
-    { title: '待跟进企业', value: 12, icon: <VideoCameraOutlined style={{ color: '#faad14' }} /> },
+  const statsDisplay = [
+    { title: '本月跟进', value: stats.monthCount, icon: <FileTextOutlined style={{ color: '#1890ff' }} /> },
+    { title: '本周跟进', value: stats.weekCount, icon: <PhoneOutlined style={{ color: '#52c41a' }} /> },
+    { title: '今日跟进', value: stats.todayCount, icon: <TeamOutlined style={{ color: '#722ed1' }} /> },
+    { title: '待跟进企业', value: stats.pendingCount, icon: <VideoCameraOutlined style={{ color: '#faad14' }} /> },
   ];
 
   return (
@@ -140,7 +363,7 @@ function FollowUpRecords() {
       </div>
 
       <Row gutter={16} style={{ marginBottom: 16 }}>
-        {stats.map((stat, index) => (
+        {statsDisplay.map((stat, index) => (
           <Col xs={12} sm={6} key={index}>
             <Card>
               <Statistic
@@ -175,17 +398,24 @@ function FollowUpRecords() {
       </Card>
 
       <Card>
-        <Table
-          columns={columns}
-          dataSource={filteredRecords}
-          rowKey="id"
-          pagination={{
-            total: filteredRecords.length,
-            pageSize: 10,
-            showTotal: (total) => `共 ${total} 条记录`,
-            showSizeChanger: true,
-          }}
-        />
+        <Spin spinning={loading}>
+          <Table
+            columns={columns}
+            dataSource={filteredRecords}
+            rowKey="id"
+            pagination={{
+              total: total,
+              current: page,
+              pageSize: pageSize,
+              showTotal: (total) => `共 ${total} 条记录`,
+              showSizeChanger: true,
+              onChange: (p, ps) => {
+                setPage(p);
+                setPageSize(ps);
+              },
+            }}
+          />
+        </Spin>
       </Card>
 
       <Modal
@@ -244,7 +474,7 @@ function FollowUpRecords() {
                 <Select
                   placeholder="如无变化可不选"
                   allowClear
-                  options={funnelStages.map(s => ({ label: s.name, value: s.code }))}
+                  options={FUNNEL_STAGES.map(s => ({ label: s.name, value: s.code }))}
                 />
               </Form.Item>
             </Col>

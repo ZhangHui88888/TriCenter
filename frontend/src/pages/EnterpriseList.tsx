@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -14,6 +14,7 @@ import {
   Typography,
   message,
   Progress,
+  Spin,
 } from 'antd';
 import {
   SearchOutlined,
@@ -27,24 +28,35 @@ import {
   CloseCircleOutlined,
   ArrowRightOutlined,
   RiseOutlined,
+  LoadingOutlined,
 } from '@ant-design/icons';
 import { Upload, Tabs, Badge } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import type { ColumnsType } from 'antd/es/table';
-import { enterprises, funnelStages, districts, industries } from '@/data/mockData';
 import { requirements } from '@/data/requirementsData';
 import {
   ENTERPRISE_TYPES,
   ENTERPRISE_SOURCES,
   EMPLOYEE_SCALES,
   REVENUE_SCALES,
-  ASSIGNEES,
   CROSSBORDER_PLATFORMS,
   TRANSFORMATION_WILLINGNESS,
 } from '@/utils/constants';
+import { enterpriseApi, optionsApi, dashboardApi } from '@/services/api';
 import type { Enterprise } from '@/types';
 
 const { Title, Text } = Typography;
+
+// 漏斗阶段配置
+const FUNNEL_STAGES = [
+  { code: 'POTENTIAL', name: '潜在企业', color: '#94a3b8' },
+  { code: 'NO_DEMAND', name: '无明确需求', color: '#fbbf24' },
+  { code: 'NO_INTENTION', name: '没有合作意向', color: '#ef4444' },
+  { code: 'HAS_DEMAND', name: '有明确需求', color: '#3b82f6' },
+  { code: 'SIGNED', name: '已签约', color: '#8b5cf6' },
+  { code: 'SETTLED', name: '已入驻', color: '#10b981' },
+  { code: 'INCUBATING', name: '重点孵化', color: '#f97316' },
+];
 
 function EnterpriseList() {
   const navigate = useNavigate();
@@ -59,6 +71,104 @@ function EnterpriseList() {
   const [filterForm] = Form.useForm();
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
+  const [isCreating, setIsCreating] = useState(false);
+  
+  // API数据状态
+  const [loading, setLoading] = useState(true);
+  const [enterprises, setEnterprises] = useState<any[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [districts, setDistricts] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<any[]>([]);
+  const [funnelStats, setFunnelStats] = useState<any[]>([]);
+  
+  // 加载企业列表
+  const fetchEnterprises = async () => {
+    setLoading(true);
+    try {
+      const response = await enterpriseApi.getList({
+        page,
+        pageSize,
+        keyword: searchTerm || undefined,
+        stage: stageFilter || undefined,
+        district: districtFilter || undefined,
+        industryId: industryFilter ? Number(industryFilter) : undefined,
+      });
+      if (response.data) {
+        // 转换字段名
+        const list = (response.data.list || []).map((item: any) => ({
+          id: item.id,
+          enterprise_name: item.name,
+          district: item.district,
+          industry: item.industryName,
+          enterprise_type: item.enterpriseType,
+          funnel_stage: item.stage,
+          contacts: item.contacts || [],
+          has_crossborder: item.hasCrossBorder,
+          main_platforms: item.crossBorderPlatforms,
+          target_markets: item.targetMarkets,
+          created_at: item.createdAt,
+        }));
+        setEnterprises(list);
+        setTotal(response.data.total || 0);
+      }
+    } catch (error) {
+      console.error('Failed to fetch enterprises:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
+  // 加载选项数据
+  const fetchOptions = async () => {
+    try {
+      const [districtRes, industryRes, funnelRes] = await Promise.all([
+        optionsApi.getOptions('district'),
+        optionsApi.getIndustries(),
+        dashboardApi.getFunnelStats(),
+      ]);
+      
+      // 区域选项
+      if (districtRes.data) {
+        setDistricts(districtRes.data.map((d: any) => d.label));
+      }
+      
+      // 行业选项（扁平化处理）
+      if (industryRes.data) {
+        const flatIndustries: any[] = [];
+        const flatten = (items: any[]) => {
+          items.forEach(item => {
+            flatIndustries.push({ id: item.id, name: item.name });
+            if (item.children) flatten(item.children);
+          });
+        };
+        flatten(industryRes.data);
+        setIndustries(flatIndustries);
+      }
+      
+      // 漏斗统计
+      if (funnelRes.data) {
+        setFunnelStats(funnelRes.data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch options:', error);
+    }
+  };
+  
+  useEffect(() => {
+    fetchOptions();
+  }, []);
+  
+  useEffect(() => {
+    fetchEnterprises();
+  }, [page, pageSize]);
+  
+  // 搜索
+  const handleSearch = () => {
+    setPage(1);
+    fetchEnterprises();
+  };
   
   // 计算已应用的筛选条件数量
   const activeFilterCount = Object.values(advancedFilters).filter(v => 
@@ -67,12 +177,14 @@ function EnterpriseList() {
   ).length;
 
   const getStageInfo = (code: string) => {
-    const stage = funnelStages.find(s => s.code === code);
+    const stage = FUNNEL_STAGES.find(s => s.code === code);
     if (!stage) return { name: code, color: '#94a3b8', gradient: 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)' };
     
     const gradientMap: Record<string, string> = {
       'INITIAL': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       'POTENTIAL': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+      'NO_DEMAND': 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+      'NO_INTENTION': 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
       'HAS_DEMAND': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
       'NEGOTIATING': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
       'SIGNED': 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
@@ -84,30 +196,8 @@ function EnterpriseList() {
     return { ...stage, gradient: gradientMap[code] || stage.color };
   };
 
-  const filteredEnterprises = enterprises.filter(e => {
-    const matchesSearch = e.enterprise_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStage = !stageFilter || e.funnel_stage === stageFilter;
-    const matchesDistrict = !districtFilter || e.district === districtFilter;
-    const matchesIndustry = !industryFilter || e.industry === industryFilter;
-    
-    // 高级筛选条件
-    const matchesEnterpriseType = !advancedFilters.enterprise_type || e.enterprise_type === advancedFilters.enterprise_type;
-    const matchesEmployeeScale = !advancedFilters.employee_scale || e.employee_scale === advancedFilters.employee_scale;
-    const matchesDomesticRevenue = !advancedFilters.domestic_revenue || e.domestic_revenue === advancedFilters.domestic_revenue;
-    const matchesCrossborderRevenue = !advancedFilters.crossborder_revenue || e.crossborder_revenue === advancedFilters.crossborder_revenue;
-    const matchesSource = !advancedFilters.source || e.source === advancedFilters.source;
-    const matchesAssignee = !advancedFilters.assignee || e.assignee === advancedFilters.assignee;
-    const matchesTransformation = !advancedFilters.transformation_willingness || e.transformation_willingness === advancedFilters.transformation_willingness;
-    const matchesPlatforms = !advancedFilters.main_platforms?.length || 
-      advancedFilters.main_platforms.some((p: string) => e.main_platforms?.includes(p));
-    const matchesHasCrossborder = advancedFilters.has_crossborder === undefined || 
-      (advancedFilters.has_crossborder === true ? (e.crossborder_revenue && e.crossborder_revenue !== '0') : (!e.crossborder_revenue || e.crossborder_revenue === '0'));
-    
-    return matchesSearch && matchesStage && matchesDistrict && matchesIndustry &&
-      matchesEnterpriseType && matchesEmployeeScale && matchesDomesticRevenue && 
-      matchesCrossborderRevenue && matchesSource && matchesAssignee && 
-      matchesTransformation && matchesPlatforms && matchesHasCrossborder;
-  });
+  // 使用API返回的数据
+  const filteredEnterprises = enterprises;
   
   // 应用高级筛选
   const handleApplyFilters = () => {
@@ -124,8 +214,8 @@ function EnterpriseList() {
     message.success('筛选条件已重置');
   };
 
-  // 数据分析 - 基于筛选后的企业数据动态计算
-  const filteredStageStats = funnelStages.map(stage => ({
+  // 数据分析 - 使用API返回的漏斗统计数据
+  const filteredStageStats = funnelStats.length > 0 ? funnelStats : FUNNEL_STAGES.map(stage => ({
     ...stage,
     count: filteredEnterprises.filter(e => e.funnel_stage === stage.code).length,
   }));
@@ -148,7 +238,7 @@ function EnterpriseList() {
     const platformMap = new Map<string, number>();
     filteredEnterprises.forEach(e => {
       if (e.main_platforms) {
-        e.main_platforms.split(',').forEach(platform => {
+        e.main_platforms.split(',').forEach((platform: string) => {
           const p = platform.trim();
           if (p) platformMap.set(p, (platformMap.get(p) || 0) + 1);
         });
@@ -165,7 +255,7 @@ function EnterpriseList() {
     const marketMap = new Map<string, number>();
     filteredEnterprises.forEach(e => {
       if (e.target_markets) {
-        e.target_markets.split(',').forEach(market => {
+        e.target_markets.split(',').forEach((market: string) => {
           const m = market.trim();
           if (m) marketMap.set(m, (marketMap.get(m) || 0) + 1);
         });
@@ -395,31 +485,6 @@ function EnterpriseList() {
       },
     },
     {
-      title: '对接人',
-      dataIndex: 'assignee',
-      key: 'assignee',
-      width: 90,
-      render: (text) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{
-            width: 28,
-            height: 28,
-            borderRadius: '50%',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: 12,
-            fontWeight: 500
-          }}>
-            {text?.charAt(0)}
-          </div>
-          <span style={{ color: '#555', fontSize: 13 }}>{text}</span>
-        </div>
-      ),
-    },
-    {
       title: '操作',
       key: 'action',
       width: 100,
@@ -449,12 +514,28 @@ function EnterpriseList() {
     },
   ];
 
-  const handleAddEnterprise = () => {
-    form.validateFields().then(() => {
-      message.success('企业添加成功');
-      setIsModalOpen(false);
-      form.resetFields();
-    });
+  const handleAddEnterprise = async () => {
+    if (isCreating) return;
+    
+    setIsCreating(true);
+    try {
+      // 调用API创建空白企业
+      const response = await enterpriseApi.create({});
+      // request拦截器已经解包，response就是 { code, message, data }
+      const newEnterpriseId = response.data?.id;
+      
+      if (newEnterpriseId) {
+        message.success('企业创建成功，正在跳转...');
+        // 跳转到企业详情页
+        navigate(`/enterprise/${newEnterpriseId}`);
+      } else {
+        message.error('创建企业失败');
+      }
+    } catch (error: any) {
+      message.error(error.message || '创建企业失败');
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   return (
@@ -495,8 +576,9 @@ function EnterpriseList() {
           </Button>
           <Button 
             type="primary" 
-            icon={<PlusOutlined />} 
-            onClick={() => setIsModalOpen(true)}
+            icon={isCreating ? <LoadingOutlined /> : <PlusOutlined />} 
+            onClick={handleAddEnterprise}
+            loading={isCreating}
             style={{ 
               borderRadius: 10,
               height: 40,
@@ -539,7 +621,7 @@ function EnterpriseList() {
             allowClear
             value={stageFilter || undefined}
             onChange={(value) => setStageFilter(value || '')}
-            options={funnelStages.map(s => ({ label: s.name, value: s.code }))}
+            options={FUNNEL_STAGES.map(s => ({ label: s.name, value: s.code }))}
           />
           <Select
             placeholder="所属区域"
@@ -863,11 +945,6 @@ function EnterpriseList() {
               </div>
             </Col>
             <Col span={12}>
-              <Form.Item name="assignee" label="对接人">
-                <Select placeholder="请选择" options={ASSIGNEES.map(a => ({ label: a, value: a }))} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
               <Form.Item name="source" label="企业来源">
                 <Select placeholder="请选择" options={ENTERPRISE_SOURCES.map(s => ({ label: s, value: s }))} />
               </Form.Item>
@@ -1046,11 +1123,6 @@ function EnterpriseList() {
                     <Col span={8}>
                       <Form.Item name="source" label="企业来源">
                         <Select placeholder="请选择" allowClear options={ENTERPRISE_SOURCES.map(s => ({ label: s, value: s }))} />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item name="assignee" label="对接人">
-                        <Select placeholder="请选择" allowClear options={ASSIGNEES.map(a => ({ label: a, value: a }))} />
                       </Form.Item>
                     </Col>
                   </Row>
@@ -1353,7 +1425,7 @@ function EnterpriseList() {
                         <Select 
                           placeholder="请选择" 
                           allowClear 
-                          options={funnelStages.map(s => ({ label: s.name, value: s.code }))} 
+                          options={FUNNEL_STAGES.map(s => ({ label: s.name, value: s.code }))} 
                         />
                       </Form.Item>
                     </Col>
@@ -1365,11 +1437,6 @@ function EnterpriseList() {
                           { label: '30天内', value: 30 },
                           { label: '超过30天', value: -30 },
                         ]} />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item name="followup_person" label="跟进人">
-                        <Select placeholder="请选择" allowClear options={ASSIGNEES.map(a => ({ label: a, value: a }))} />
                       </Form.Item>
                     </Col>
                   </Row>

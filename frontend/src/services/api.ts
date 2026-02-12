@@ -11,6 +11,7 @@ export const enterpriseApi = {
     stage?: string;
     district?: string;
     industry?: string;
+    industryId?: number;
   }) => request.get('/enterprises', { params }),
 
   // 获取企业详情
@@ -110,4 +111,49 @@ export const authApi = {
   // 修改密码
   changePassword: (data: { oldPassword: string; newPassword: string }) =>
     request.post('/auth/change-password', data),
+};
+
+// 产品管理 API
+export const productApi = {
+  // 添加产品
+  create: (enterpriseId: number, data: any) => 
+    request.post(`/enterprises/${enterpriseId}/products`, data),
+
+  // 更新产品
+  update: (enterpriseId: number, productId: number, data: any) => 
+    request.put(`/enterprises/${enterpriseId}/products/${productId}`, data),
+
+  // 删除产品
+  delete: (enterpriseId: number, productId: number) => 
+    request.delete(`/enterprises/${enterpriseId}/products/${productId}`),
+};
+
+// 专利管理 API
+export const patentApi = {
+  // 添加专利
+  create: (enterpriseId: number, data: any) => 
+    request.post(`/enterprises/${enterpriseId}/patents`, data),
+
+  // 更新专利
+  update: (enterpriseId: number, patentId: number, data: any) => 
+    request.put(`/enterprises/${enterpriseId}/patents/${patentId}`, data),
+
+  // 删除专利
+  delete: (enterpriseId: number, patentId: number) => 
+    request.delete(`/enterprises/${enterpriseId}/patents/${patentId}`),
+};
+
+// 基础数据/选项 API
+export const optionsApi = {
+  // 获取系统选项
+  getOptions: (category: string) => request.get(`/options/${category}`),
+
+  // 获取行业分类树
+  getIndustries: () => request.get('/options/industries'),
+
+  // 获取产品品类树
+  getProductCategories: () => request.get('/options/product-categories'),
+
+  // 获取用户列表（对接人）
+  getUsers: () => request.get('/options/users'),
 };

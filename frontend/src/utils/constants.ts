@@ -88,14 +88,6 @@ export const CROSSBORDER_PLATFORMS = [
   'Shopee',
 ];
 
-export const ASSIGNEES = [
-  '张明',
-  '李华',
-  '王芳',
-  '赵强',
-  '刘洋',
-];
-
 export const getStageInfo = (code: string) => {
   return FUNNEL_STAGES[code as FunnelStage] || { name: code, color: '#94a3b8' };
 };
