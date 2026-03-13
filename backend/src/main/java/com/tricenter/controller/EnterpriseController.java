@@ -2,6 +2,7 @@ package com.tricenter.controller;
 
 import com.tricenter.common.result.PageResult;
 import com.tricenter.common.result.Result;
+import com.tricenter.annotation.OpLog;
 import com.tricenter.dto.request.*;
 import com.tricenter.dto.response.EnterpriseDetailResponse;
 import com.tricenter.dto.response.EnterpriseListResponse;
@@ -48,6 +49,7 @@ public class EnterpriseController {
         return Result.success(detail);
     }
 
+    @OpLog(operation = "CREATE", targetType = "ENTERPRISE")
     @Operation(summary = "新增企业", description = "创建新企业记录，同时创建主要联系人")
     @PostMapping
     public Result<Enterprise> createEnterprise(@Valid @RequestBody EnterpriseCreateRequest request) {
@@ -55,6 +57,7 @@ public class EnterpriseController {
         return Result.success(enterprise);
     }
 
+    @OpLog(operation = "UPDATE", targetType = "ENTERPRISE")
     @Operation(summary = "编辑企业", description = "更新企业信息")
     @PutMapping("/{id}")
     public Result<Enterprise> updateEnterprise(
@@ -64,6 +67,7 @@ public class EnterpriseController {
         return Result.success(enterprise);
     }
 
+    @OpLog(operation = "DELETE", targetType = "ENTERPRISE")
     @Operation(summary = "删除企业", description = "软删除企业记录")
     @DeleteMapping("/{id}")
     public Result<Void> deleteEnterprise(
@@ -72,6 +76,7 @@ public class EnterpriseController {
         return Result.success();
     }
 
+    @OpLog(operation = "STAGE_CHANGE", targetType = "ENTERPRISE")
     @Operation(summary = "变更漏斗阶段", description = "变更企业漏斗阶段，同时记录变更日志")
     @PatchMapping("/{id}/stage")
     public Result<Void> changeStage(
@@ -99,12 +104,32 @@ public class EnterpriseController {
         return Result.success(contacts);
     }
 
+    @OpLog(operation = "IMPORT", targetType = "ENTERPRISE", detail = "批量导入企业")
     @Operation(summary = "批量导入企业", description = "通过Excel文件批量导入企业数据")
     @PostMapping("/import")
     public Result<ImportResultResponse> importEnterprises(
             @Parameter(description = "Excel文件") @RequestParam("file") MultipartFile file) {
         ImportResultResponse result = enterpriseService.importEnterprises(file);
         return Result.success(result);
+    }
+
+    @OpLog(operation = "BATCH_DELETE", targetType = "ENTERPRISE", detail = "批量删除企业")
+    @Operation(summary = "批量删除企业", description = "批量软删除多个企业记录")
+    @DeleteMapping("/batch")
+    public Result<Integer> batchDelete(@Valid @RequestBody BatchDeleteRequest request) {
+        int count = enterpriseService.batchDelete(request.getIds());
+        return Result.success(count);
+    }
+
+    @OpLog(operation = "BATCH_STAGE_CHANGE", targetType = "ENTERPRISE", detail = "批量变更阶段")
+    @Operation(summary = "批量变更阶段", description = "批量变更多个企业的漏斗阶段")
+    @PatchMapping("/batch/stage")
+    public Result<Integer> batchChangeStage(
+            @Valid @RequestBody BatchStageChangeRequest request,
+            @AuthenticationPrincipal LoginUser loginUser) {
+        int count = enterpriseService.batchChangeStage(
+                request.getIds(), request.getStage(), request.getReason(), loginUser.getId());
+        return Result.success(count);
     }
 
     @Operation(summary = "导出企业列表", description = "导出企业列表为Excel文件")

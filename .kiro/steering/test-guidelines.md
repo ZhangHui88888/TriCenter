@@ -1,87 +1,58 @@
----
-inclusion: fileMatch
-fileMatchPattern: "**/test-module*.ps1"
----
+# 测试规范
 
-# API测试脚本开发规范
+## 基本要求
+- 每个 API 开发完成后必须进行功能测试
+- 测试应覆盖正常流程和异常情况
+- 测试结果按模块记录在 `docs/test/` 目录下对应文件
 
-## 测试脚本命名规则
-- 按模块命名：`test-module{N}-{name}.ps1`
-- 例如：`test-module1-auth.ps1`、`test-module2-options.ps1`
+## 测试覆盖范围
 
-## 已知问题与避免方法
+每个 API 应测试以下场景（适用的）：
 
-### 1. 中文字符编码问题
-**问题**：PowerShell脚本中使用中文字符串进行断言比较时，可能因编码问题导致比较失败。
+### 正常场景
+- 正常请求和响应
+- 分页、排序、过滤等查询参数
 
-**解决方案**：
-- 在断言比较中使用英文字符串，避免中文
-- 例如：用 `"Updated_Label"` 而不是 `"更新后的名称"`
-- 中文仅用于日志输出（Write-Pass/Write-Fail/Write-Info）
+### 参数校验
+- 空值（空字符串、null）
+- 超长值（超过字段长度限制）
+- 特殊字符（`<script>`、SQL 关键字等）
+- SQL 注入（`' OR '1'='1` 等）
+- 负数和零值
+- 无效的枚举值
 
-**示例**：
-```powershell
-# 错误示例 - 可能因编码问题失败
-$result = Invoke-Api -Method "PUT" -Endpoint "/api/dictionary/source/$id" -Body @{ label = "更新后的名称" }
-if ($result.Data.data.label -eq "更新后的名称") { ... }
+### 权限校验
+- 无 Token 访问需认证 API
+- 无效/过期 Token
+- 权限不足（普通用户访问管理员 API）
 
-# 正确示例 - 使用英文进行断言
-$result = Invoke-Api -Method "PUT" -Endpoint "/api/dictionary/source/$id" -Body @{ label = "Updated_Label" }
-if ($result.Data.data.label -eq "Updated_Label") { ... }
-```
+### 业务异常
+- 资源不存在（如不存在的 ID）
+- 状态冲突
+- 并发场景
 
-### 2. 文件编码保存
-**问题**：通过工具创建的脚本可能存在编码问题。
+## 测试数据
+- 使用 `@BeforeEach` / setup 方法准备测试数据
+- 使用 `@AfterEach` / teardown 方法清理测试数据
+- 避免测试间数据污染
+- 避免依赖外部服务（第三方 API 等），使用 Mock
 
-**解决方案**：创建脚本后执行以下命令确保UTF-8编码：
-```powershell
-$content = Get-Content "test-module{N}-{name}.ps1" -Raw -Encoding UTF8
-Set-Content "test-module{N}-{name}.ps1" -Value $content -Encoding UTF8 -NoNewline
-```
+## 测试文档规范
 
-### 3. 需要登录的模块
-**问题**：模块2及之后的模块都需要先登录获取Token。
+每个 API 的测试记录必须包含：
+1. **认证要求** — 标明是公开、需认证还是需管理员
+2. **前置条件** — 说明需要先调用哪些 API（如登录获取 Token）
+3. **请求格式** — 完整的请求路径、Header、Body 格式
+4. **响应格式** — 预期的响应 JSON 结构
+5. **测试用例表** — 包含：测试场景、前置条件、请求入参、预期响应、实际结果、状态
 
-**解决方案**：在脚本开头添加登录前置条件：
-```powershell
-# 前置条件：登录获取Token
-Write-Test "前置条件：登录获取Token"
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "admin"; password = "admin123" } -UseToken $false
-if ($result.Success -and $result.Data.data.token) {
-    $script:Token = $result.Data.data.token
-    Write-Pass "登录成功，获取到Token"
-} else {
-    Write-Fail "登录失败，无法继续测试"
-    exit 1
-}
-```
+## 测试流程
+1. 开发完成 API 后，先运行测试验证
+2. 更新测试文档，记录测试结果
+3. 失败的测试记录到"问题记录"表
+4. 修复后重新测试并更新状态
 
-## 测试脚本模板结构
-
-```powershell
-# ============================================================
-# TriCenter API 测试脚本 - 模块N: 模块名称
-# 使用方法: 在 backend 目录下运行 .\test-moduleN-name.ps1
-# ============================================================
-
-$BaseUrl = "http://localhost:8080"
-$Token = ""
-$TestResults = @()
-$PassCount = 0
-$FailCount = 0
-
-# 公共函数定义...
-
-# 前置条件（如需要登录）...
-
-# 测试用例...
-
-# 测试汇总报告...
-```
-
-## 运行测试
-```powershell
-# 在 backend 目录下运行
-.\test-module1-auth.ps1      # 模块1：用户认证
-.\test-module2-options.ps1   # 模块2：基础数据/数据字典
-```
+## 注意事项
+- 测试环境使用独立的数据库配置
+- 中文字符在脚本断言中可能有编码问题，建议断言用英文值
+- 脚本文件确保保存为 UTF-8 编码

@@ -4,7 +4,7 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
     url: jdbc:mysql://localhost:3306/tricenter?useUnicode=true&characterEncoding=utf-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
     username: root
-    password: ${DB_PASSWORD:592802}
+    password: "592802"
     hikari:
       minimum-idle: 5
       maximum-pool-size: 20
@@ -24,6 +24,10 @@ spring:
 jwt:
   secret: ${JWT_SECRET:tricenter-enterprise-management-system-jwt-secret-key-2026-very-long-secret-key-for-hs512-algorithm-minimum-512-bits}
   expiration: 604800000  # 7天，单位毫秒
+
+# 系统间API Key认证（Booking-miniapp调用使用）
+tricenter:
+  api-key: booking-to-tricenter-secret-key
 
 # 日志配置
 logging:

@@ -71,4 +71,14 @@ public interface EnterpriseService {
      * 下载导入模板
      */
     void downloadTemplate(HttpServletResponse response);
+
+    /**
+     * 批量删除企业（软删除）
+     */
+    int batchDelete(List<Integer> ids);
+
+    /**
+     * 批量变更漏斗阶段
+     */
+    int batchChangeStage(List<Integer> ids, String stage, String reason, Integer operatorId);
 }

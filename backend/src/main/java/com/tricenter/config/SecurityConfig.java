@@ -1,5 +1,6 @@
 package com.tricenter.config;
 
+import com.tricenter.security.ApiKeyAuthenticationFilter;
 import com.tricenter.security.JwtAuthenticationFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -32,6 +33,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -46,8 +48,9 @@ public class SecurityConfig {
                 // Swagger文档
                 .requestMatchers("/doc.html", "/swagger-ui/**", "/v3/api-docs/**", 
                     "/swagger-resources/**", "/webjars/**").permitAll()
-                // 其他接口需要认证
+                // 其他接口需要认证（JWT 或 API Key）
                 .anyRequest().authenticated())
+            .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
         
         return http.build();

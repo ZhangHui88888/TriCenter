@@ -40,12 +40,13 @@ import {
   ArrowRightOutlined,
   RiseOutlined,
   FallOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons';
 import { Rate, Switch, Slider } from 'antd';
 import { Form, Input, DatePicker } from 'antd';
 import { FOLLOW_UP_TYPES } from '@/utils/constants';
 import { dimensions, calculateRequirements, groupRequirementsByPhase, dimensionRequirementMapping, type RequirementItem } from '@/data/requirementsData';
-import { enterpriseApi, optionsApi } from '@/services/api';
+import { enterpriseApi, contactApi, optionsApi, surveyExcelApi } from '@/services/api';
 
 // 漏斗阶段配置
 const FUNNEL_STAGES = [
@@ -78,6 +79,17 @@ function EnterpriseDetail() {
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [isEditEnterpriseOpen, setIsEditEnterpriseOpen] = useState(false);
   const [isEditContactOpen, setIsEditContactOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [editingContacts, setEditingContacts] = useState<Array<{
+    id?: number;
+    name: string;
+    phone: string;
+    position?: string;
+    isPrimary?: boolean;
+    email?: string;
+    wechat?: string;
+    remark?: string;
+  }>>([]);
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<any>(null);
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
@@ -153,6 +165,17 @@ function EnterpriseDetail() {
   const [productForm] = Form.useForm();
   const [brandForm] = Form.useForm();
   const [patentForm] = Form.useForm();
+  const [tradeForm] = Form.useForm();
+  const [crossborderForm] = Form.useForm();
+  const [needsForm] = Form.useForm();
+  const [coopForm] = Form.useForm();
+  const [painForm] = Form.useForm();
+  const [evalForm] = Form.useForm();
+  const [prelimForm] = Form.useForm();
+  const [supplementForm] = Form.useForm();
+  const [policyForm] = Form.useForm();
+  const [competitionForm] = Form.useForm();
+  const [riskForm] = Form.useForm();
 
   // 企业数据状态
   const [enterprise, setEnterprise] = useState<any>(null);
@@ -165,6 +188,9 @@ function EnterpriseDetail() {
   const [domesticRevenueOptions, setDomesticRevenueOptions] = useState<any[]>([]);
   const [crossBorderRevenueOptions, setCrossBorderRevenueOptions] = useState<any[]>([]);
   const [sourceOptions, setSourceOptions] = useState<any[]>([]);
+  const [regionOptions, setRegionOptions] = useState<any[]>([]);
+  const [tradeModeOptions, setTradeModeOptions] = useState<any[]>([]);
+  const [tradeTeamModeOptions, setTradeTeamModeOptions] = useState<any[]>([]);
 
   // 加载行业分类
   useEffect(() => {
@@ -193,16 +219,22 @@ function EnterpriseDetail() {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const [staffSize, domesticRevenue, crossBorderRevenue, source] = await Promise.all([
+        const [staffSize, domesticRevenue, crossBorderRevenue, source, region, tradeMode, tradeTeamMode] = await Promise.all([
           optionsApi.getOptions('staff_size'),
           optionsApi.getOptions('domestic_revenue'),
           optionsApi.getOptions('cross_border_revenue'),
           optionsApi.getOptions('source'),
+          optionsApi.getOptions('region'),
+          optionsApi.getOptions('trade_mode'),
+          optionsApi.getOptions('trade_team_mode'),
         ]);
         if (staffSize.data) setStaffSizeOptions(staffSize.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (domesticRevenue.data) setDomesticRevenueOptions(domesticRevenue.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (crossBorderRevenue.data) setCrossBorderRevenueOptions(crossBorderRevenue.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (source.data) setSourceOptions(source.data.map((o: any) => ({ label: o.label, value: o.id })));
+        if (region.data) setRegionOptions(region.data.map((o: any) => ({ label: o.label, value: o.id })));
+        if (tradeMode.data) setTradeModeOptions(tradeMode.data.map((o: any) => ({ label: o.label, value: o.id })));
+        if (tradeTeamMode.data) setTradeTeamModeOptions(tradeTeamMode.data.map((o: any) => ({ label: o.label, value: o.id })));
       } catch (error) {
         console.error('Failed to fetch options:', error);
       }
@@ -258,6 +290,11 @@ function EnterpriseDetail() {
             has_domestic_ecommerce: data.hasDomesticEcommerce,
             last_year_revenue: data.lastYearRevenue,
             year_before_last_revenue: data.yearBeforeLastRevenue,
+            market_changes: data.marketChanges,
+            mode_changes: data.modeChanges,
+            category_changes: data.categoryChanges,
+            growth_reasons: data.growthReasons,
+            decline_reasons: data.declineReasons,
             has_cross_border: data.hasCrossBorder,
             cross_border_ratio: data.crossBorderRatio,
             cross_border_logistics: data.crossBorderLogistics,
@@ -283,6 +320,9 @@ function EnterpriseDetail() {
             pain_points: data.painPoints,
             tricenter_demands: data.tricenterDemands,
             tricenter_concerns: data.tricenterConcerns,
+            dimension_selections: data.dimensionSelections,
+            removed_requirements: data.removedRequirements,
+            custom_requirements: data.customRequirements,
             products: data.products || [],
             patents: data.patents || [],
             created_at: data.createdAt,
@@ -298,6 +338,62 @@ function EnterpriseDetail() {
     };
     fetchEnterprise();
   }, [id]);
+
+  // 从API数据初始化本地状态
+  useEffect(() => {
+    if (!enterprise) return;
+
+    // 外贸开关 - 有外贸相关数据时为 true
+    const hasTrade = !!(enterprise.trade_mode_id || enterprise.has_import_export_license ||
+      (enterprise.target_region_ids && enterprise.target_region_ids.length > 0) ||
+      enterprise.last_year_revenue || enterprise.year_before_last_revenue);
+    setHasForeignTrade(hasTrade);
+
+    // 跨境电商开关
+    setHasCrossborderEcommerce(!!enterprise.has_cross_border);
+
+    // 合作开关 - 有评估评分或合作需求时为 true
+    const hasCoop = !!(enterprise.service_cooperation_rating ||
+      (enterprise.tricenter_demands && enterprise.tricenter_demands.length > 0));
+    setIsCooperating(hasCoop);
+
+    // 竞争力调研开关
+    setIsSurveyed(!!enterprise.competition_position);
+    if (enterprise.competition_position) setCompetitionPosition(enterprise.competition_position);
+    if (enterprise.competition_description) setCompetitionDesc(enterprise.competition_description);
+
+    // 外贸业绩变化数据
+    if (enterprise.market_changes) setMarketChanges(enterprise.market_changes);
+    if (enterprise.mode_changes) setModeChanges(enterprise.mode_changes);
+    if (enterprise.category_changes) setCategoryChanges(enterprise.category_changes);
+    if (enterprise.growth_reasons && Array.isArray(enterprise.growth_reasons) && enterprise.growth_reasons.length > 0) {
+      setGrowthReasons(enterprise.growth_reasons);
+    }
+    if (enterprise.decline_reasons && Array.isArray(enterprise.decline_reasons) && enterprise.decline_reasons.length > 0) {
+      setDeclineReasons(enterprise.decline_reasons);
+    }
+
+    // 跨境平台
+    if (enterprise.cross_border_platforms && Array.isArray(enterprise.cross_border_platforms) && enterprise.cross_border_platforms.length > 0) {
+      setSelectedCrossborderPlatforms(enterprise.cross_border_platforms.map((p: any) => String(p)));
+    }
+
+    // 目标市场
+    if (enterprise.target_markets && Array.isArray(enterprise.target_markets) && enterprise.target_markets.length > 0) {
+      setTargetMarkets(enterprise.target_markets);
+    }
+
+    // 需求分析
+    if (enterprise.dimension_selections && typeof enterprise.dimension_selections === 'object') {
+      setDimensionSelections(enterprise.dimension_selections);
+    }
+    if (enterprise.removed_requirements && Array.isArray(enterprise.removed_requirements)) {
+      setRemovedRequirements(enterprise.removed_requirements);
+    }
+    if (enterprise.custom_requirements && Array.isArray(enterprise.custom_requirements)) {
+      setCustomRequirements(enterprise.custom_requirements);
+    }
+  }, [enterprise?.id]);
 
   // 加载中状态
   if (loading) {
@@ -329,6 +425,19 @@ function EnterpriseDetail() {
   };
 
   const stageInfo = getStageInfo(enterprise.funnel_stage);
+
+  // 通用字段保存辅助函数
+  const saveEnterpriseFields = async (fields: Record<string, any>, successMsg: string) => {
+    try {
+      await enterpriseApi.update(enterprise.id, fields);
+      setEnterprise({ ...enterprise, ...fields });
+      message.success(successMsg);
+      return true;
+    } catch (error: any) {
+      message.error(error.message || '保存失败');
+      return false;
+    }
+  };
 
   const handleStageChange = () => {
     message.success('阶段变更成功');
@@ -430,29 +539,47 @@ function EnterpriseDetail() {
   };
 
   const handleEditContact = async () => {
+    // 校验必填字段
+    const invalid = editingContacts.some(c => !c.name?.trim() || !c.phone?.trim());
+    if (invalid) {
+      message.warning('请填写所有联系人的姓名和电话');
+      return;
+    }
     try {
-      const values = await editForm.validateFields();
-      // 构建联系人数据
-      const contacts = [{
-        name: values.contact_name,
-        phone: values.contact_phone,
-        position: values.contact_position,
-        isPrimary: true,
-      }];
-      // 调用API更新联系人
-      await enterpriseApi.update(enterprise.id, { contacts });
+      await contactApi.update(enterprise.id, editingContacts);
       // 更新本地状态
       setEnterprise({
         ...enterprise,
-        contacts: contacts,
+        contacts: editingContacts.map(c => ({
+          ...c,
+          is_primary: c.isPrimary,
+        })),
       });
       message.success('联系人信息更新成功');
       setIsEditContactOpen(false);
-      editForm.resetFields();
     } catch (error: any) {
-      if (error.errorFields) return;
       message.error(error.message || '更新失败');
     }
+  };
+
+  const handleAddContact = () => {
+    setEditingContacts(prev => [...prev, {
+      name: '',
+      phone: '',
+      position: '',
+      isPrimary: false,
+      email: '',
+      wechat: '',
+      remark: '',
+    }]);
+  };
+
+  const handleRemoveContact = (index: number) => {
+    setEditingContacts(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleContactFieldChange = (index: number, field: string, value: any) => {
+    setEditingContacts(prev => prev.map((c, i) => i === index ? { ...c, [field]: value } : c));
   };
 
   const handleAddProduct = () => {
@@ -550,15 +677,18 @@ function EnterpriseDetail() {
       });
       setIsEditEnterpriseOpen(true);
     } else if (section === 'contact') {
-      // 设置联系人表单值
-      const primaryContact = enterprise.contacts?.find((c: any) => c.isPrimary) || enterprise.contacts?.[0];
-      if (primaryContact) {
-        editForm.setFieldsValue({
-          contact_name: primaryContact.name,
-          contact_phone: primaryContact.phone,
-          contact_position: primaryContact.position,
-        });
-      }
+      // 将现有联系人数据复制到编辑状态
+      const contacts = (enterprise.contacts || []).map((c: any) => ({
+        id: c.id,
+        name: c.name || '',
+        phone: c.phone || '',
+        position: c.position || '',
+        isPrimary: c.is_primary || c.isPrimary || false,
+        email: c.email || '',
+        wechat: c.wechat || '',
+        remark: c.remark || '',
+      }));
+      setEditingContacts(contacts);
       setIsEditContactOpen(true);
     }
   };
@@ -688,6 +818,30 @@ function EnterpriseDetail() {
     },
   ];
 
+  const handleExportExcel = async () => {
+    if (!id) return;
+    setExporting(true);
+    try {
+      const response = await surveyExcelApi.exportSingle(Number(id));
+      const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      const fileName = `${enterprise?.enterprise_name || '企业'}_调研表_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      message.success('导出成功，文件已下载');
+    } catch (error) {
+      console.error('Export failed:', error);
+      message.error('导出失败，请重试');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const tabItems = [
     {
       key: 'basic',
@@ -708,7 +862,6 @@ function EnterpriseDetail() {
               <Descriptions.Item label="统一社会信用代码">
                 <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{enterprise.unified_credit_code || '-'}</span>
               </Descriptions.Item>
-              <Descriptions.Item label="所属区域">{enterprise.district}</Descriptions.Item>
               <Descriptions.Item label="所属行业">
                 <span style={{ 
                   padding: '2px 8px', 
@@ -1080,7 +1233,7 @@ function EnterpriseDetail() {
                 <Col span={8}>
                   <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>外贸模式</Text>
-                    <span style={{ padding: '4px 12px', background: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.08) 100%)', borderRadius: 6, color: '#667eea', fontWeight: 600, fontSize: 13 }}>0110</span>
+                    <span style={{ padding: '4px 12px', background: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.08) 100%)', borderRadius: 6, color: '#667eea', fontWeight: 600, fontSize: 13 }}>直接出口</span>
                   </div>
                 </Col>
                 <Col span={8}>
@@ -1707,10 +1860,12 @@ function EnterpriseDetail() {
                     placeholder={`请选择${dim.name}`}
                     value={dimensionSelections[dim.key] || (dim.multiple ? [] : undefined)}
                     onChange={(value) => {
-                      setDimensionSelections(prev => ({
-                        ...prev,
+                      const newSelections = {
+                        ...dimensionSelections,
                         [dim.key]: Array.isArray(value) ? value : (value ? [value] : [])
-                      }));
+                      };
+                      setDimensionSelections(newSelections);
+                      saveEnterpriseFields({dimensionSelections: newSelections}, '维度选择已保存');
                     }}
                     allowClear
                     options={dim.options.map(opt => ({
@@ -1783,13 +1938,15 @@ function EnterpriseDetail() {
             };
             
             const handleRemoveRequirement = (reqId: string) => {
-              setRemovedRequirements(prev => [...prev, reqId]);
-              message.success('已移除该需求');
+              const newRemoved = [...removedRequirements, reqId];
+              setRemovedRequirements(newRemoved);
+              saveEnterpriseFields({removedRequirements: newRemoved}, '已移除该需求');
             };
             
             const handleRemoveCustomRequirement = (reqId: string) => {
-              setCustomRequirements(prev => prev.filter(r => r.id !== reqId));
-              message.success('已删除自定义需求');
+              const newCustom = customRequirements.filter(r => r.id !== reqId);
+              setCustomRequirements(newCustom);
+              saveEnterpriseFields({customRequirements: newCustom}, '已删除自定义需求');
             };
             
             const handleAddCustomRequirement = () => {
@@ -1801,16 +1958,18 @@ function EnterpriseDetail() {
                   phase: values.phase,
                   category: '自定义需求'
                 };
-                setCustomRequirements(prev => [...prev, newReq]);
+                const newCustom = [...customRequirements, newReq];
+                setCustomRequirements(newCustom);
                 setIsCustomRequirementModalOpen(false);
                 customRequirementForm.resetFields();
-                message.success('已添加自定义需求');
+                saveEnterpriseFields({customRequirements: newCustom}, '已添加自定义需求');
               });
             };
             
             const handleRestoreRequirement = (reqId: string) => {
-              setRemovedRequirements(prev => prev.filter(id => id !== reqId));
-              message.success('已恢复该需求');
+              const newRemoved = removedRequirements.filter(id => id !== reqId);
+              setRemovedRequirements(newRemoved);
+              saveEnterpriseFields({removedRequirements: newRemoved}, '已恢复该需求');
             };
             
             const getRemovableRequirementsForCategory = (phase: string, category: string) => {
@@ -2362,8 +2521,11 @@ function EnterpriseDetail() {
                   mode="multiple"
                   style={{ width: '100%' }}
                   placeholder="请选择合作项目"
-                  defaultValue={['ecommerce_training', 'platform_resource', 'brand_incubation']}
-                  onChange={(value) => message.success('合作项目已更新')}
+                  value={enterprise.tricenter_demands || []}
+                  onChange={async (value: string[]) => {
+                    setEnterprise({...enterprise, tricenter_demands: value});
+                    await saveEnterpriseFields({tricenterDemands: value}, '合作项目已更新');
+                  }}
                   optionLabelProp="label"
                   options={[
                     { 
@@ -2500,8 +2662,11 @@ function EnterpriseDetail() {
                   mode="multiple"
                   style={{ width: '100%' }}
                   placeholder="请选择不合作的主要顾虑"
-                  defaultValue={['no_intention', 'own_team']}
-                  onChange={(value) => message.success('顾虑信息已更新')}
+                  value={enterprise.tricenter_concerns || []}
+                  onChange={async (value: string[]) => {
+                    setEnterprise({...enterprise, tricenter_concerns: value});
+                    await saveEnterpriseFields({tricenterConcerns: value}, '顾虑信息已更新');
+                  }}
                   options={[
                     { label: '暂无合作意向', value: 'no_intention' },
                     { label: '企业自有团队较完善', value: 'own_team' },
@@ -2531,12 +2696,12 @@ function EnterpriseDetail() {
               <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>合作可能性评分</Text>
               <Row gutter={[16, 16]}>
                 {[
-                  { label: '企业服务合作', value: 4, color: '#667eea' },
-                  { label: '招商入驻合作', value: 3, color: '#43e97b' },
-                  { label: '孵化转型合作', value: 5, color: '#f97316' },
-                  { label: '品牌营销合作', value: 4, color: '#ec4899' },
-                  { label: '人才培训合作', value: 3, color: '#8b5cf6' },
-                  { label: '跨境整体方案', value: 4, color: '#06b6d4' },
+                  { label: '企业服务合作', field: 'service_cooperation_rating', apiField: 'serviceCooperationRating', color: '#667eea' },
+                  { label: '招商入驻合作', field: 'investment_cooperation_rating', apiField: 'investmentCooperationRating', color: '#43e97b' },
+                  { label: '孵化转型合作', field: 'incubation_cooperation_rating', apiField: 'incubationCooperationRating', color: '#f97316' },
+                  { label: '品牌营销合作', field: 'brand_cooperation_rating', apiField: 'brandCooperationRating', color: '#ec4899' },
+                  { label: '人才培训合作', field: 'training_cooperation_rating', apiField: 'trainingCooperationRating', color: '#8b5cf6' },
+                  { label: '跨境整体方案', field: 'overall_cooperation_rating', apiField: 'overallCooperationRating', color: '#06b6d4' },
                 ].map((item, idx) => (
                   <Col span={8} key={idx}>
                     <div style={{ 
@@ -2547,9 +2712,12 @@ function EnterpriseDetail() {
                     }}>
                       <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>{item.label}</Text>
                       <Rate 
-                        defaultValue={item.value} 
+                        value={enterprise[item.field] || 0} 
                         style={{ fontSize: 14 }} 
-                        onChange={(value) => message.success(`${item.label}评分已更新为${value}星`)}
+                        onChange={async (val) => {
+                          setEnterprise({...enterprise, [item.field]: val});
+                          await saveEnterpriseFields({[item.apiField]: val}, `${item.label}评分已更新为${val}星`);
+                        }}
                       />
                     </div>
                   </Col>
@@ -2567,15 +2735,18 @@ function EnterpriseDetail() {
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                   <Text style={{ fontWeight: 500 }}>成为标杆企业的可能性</Text>
-                  <Text strong style={{ fontSize: 18, color: '#667eea' }}>75%</Text>
+                  <Text strong style={{ fontSize: 18, color: '#667eea' }}>{enterprise.benchmark_possibility || 0}%</Text>
                 </div>
                 <Slider
-                  defaultValue={75}
+                  value={enterprise.benchmark_possibility || 0}
                   min={0}
                   max={100}
                   step={1}
                   tooltip={{ formatter: (value) => `${value}%` }}
-                  onChangeComplete={(value) => message.success(`标杆企业可能性已更新为${value}%`)}
+                  onChange={(val) => setEnterprise({...enterprise, benchmark_possibility: val})}
+                  onChangeComplete={async (val) => {
+                    await saveEnterpriseFields({benchmarkPossibility: val}, `标杆企业可能性已更新为${val}%`);
+                  }}
                   styles={{
                     track: { background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)' },
                     rail: { background: '#e8e8e8' },
@@ -2588,14 +2759,17 @@ function EnterpriseDetail() {
             <div>
               <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>其它补充说明</Text>
               <Input.TextArea 
-                defaultValue="该企业在园艺工具领域有较强的生产能力和品牌基础，跨境电商转型意愿强烈，建议重点跟进孵化转型合作。企业负责人对三中心服务表示认可，后续可安排深度对接。"
+                value={enterprise.additional_notes || ''}
+                onChange={(e) => setEnterprise({...enterprise, additional_notes: e.target.value})}
                 rows={3}
                 style={{ borderRadius: 10, marginBottom: 12 }}
               />
               <div style={{ textAlign: 'right' }}>
                 <Button 
                   type="primary" 
-                  onClick={() => message.success('补充说明已保存')}
+                  onClick={async () => {
+                    await saveEnterpriseFields({additionalNotes: enterprise.additional_notes || ''}, '补充说明已保存');
+                  }}
                   style={{ 
                     borderRadius: 6, 
                     background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
@@ -2683,9 +2857,9 @@ function EnterpriseDetail() {
                         cursor: 'pointer',
                         transition: 'all 0.3s'
                       }}
-                      onClick={() => {
+                      onClick={async () => {
                         setCompetitionPosition(item.value);
-                        message.success(`行业竞争地位已更新为"${item.label}"`);
+                        await saveEnterpriseFields({competitionPosition: item.value}, `行业竞争地位已更新为"${item.label}"`);
                       }}
                     >
                       <Text strong={isSelected} type={isSelected ? undefined : 'secondary'} style={{ color: isSelected ? '#667eea' : undefined }}>
@@ -2701,7 +2875,7 @@ function EnterpriseDetail() {
               onChange={(e) => setCompetitionDesc(e.target.value)}
               rows={2}
               style={{ borderRadius: 10 }}
-              onBlur={() => message.success('竞争地位描述已保存')}
+              onBlur={() => saveEnterpriseFields({ competitionDescription: competitionDesc }, '竞争地位描述已保存')}
             />
           </Card>
 
@@ -2817,9 +2991,24 @@ function EnterpriseDetail() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/enterprise')}>
           返回列表
+        </Button>
+        <Button
+          icon={<DownloadOutlined />}
+          onClick={handleExportExcel}
+          loading={exporting}
+          style={{
+            borderRadius: 8,
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            border: 'none',
+            color: '#fff',
+            fontWeight: 500,
+            boxShadow: '0 2px 8px rgba(102,126,234,0.3)',
+          }}
+        >
+          导出Excel
         </Button>
       </div>
 
@@ -2832,7 +3021,7 @@ function EnterpriseDetail() {
           border: 'none',
           boxShadow: '0 4px 20px rgba(0,0,0,0.06)',
         }}
-        bodyStyle={{ padding: 0 }}
+        styles={{ body: { padding: 0 } }}
       >
         {/* 顶部装饰条 */}
         <div style={{ 
@@ -3255,61 +3444,122 @@ function EnterpriseDetail() {
         onCancel={() => setIsEditContactOpen(false)}
         okText="保存"
         cancelText="取消"
-        width={600}
+        width={720}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          {enterprise.contacts.map((contact, index) => (
+        <div style={{ marginTop: 16, maxHeight: 500, overflowY: 'auto', paddingRight: 4 }}>
+          {editingContacts.map((contact, index) => (
             <Card 
               key={index} 
               size="small" 
-              style={{ marginBottom: 12 }} 
-              title={`联系人 ${index + 1}`}
+              style={{ 
+                marginBottom: 12, 
+                borderRadius: 10,
+                border: contact.isPrimary ? '1px solid rgba(102,126,234,0.3)' : '1px solid #f0f0f0',
+                background: contact.isPrimary ? 'linear-gradient(135deg, rgba(102,126,234,0.04) 0%, rgba(118,75,162,0.02) 100%)' : '#fff',
+              }} 
+              title={
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span>{`联系人 ${index + 1}`}</span>
+                  {contact.isPrimary && (
+                    <span style={{ padding: '2px 8px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: '#fff', borderRadius: 10, fontSize: 11, fontWeight: 500 }}>
+                      <StarFilled style={{ marginRight: 3, fontSize: 10 }} />主要
+                    </span>
+                  )}
+                </div>
+              }
               extra={
-                enterprise.contacts.length > 1 && (
-                  <Button 
-                    type="text" 
-                    danger 
-                    size="small"
-                    icon={<DeleteOutlined />}
-                    onClick={() => {
-                      Modal.confirm({
-                        title: '确认删除',
-                        content: `确定要删除联系人「${contact.name}」吗？`,
-                        okText: '删除',
-                        okType: 'danger',
-                        cancelText: '取消',
-                        onOk() {
-                          message.success('联系人已删除');
-                        },
-                      });
-                    }}
-                  >
-                    删除
-                  </Button>
-                )
+                <Space size={4}>
+                  {!contact.isPrimary && (
+                    <Button 
+                      type="link" 
+                      size="small"
+                      onClick={() => {
+                        setEditingContacts(prev => prev.map((c, i) => ({ ...c, isPrimary: i === index })));
+                      }}
+                    >
+                      设为主要
+                    </Button>
+                  )}
+                  {editingContacts.length > 1 && (
+                    <Button 
+                      type="text" 
+                      danger 
+                      size="small"
+                      icon={<DeleteOutlined />}
+                      onClick={() => handleRemoveContact(index)}
+                    >
+                      删除
+                    </Button>
+                  )}
+                </Space>
               }
             >
               <Row gutter={16}>
                 <Col span={8}>
-                  <Form.Item label="姓名">
-                    <Input defaultValue={contact.name} />
-                  </Form.Item>
+                  <div style={{ marginBottom: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>姓名 <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                    <Input 
+                      value={contact.name} 
+                      placeholder="请输入姓名"
+                      onChange={(e) => handleContactFieldChange(index, 'name', e.target.value)} 
+                    />
+                  </div>
                 </Col>
                 <Col span={8}>
-                  <Form.Item label="电话">
-                    <Input defaultValue={contact.phone} />
-                  </Form.Item>
+                  <div style={{ marginBottom: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>电话 <span style={{ color: '#ff4d4f' }}>*</span></Text>
+                    <Input 
+                      value={contact.phone} 
+                      placeholder="请输入电话"
+                      onChange={(e) => handleContactFieldChange(index, 'phone', e.target.value)} 
+                    />
+                  </div>
                 </Col>
                 <Col span={8}>
-                  <Form.Item label="职位">
-                    <Input defaultValue={contact.position} />
-                  </Form.Item>
+                  <div style={{ marginBottom: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>职位</Text>
+                    <Input 
+                      value={contact.position} 
+                      placeholder="请输入职位"
+                      onChange={(e) => handleContactFieldChange(index, 'position', e.target.value)} 
+                    />
+                  </div>
+                </Col>
+                <Col span={8}>
+                  <div style={{ marginBottom: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>邮箱</Text>
+                    <Input 
+                      value={contact.email} 
+                      placeholder="请输入邮箱"
+                      onChange={(e) => handleContactFieldChange(index, 'email', e.target.value)} 
+                    />
+                  </div>
+                </Col>
+                <Col span={8}>
+                  <div style={{ marginBottom: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>微信</Text>
+                    <Input 
+                      value={contact.wechat} 
+                      placeholder="请输入微信号"
+                      onChange={(e) => handleContactFieldChange(index, 'wechat', e.target.value)} 
+                    />
+                  </div>
+                </Col>
+                <Col span={8}>
+                  <div style={{ marginBottom: 12 }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>备注</Text>
+                    <Input 
+                      value={contact.remark} 
+                      placeholder="请输入备注"
+                      onChange={(e) => handleContactFieldChange(index, 'remark', e.target.value)} 
+                    />
+                  </div>
                 </Col>
               </Row>
             </Card>
           ))}
-          <Button type="dashed" block icon={<PlusOutlined />}>添加联系人</Button>
-        </Form>
+          <Button type="dashed" block icon={<PlusOutlined />} onClick={handleAddContact}>添加联系人</Button>
+        </div>
       </Modal>
 
       {/* 产品信息模态框 */}
@@ -3588,39 +3838,59 @@ function EnterpriseDetail() {
       <Modal
         title="编辑外贸信息"
         open={isTradeModalOpen}
-        onOk={() => { message.success('外贸信息更新成功'); setIsTradeModalOpen(false); }}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            tradeForm.setFieldsValue({
+              targetRegionIds: enterprise.target_region_ids || [],
+              targetCountryIds: enterprise.target_country_ids || [],
+              tradeModeId: enterprise.trade_mode_id,
+              hasImportExportLicense: enterprise.has_import_export_license === 1,
+              customsDeclarationMode: enterprise.customs_declaration_mode,
+              tradeTeamModeId: enterprise.trade_team_mode_id,
+              tradeTeamSize: enterprise.trade_team_size,
+              hasDomesticEcommerce: enterprise.has_domestic_ecommerce === 1,
+            });
+          }
+        }}
+        onOk={async () => {
+          const values = tradeForm.getFieldsValue();
+          const ok = await saveEnterpriseFields({
+            targetRegionIds: values.targetRegionIds,
+            targetCountryIds: values.targetCountryIds,
+            tradeModeId: values.tradeModeId,
+            hasImportExportLicense: values.hasImportExportLicense ? 1 : 0,
+            customsDeclarationMode: values.customsDeclarationMode,
+            tradeTeamModeId: values.tradeTeamModeId,
+            tradeTeamSize: values.tradeTeamSize ? Number(values.tradeTeamSize) : null,
+            hasDomesticEcommerce: values.hasDomesticEcommerce ? 1 : 0,
+            marketChanges: marketChanges,
+            modeChanges: modeChanges,
+            categoryChanges: categoryChanges,
+            growthReasons: growthReasons,
+            declineReasons: declineReasons,
+          }, '外贸信息更新成功');
+          if (ok) setIsTradeModalOpen(false);
+        }}
         onCancel={() => setIsTradeModalOpen(false)}
         okText="保存"
         cancelText="取消"
         width={700}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
+        <Form form={tradeForm} layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item label="主要销售区域">
+              <Form.Item name="targetRegionIds" label="主要销售区域">
                 <Select
                   mode="multiple"
-                  defaultValue={['欧洲', '东南亚']}
                   placeholder="请选择销售区域"
-                  options={[
-                    { label: '北美', value: '北美' },
-                    { label: '欧洲', value: '欧洲' },
-                    { label: '东南亚', value: '东南亚' },
-                    { label: '东亚', value: '东亚' },
-                    { label: '南亚', value: '南亚' },
-                    { label: '中东', value: '中东' },
-                    { label: '非洲', value: '非洲' },
-                    { label: '南美', value: '南美' },
-                    { label: '大洋洲', value: '大洋洲' },
-                  ]}
+                  options={regionOptions}
                 />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="主要销售国家">
+              <Form.Item name="targetCountryIds" label="主要销售国家">
                 <Select
                   mode="multiple"
-                  defaultValue={['美国', '德国']}
                   placeholder="请选择销售国家"
                   options={[
                     { label: '美国', value: '美国' },
@@ -3642,33 +3912,33 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="外贸模式">
-                <Select defaultValue="0110" options={[{ label: '0110', value: '0110' }, { label: '1039', value: '1039' }, { label: '9610', value: '9610' }]} />
+              <Form.Item name="tradeModeId" label="外贸模式">
+                <Select placeholder="请选择外贸模式" options={tradeModeOptions} />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="是否有进出口资质">
-                <Select defaultValue={true} options={[{ label: '是', value: true }, { label: '否', value: false }]} />
+              <Form.Item name="hasImportExportLicense" label="是否有进出口资质">
+                <Select options={[{ label: '是', value: true }, { label: '否', value: false }]} />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="报关申报主体模式">
-                <Select defaultValue="自营" options={[{ label: '自营', value: '自营' }, { label: '代理', value: '代理' }]} />
+              <Form.Item name="customsDeclarationMode" label="报关申报主体模式">
+                <Select options={[{ label: '自营', value: '自营' }, { label: '代理', value: '代理' }]} />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="外贸业务团队模式">
-                <Select defaultValue="自建" options={[{ label: '自建', value: '自建' }, { label: '外包', value: '外包' }, { label: '混合', value: '混合' }]} />
+              <Form.Item name="tradeTeamModeId" label="外贸业务团队模式">
+                <Select placeholder="请选择团队模式" options={tradeTeamModeOptions} />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="外贸团队人数">
-                <Input type="number" defaultValue={8} />
+              <Form.Item name="tradeTeamSize" label="外贸团队人数">
+                <Input type="number" placeholder="请输入团队人数" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="是否有国内电商经验">
-                <Select defaultValue={true} options={[{ label: '是', value: true }, { label: '否', value: false }]} />
+              <Form.Item name="hasDomesticEcommerce" label="是否有国内电商经验">
+                <Select options={[{ label: '是', value: true }, { label: '否', value: false }]} />
               </Form.Item>
             </Col>
           </Row>
@@ -4073,7 +4343,12 @@ function EnterpriseDetail() {
       <Modal
         title="编辑主要跨境平台"
         open={isCrossborderPlatformModalOpen}
-        onOk={() => { message.success('跨境平台信息更新成功'); setIsCrossborderPlatformModalOpen(false); }}
+        onOk={async () => {
+          const ok = await saveEnterpriseFields({
+            crossBorderPlatforms: selectedCrossborderPlatforms,
+          }, '跨境平台信息更新成功');
+          if (ok) setIsCrossborderPlatformModalOpen(false);
+        }}
         onCancel={() => setIsCrossborderPlatformModalOpen(false)}
         okText="保存"
         cancelText="取消"
@@ -4119,28 +4394,54 @@ function EnterpriseDetail() {
       <Modal
         title="编辑跨境基本信息"
         open={isCrossborderBasicModalOpen}
-        onOk={() => { message.success('跨境基本信息更新成功'); setIsCrossborderBasicModalOpen(false); }}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            crossborderForm.setFieldsValue({
+              hasCrossBorder: enterprise.has_cross_border === 1,
+              crossBorderRatio: enterprise.cross_border_ratio,
+              crossBorderLogistics: enterprise.cross_border_logistics,
+              paymentSettlement: enterprise.payment_settlement,
+              crossBorderTeamSize: enterprise.cross_border_team_size,
+              usingErp: enterprise.using_erp,
+              transformationWillingness: enterprise.transformation_willingness,
+              investmentWillingness: enterprise.investment_willingness,
+            });
+          }
+        }}
+        onOk={async () => {
+          const values = crossborderForm.getFieldsValue();
+          const ok = await saveEnterpriseFields({
+            hasCrossBorder: values.hasCrossBorder ? 1 : 0,
+            crossBorderRatio: values.crossBorderRatio ? Number(values.crossBorderRatio) : null,
+            crossBorderLogistics: values.crossBorderLogistics,
+            paymentSettlement: values.paymentSettlement,
+            crossBorderTeamSize: values.crossBorderTeamSize ? Number(values.crossBorderTeamSize) : null,
+            usingErp: values.usingErp,
+            transformationWillingness: values.transformationWillingness,
+            investmentWillingness: values.investmentWillingness,
+          }, '跨境基本信息更新成功');
+          if (ok) setIsCrossborderBasicModalOpen(false);
+        }}
         onCancel={() => setIsCrossborderBasicModalOpen(false)}
         okText="保存"
         cancelText="取消"
         width={700}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
+        <Form form={crossborderForm} layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item label="是否开展跨境电商">
-                <Select defaultValue={true} options={[{ label: '是', value: true }, { label: '否', value: false }]} />
+              <Form.Item name="hasCrossBorder" label="是否开展跨境电商">
+                <Select options={[{ label: '是', value: true }, { label: '否', value: false }]} />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="跨境业务占比(%)">
-                <Input type="number" defaultValue={25} />
+              <Form.Item name="crossBorderRatio" label="跨境业务占比(%)">
+                <Input type="number" placeholder="请输入占比" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="跨境物流模式">
+              <Form.Item name="crossBorderLogistics" label="跨境物流模式">
                 <Select 
-                  defaultValue="fba" 
                   placeholder="请选择物流模式"
                   options={[
                     { label: '海运', value: '海运' },
@@ -4160,9 +4461,8 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="支付结算方式">
+              <Form.Item name="paymentSettlement" label="支付结算方式">
                 <Select 
-                  defaultValue="FOB (离岸价)" 
                   placeholder="请选择结算方式"
                   options={[
                     { label: 'FOB (离岸价)', value: 'FOB (离岸价)' },
@@ -4186,14 +4486,13 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="跨境电商团队规模">
-                <Input type="number" defaultValue={5} />
+              <Form.Item name="crossBorderTeamSize" label="跨境电商团队规模">
+                <Input type="number" placeholder="请输入团队规模" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="是否在用ERP">
+              <Form.Item name="usingErp" label="是否在用ERP">
                 <Select 
-                  defaultValue="是（用友U8）" 
                   placeholder="请选择"
                   options={[
                     { label: '是（用友U8）', value: '是（用友U8）' },
@@ -4212,13 +4511,13 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="跨境转型意愿">
-                <Select defaultValue="高" options={[{ label: '高', value: '高' }, { label: '中', value: '中' }, { label: '低', value: '低' }]} />
+              <Form.Item name="transformationWillingness" label="跨境转型意愿">
+                <Select options={[{ label: '高', value: '高' }, { label: '中', value: '中' }, { label: '低', value: '低' }]} />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="愿意投入转型程度">
-                <Select defaultValue="高" options={[{ label: '高', value: '高' }, { label: '中', value: '中' }, { label: '低', value: '低' }]} />
+              <Form.Item name="investmentWillingness" label="愿意投入转型程度">
+                <Select options={[{ label: '高', value: '高' }, { label: '中', value: '中' }, { label: '低', value: '低' }]} />
               </Form.Item>
             </Col>
           </Row>
@@ -4229,7 +4528,12 @@ function EnterpriseDetail() {
       <Modal
         title="编辑目标市场及占比"
         open={isMarketModalOpen}
-        onOk={() => { message.success('目标市场信息更新成功'); setIsMarketModalOpen(false); }}
+        onOk={async () => {
+          const ok = await saveEnterpriseFields({
+            targetMarkets: targetMarkets,
+          }, '目标市场信息更新成功');
+          if (ok) setIsMarketModalOpen(false);
+        }}
         onCancel={() => setIsMarketModalOpen(false)}
         okText="保存"
         cancelText="取消"
@@ -4307,18 +4611,45 @@ function EnterpriseDetail() {
       <Modal
         title="编辑跨境需求和痛点"
         open={isCrossborderNeedsModalOpen}
-        onOk={() => { message.success('跨境需求信息更新成功'); setIsCrossborderNeedsModalOpen(false); }}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            const demands = enterprise.tricenter_demands || [];
+            const needsKeys = ['transformation', 'operation', 'marketing', 'training', 'branding', 'talent', 'office', 'settle', 'register'];
+            const values: Record<string, boolean> = {};
+            needsKeys.forEach((key) => { values[`need_${key}`] = demands.includes(key); });
+            needsForm.setFieldsValue(values);
+          }
+        }}
+        onOk={async () => {
+          const values = needsForm.getFieldsValue();
+          const needsKeys = ['transformation', 'operation', 'marketing', 'training', 'branding', 'talent', 'office', 'settle', 'register'];
+          const demands = needsKeys.filter(key => values[`need_${key}`]);
+          const ok = await saveEnterpriseFields({
+            tricenterDemands: demands,
+          }, '跨境需求信息更新成功');
+          if (ok) setIsCrossborderNeedsModalOpen(false);
+        }}
         onCancel={() => setIsCrossborderNeedsModalOpen(false)}
         okText="保存"
         cancelText="取消"
         width={700}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
+        <Form form={needsForm} layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={16}>
-            {['转型跨境意愿', '代运营需求', '流量营销需求', '跨境培训需求', '品牌孵化需求', '跨境人才需求', '共享办公工位', '签约入驻三中心', '注册至三中心'].map((item, idx) => (
-              <Col span={12} key={idx}>
-                <Form.Item label={item}>
-                  <Select defaultValue={idx < 6} options={[{ label: '是', value: true }, { label: '否', value: false }]} />
+            {[
+              { label: '转型跨境意愿', key: 'transformation' },
+              { label: '代运营需求', key: 'operation' },
+              { label: '流量营销需求', key: 'marketing' },
+              { label: '跨境培训需求', key: 'training' },
+              { label: '品牌孵化需求', key: 'branding' },
+              { label: '跨境人才需求', key: 'talent' },
+              { label: '共享办公工位', key: 'office' },
+              { label: '签约入驻三中心', key: 'settle' },
+              { label: '注册至三中心', key: 'register' },
+            ].map((item) => (
+              <Col span={12} key={item.key}>
+                <Form.Item name={`need_${item.key}`} label={item.label}>
+                  <Select options={[{ label: '是', value: true }, { label: '否', value: false }]} />
                 </Form.Item>
               </Col>
             ))}
@@ -4331,17 +4662,31 @@ function EnterpriseDetail() {
       <Modal
         title="编辑三中心合作"
         open={isTriCenterCoopModalOpen}
-        onOk={() => { message.success('三中心合作信息更新成功'); setIsTriCenterCoopModalOpen(false); }}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            coopForm.setFieldsValue({
+              tricenterDemands: enterprise.tricenter_demands || [],
+              tricenterConcerns: enterprise.tricenter_concerns,
+            });
+          }
+        }}
+        onOk={async () => {
+          const values = coopForm.getFieldsValue();
+          const ok = await saveEnterpriseFields({
+            tricenterDemands: values.tricenterDemands,
+            tricenterConcerns: values.tricenterConcerns,
+          }, '三中心合作信息更新成功');
+          if (ok) setIsTriCenterCoopModalOpen(false);
+        }}
         onCancel={() => setIsTriCenterCoopModalOpen(false)}
         okText="保存"
         cancelText="取消"
         width={600}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="与三中心合作主要需求">
+        <Form form={coopForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="tricenterDemands" label="与三中心合作主要需求">
             <Select
               mode="multiple"
-              defaultValue={['跨境电商运营培训', '平台资源对接', '品牌孵化服务']}
               options={[
                 { label: '跨境电商运营培训', value: '跨境电商运营培训' },
                 { label: '平台资源对接', value: '平台资源对接' },
@@ -4352,7 +4697,7 @@ function EnterpriseDetail() {
               ]}
             />
           </Form.Item>
-          <Form.Item label="不考虑合作主要顾虑">
+          <Form.Item name="tricenterConcerns" label="不考虑合作主要顾虑">
             <Input.TextArea placeholder="请输入不考虑合作的主要顾虑" rows={3} />
           </Form.Item>
         </Form>
@@ -4362,17 +4707,27 @@ function EnterpriseDetail() {
       <Modal
         title="编辑跨境业务痛点"
         open={isCrossborderPainModalOpen}
-        onOk={() => { message.success('跨境业务痛点更新成功'); setIsCrossborderPainModalOpen(false); }}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            painForm.setFieldsValue({ painPoints: enterprise.pain_points || [] });
+          }
+        }}
+        onOk={async () => {
+          const values = painForm.getFieldsValue();
+          const ok = await saveEnterpriseFields({
+            painPoints: values.painPoints,
+          }, '跨境业务痛点更新成功');
+          if (ok) setIsCrossborderPainModalOpen(false);
+        }}
         onCancel={() => setIsCrossborderPainModalOpen(false)}
         okText="保存"
         cancelText="取消"
         width={500}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="跨境业务痛点">
+        <Form form={painForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="painPoints" label="跨境业务痛点">
             <Select
               mode="multiple"
-              defaultValue={['流量获取困难', '运营人才缺乏', '物流成本高']}
               options={[
                 { label: '流量获取困难', value: '流量获取困难' },
                 { label: '运营人才缺乏', value: '运营人才缺乏' },
@@ -4390,16 +4745,46 @@ function EnterpriseDetail() {
       <Modal
         title="编辑合作可能性评估"
         open={isEvaluationModalOpen}
-        onOk={() => { message.success('合作可能性评估更新成功'); setIsEvaluationModalOpen(false); }}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            evalForm.setFieldsValue({
+              serviceCooperationRating: enterprise.service_cooperation_rating,
+              investmentCooperationRating: enterprise.investment_cooperation_rating,
+              incubationCooperationRating: enterprise.incubation_cooperation_rating,
+              brandCooperationRating: enterprise.brand_cooperation_rating,
+              trainingCooperationRating: enterprise.training_cooperation_rating,
+              overallCooperationRating: enterprise.overall_cooperation_rating,
+            });
+          }
+        }}
+        onOk={async () => {
+          const values = evalForm.getFieldsValue();
+          const ok = await saveEnterpriseFields({
+            serviceCooperationRating: values.serviceCooperationRating,
+            investmentCooperationRating: values.investmentCooperationRating,
+            incubationCooperationRating: values.incubationCooperationRating,
+            brandCooperationRating: values.brandCooperationRating,
+            trainingCooperationRating: values.trainingCooperationRating,
+            overallCooperationRating: values.overallCooperationRating,
+          }, '合作可能性评估更新成功');
+          if (ok) setIsEvaluationModalOpen(false);
+        }}
         onCancel={() => setIsEvaluationModalOpen(false)}
         okText="保存"
         cancelText="取消"
         width={600}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          {['企业服务合作可能性', '招商入驻合作可能性', '孵化转型合作可能性', '品牌营销合作可能性', '人才培训合作可能性', '跨境整体方案合作可能性'].map((item, idx) => (
-            <Form.Item key={idx} label={item}>
-              <Rate defaultValue={[4, 3, 5, 4, 5, 4][idx]} />
+        <Form form={evalForm} layout="vertical" style={{ marginTop: 16 }}>
+          {[
+            { label: '企业服务合作可能性', name: 'serviceCooperationRating' },
+            { label: '招商入驻合作可能性', name: 'investmentCooperationRating' },
+            { label: '孵化转型合作可能性', name: 'incubationCooperationRating' },
+            { label: '品牌营销合作可能性', name: 'brandCooperationRating' },
+            { label: '人才培训合作可能性', name: 'trainingCooperationRating' },
+            { label: '跨境整体方案合作可能性', name: 'overallCooperationRating' },
+          ].map((item) => (
+            <Form.Item key={item.name} name={item.name} label={item.label}>
+              <Rate />
             </Form.Item>
           ))}
         </Form>
@@ -4409,37 +4794,44 @@ function EnterpriseDetail() {
       <Modal
         title="编辑初步评估"
         open={isPreliminaryModalOpen}
-        onOk={() => { message.success('初步评估更新成功'); setIsPreliminaryModalOpen(false); }}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            prelimForm.setFieldsValue({
+              transformationWillingness: enterprise.transformation_willingness,
+              investmentWillingness: enterprise.investment_willingness,
+              benchmarkPossibility: enterprise.benchmark_possibility,
+            });
+          }
+        }}
+        onOk={async () => {
+          const values = prelimForm.getFieldsValue();
+          const ok = await saveEnterpriseFields({
+            transformationWillingness: values.transformationWillingness,
+            investmentWillingness: values.investmentWillingness,
+            benchmarkPossibility: values.benchmarkPossibility ? Number(values.benchmarkPossibility) : null,
+          }, '初步评估更新成功');
+          if (ok) setIsPreliminaryModalOpen(false);
+        }}
         onCancel={() => setIsPreliminaryModalOpen(false)}
         okText="保存"
         cancelText="取消"
         width={600}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
+        <Form form={prelimForm} layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item label="调研日期">
-                <Input defaultValue="2024-01-15" />
+              <Form.Item name="transformationWillingness" label="跨境转型意愿">
+                <Select options={[{ label: '高', value: '高' }, { label: '中', value: '中' }, { label: '低', value: '低' }]} />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item label="调研人员">
-                <Input defaultValue="张明、李华" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="跨境转型意愿(%)">
-                <Input type="number" defaultValue={85} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="投入转型程度(%)">
-                <Input type="number" defaultValue={75} />
+              <Form.Item name="investmentWillingness" label="愿意投入转型程度">
+                <Select options={[{ label: '高', value: '高' }, { label: '中', value: '中' }, { label: '低', value: '低' }]} />
               </Form.Item>
             </Col>
             <Col span={24}>
-              <Form.Item label="成为标杆企业可能性(%)">
-                <Input type="number" defaultValue={90} />
+              <Form.Item name="benchmarkPossibility" label="成为标杆企业可能性(%)">
+                <Input type="number" placeholder="请输入0-100之间的数值" />
               </Form.Item>
             </Col>
           </Row>
@@ -4450,18 +4842,28 @@ function EnterpriseDetail() {
       <Modal
         title="编辑补充说明"
         open={isSupplementModalOpen}
-        onOk={() => { message.success('补充说明更新成功'); setIsSupplementModalOpen(false); }}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            supplementForm.setFieldsValue({
+              additionalNotes: enterprise.additional_notes,
+            });
+          }
+        }}
+        onOk={async () => {
+          const values = supplementForm.getFieldsValue();
+          const ok = await saveEnterpriseFields({
+            additionalNotes: values.additionalNotes,
+          }, '补充说明更新成功');
+          if (ok) setIsSupplementModalOpen(false);
+        }}
         onCancel={() => setIsSupplementModalOpen(false)}
         okText="保存"
         cancelText="取消"
         width={600}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="补充说明">
-            <Input.TextArea rows={6} defaultValue="该企业为常州园艺制品行业优质企业，产品质量过硬，外贸经验丰富。" />
-          </Form.Item>
-          <Form.Item label="建议事项">
-            <Input.TextArea rows={4} defaultValue="优先安排亚马逊招商经理对接&#10;推荐参加下期跨境电商实操培训班&#10;协助申请跨境电商出口退税政策&#10;作为园艺行业标杆案例重点培育" />
+        <Form form={supplementForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="additionalNotes" label="补充说明">
+            <Input.TextArea rows={6} placeholder="请输入补充说明" />
           </Form.Item>
         </Form>
       </Modal>
@@ -4470,20 +4872,34 @@ function EnterpriseDetail() {
       <Modal
         title="编辑政策支持情况"
         open={isPolicySupportModalOpen}
-        onOk={() => { message.success('政策支持情况更新成功'); setIsPolicySupportModalOpen(false); }}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            policyForm.setFieldsValue({
+              hasPolicySupport: enterprise.has_policy_support === 1,
+              enjoyedPolicies: enterprise.enjoyed_policies || [],
+            });
+          }
+        }}
+        onOk={async () => {
+          const values = policyForm.getFieldsValue();
+          const ok = await saveEnterpriseFields({
+            hasPolicySupport: values.hasPolicySupport ? 1 : 0,
+            enjoyedPolicies: values.enjoyedPolicies,
+          }, '政策支持情况更新成功');
+          if (ok) setIsPolicySupportModalOpen(false);
+        }}
         onCancel={() => setIsPolicySupportModalOpen(false)}
         okText="保存"
         cancelText="取消"
         width={500}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="是否享受过政策支持">
-            <Select defaultValue={true} options={[{ label: '是', value: true }, { label: '否', value: false }]} />
+        <Form form={policyForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="hasPolicySupport" label="是否享受过政策支持">
+            <Select options={[{ label: '是', value: true }, { label: '否', value: false }]} />
           </Form.Item>
-          <Form.Item label="已享受政策">
+          <Form.Item name="enjoyedPolicies" label="已享受政策">
             <Select
               mode="multiple"
-              defaultValue={['cross_border_fund', 'trade_growth_subsidy']}
               options={[
                 { label: '跨境电商扶持资金', value: 'cross_border_fund' },
                 { label: '外贸稳增长补贴', value: 'trade_growth_subsidy' },
@@ -4508,16 +4924,30 @@ function EnterpriseDetail() {
       <Modal
         title="编辑行业竞争地位"
         open={isCompetitionModalOpen}
-        onOk={() => { message.success('行业竞争地位更新成功'); setIsCompetitionModalOpen(false); }}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            competitionForm.setFieldsValue({
+              competitionPosition: enterprise.competition_position,
+              competitionDescription: enterprise.competition_description,
+            });
+          }
+        }}
+        onOk={async () => {
+          const values = competitionForm.getFieldsValue();
+          const ok = await saveEnterpriseFields({
+            competitionPosition: values.competitionPosition,
+            competitionDescription: values.competitionDescription,
+          }, '行业竞争地位更新成功');
+          if (ok) setIsCompetitionModalOpen(false);
+        }}
         onCancel={() => setIsCompetitionModalOpen(false)}
         okText="保存"
         cancelText="取消"
         width={500}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="行业竞争地位">
+        <Form form={competitionForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="competitionPosition" label="行业竞争地位">
             <Select
-              defaultValue="中型企业"
               options={[
                 { label: '头部企业', value: '头部企业' },
                 { label: '中型企业', value: '中型企业' },
@@ -4525,8 +4955,8 @@ function EnterpriseDetail() {
               ]}
             />
           </Form.Item>
-          <Form.Item label="竞争地位描述">
-            <Input.TextArea rows={3} defaultValue="在常州园艺制品行业处于中等偏上水平，具有一定的市场份额和品牌知名度" />
+          <Form.Item name="competitionDescription" label="竞争地位描述">
+            <Input.TextArea rows={3} placeholder="请描述企业在行业中的竞争地位" />
           </Form.Item>
         </Form>
       </Modal>
@@ -4567,17 +4997,31 @@ function EnterpriseDetail() {
       <Modal
         title="编辑当前面临风险"
         open={isRiskModalOpen}
-        onOk={() => { message.success('当前面临风险更新成功'); setIsRiskModalOpen(false); }}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            riskForm.setFieldsValue({
+              risks: enterprise.risks || [],
+              riskDescription: enterprise.risk_description,
+            });
+          }
+        }}
+        onOk={async () => {
+          const values = riskForm.getFieldsValue();
+          const ok = await saveEnterpriseFields({
+            risks: values.risks,
+            riskDescription: values.riskDescription,
+          }, '当前面临风险更新成功');
+          if (ok) setIsRiskModalOpen(false);
+        }}
         onCancel={() => setIsRiskModalOpen(false)}
         okText="保存"
         cancelText="取消"
         width={600}
       >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item label="当前面临的主要风险">
+        <Form form={riskForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Form.Item name="risks" label="当前面临的主要风险">
             <Select
               mode="multiple"
-              defaultValue={['原材料价格波动风险', '跨境物流成本上涨', '人才流失风险']}
               options={[
                 { label: '原材料价格波动风险', value: '原材料价格波动风险' },
                 { label: '跨境物流成本上涨', value: '跨境物流成本上涨' },
@@ -4588,7 +5032,7 @@ function EnterpriseDetail() {
               ]}
             />
           </Form.Item>
-          <Form.Item label="风险详细描述">
+          <Form.Item name="riskDescription" label="风险详细描述">
             <Input.TextArea rows={4} placeholder="请详细描述当前面临的风险情况" />
           </Form.Item>
         </Form>

@@ -1,0 +1,32 @@
+---
+description: "Java Spring Boot 后端编码规范，编辑 Java 文件时自动应用"
+globs: ["backend/**/*.java"]
+---
+
+# Spring Boot 后端规范
+
+## 分层架构
+- Controller → Service (interface) → ServiceImpl → Mapper
+- Controller 只做参数校验和调用 Service，不写业务逻辑
+- Service 接口和实现分离，实现类加 `@Service`
+
+## API 规范
+- 统一 API 前缀：`/api/`
+- 所有响应统一用 `Result<T>` 包装
+- 业务异常由全局异常处理器统一处理
+
+## 数据层
+- 使用 MyBatis-Plus，实体类放 `entity/`
+- DTO 放 `dto/` 目录
+- 逻辑删除字段 `deleted`
+- 禁止在 Controller 层直接操作 Mapper
+
+## 认证
+- JWT token 认证，Bearer 方式传递
+- 密码使用加密存储
+- 登录接口限流保护
+
+## Excel 导入导出
+- 使用 EasyExcel 处理 Excel 文件
+- 批量导入需校验数据格式和必填字段
+- 导出需限制单次导出数据量

@@ -44,4 +44,7 @@ public class EnterpriseCreateRequest {
     private String contactPhone;
     
     private String contactPosition;
+
+    /** 关联园区小程序用户ID（跨系统同步时传入） */
+    private Integer bookingUserId;
 }

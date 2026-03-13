@@ -25,3 +25,10 @@ Thumbs.db
 # 临时文件
 *.tmp
 *.temp
+
+# Cursor memory (local state, not version-controlled)
+.cursor/memory/
+# Cursor MCP config (may contain credentials)
+.cursor/mcp.json
+# Windsurf memory (local state, not version-controlled)
+.windsurf/memories/

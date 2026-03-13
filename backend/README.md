@@ -25,10 +25,10 @@
 
 ```bash
 # 执行SQL脚本（按顺序）
-mysql -u root -p tricenter < ../doc/sql/01_create_tables.sql
-mysql -u root -p tricenter < ../doc/sql/02_init_system_options.sql
-mysql -u root -p tricenter < ../doc/sql/03_init_industry.sql
-mysql -u root -p tricenter < ../doc/sql/04_init_product_category.sql
+mysql -u root -p tricenter < ../docs/sql/01_create_tables.sql
+mysql -u root -p tricenter < ../docs/sql/02_init_system_options.sql
+mysql -u root -p tricenter < ../docs/sql/03_init_industry.sql
+mysql -u root -p tricenter < ../docs/sql/04_init_product_category.sql
 mysql -u root -p tricenter < src/main/resources/db/init_admin.sql
 ```
 

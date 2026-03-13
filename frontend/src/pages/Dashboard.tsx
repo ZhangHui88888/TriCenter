@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Card, Row, Col, Statistic, Progress, Button, List, Typography, Spin } from 'antd';
+import { Card, Row, Col, Button, List, Typography, Spin } from 'antd';
 import {
   ShopOutlined,
   ClockCircleOutlined,
@@ -203,7 +203,7 @@ function Dashboard() {
               hoverable 
               className="stat-card"
               style={{ borderRadius: 16, border: 'none', background: '#fff' }}
-              bodyStyle={{ padding: '24px' }}
+              styles={{ body: { padding: '24px' } }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
@@ -252,7 +252,7 @@ function Dashboard() {
               </Button>
             }
             style={{ borderRadius: 16, border: 'none' }}
-            bodyStyle={{ padding: '20px 24px' }}
+            styles={{ body: { padding: '20px 24px' } }}
           >
             <div style={{ padding: '4px 0' }}>
               {funnelStats.map((stage, idx) => {
@@ -293,7 +293,7 @@ function Dashboard() {
           <Card 
             title={<span style={{ fontWeight: 600, fontSize: 16 }}>区域分布</span>}
             style={{ borderRadius: 16, border: 'none' }}
-            bodyStyle={{ padding: '16px 24px' }}
+            styles={{ body: { padding: '16px 24px' } }}
           >
             <ReactECharts option={districtChartOption} style={{ height: 280 }} />
           </Card>
@@ -305,7 +305,7 @@ function Dashboard() {
           <Card 
             title={<span style={{ fontWeight: 600, fontSize: 16 }}>行业分布</span>}
             style={{ borderRadius: 16, border: 'none' }}
-            bodyStyle={{ padding: '16px 24px' }}
+            styles={{ body: { padding: '16px 24px' } }}
           >
             <ReactECharts option={industryChartOption} style={{ height: 250 }} />
           </Card>
@@ -314,7 +314,7 @@ function Dashboard() {
           <Card 
             title={<span style={{ fontWeight: 600, fontSize: 16 }}>快捷操作</span>}
             style={{ borderRadius: 16, border: 'none' }}
-            bodyStyle={{ padding: '20px 24px' }}
+            styles={{ body: { padding: '20px 24px' } }}
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <Button type="default" icon={<PlusOutlined />} block size="large"

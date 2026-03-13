@@ -14,7 +14,6 @@ import {
   Typography,
   message,
   Progress,
-  Spin,
 } from 'antd';
 import {
   SearchOutlined,
@@ -29,8 +28,12 @@ import {
   ArrowRightOutlined,
   RiseOutlined,
   LoadingOutlined,
+  FileExcelOutlined,
+  DeleteOutlined,
+  SwapOutlined,
+  ExclamationCircleOutlined,
 } from '@ant-design/icons';
-import { Upload, Tabs, Badge } from 'antd';
+import { Upload, Tabs, Badge, Radio } from 'antd';
 import ReactECharts from 'echarts-for-react';
 import type { ColumnsType } from 'antd/es/table';
 import { requirements } from '@/data/requirementsData';
@@ -42,7 +45,8 @@ import {
   CROSSBORDER_PLATFORMS,
   TRANSFORMATION_WILLINGNESS,
 } from '@/utils/constants';
-import { enterpriseApi, optionsApi, dashboardApi } from '@/services/api';
+import { enterpriseApi, optionsApi, dashboardApi, surveyExcelApi } from '@/services/api';
+import { exportEnterpriseListExcel } from '@/utils/exportEnterpriseListExcel';
 import type { Enterprise } from '@/types';
 
 const { Title, Text } = Typography;
@@ -72,11 +76,19 @@ function EnterpriseList() {
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
   const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   const [isCreating, setIsCreating] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [exportType, setExportType] = useState<'list' | 'survey'>('list');
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchStageModalOpen, setBatchStageModalOpen] = useState(false);
+  const [batchStage, setBatchStage] = useState<string>('');
+  const [batchReason, setBatchReason] = useState<string>('');
   
   // API数据状态
   const [loading, setLoading] = useState(true);
   const [enterprises, setEnterprises] = useState<any[]>([]);
-  const [total, setTotal] = useState(0);
+  const [_total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [districts, setDistricts] = useState<string[]>([]);
@@ -169,7 +181,64 @@ function EnterpriseList() {
     setPage(1);
     fetchEnterprises();
   };
-  
+
+  // 批量删除
+  const handleBatchDelete = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要删除的企业');
+      return;
+    }
+    Modal.confirm({
+      title: '批量删除确认',
+      icon: <ExclamationCircleOutlined />,
+      content: `确定要删除选中的 ${selectedRowKeys.length} 家企业吗？此操作不可恢复。`,
+      okText: '确定删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          const res = await enterpriseApi.batchDelete(selectedRowKeys as number[]);
+          message.success(`成功删除 ${res.data} 家企业`);
+          setSelectedRowKeys([]);
+          fetchEnterprises();
+          dashboardApi.getFunnelStats().then(r => r.data && setFunnelStats(r.data));
+        } catch {
+          message.error('批量删除失败');
+        }
+      },
+    });
+  };
+
+  // 批量变更阶段
+  const handleBatchStageChange = () => {
+    if (selectedRowKeys.length === 0) {
+      message.warning('请先选择要变更阶段的企业');
+      return;
+    }
+    setBatchStage('');
+    setBatchReason('');
+    setBatchStageModalOpen(true);
+  };
+
+  const handleBatchStageOk = async () => {
+    if (!batchStage) {
+      message.warning('请选择目标阶段');
+      return;
+    }
+    try {
+      const res = await enterpriseApi.batchChangeStage(
+        selectedRowKeys as number[], batchStage, batchReason || undefined
+      );
+      message.success(`成功变更 ${res.data} 家企业阶段`);
+      setSelectedRowKeys([]);
+      setBatchStageModalOpen(false);
+      fetchEnterprises();
+      dashboardApi.getFunnelStats().then(r => r.data && setFunnelStats(r.data));
+    } catch {
+      message.error('批量变更阶段失败');
+    }
+  };
+
   // 计算已应用的筛选条件数量
   const activeFilterCount = Object.values(advancedFilters).filter(v => 
     v !== undefined && v !== null && v !== '' && 
@@ -600,7 +669,7 @@ function EnterpriseList() {
           border: 'none',
           boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
         }}
-        bodyStyle={{ padding: '20px 24px' }}
+        styles={{ body: { padding: '20px 24px' } }}
       >
         <Space wrap size={16}>
           <Input
@@ -642,6 +711,7 @@ function EnterpriseList() {
           <Button
             type="primary"
             icon={<SearchOutlined />}
+            onClick={handleSearch}
             style={{
               borderRadius: 10,
               height: 40,
@@ -686,15 +756,59 @@ function EnterpriseList() {
           border: 'none',
           boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
         }}
-        bodyStyle={{ padding: '8px 0' }}
+        styles={{ body: { padding: '8px 0' } }}
       >
+        {selectedRowKeys.length > 0 && (
+          <div style={{
+            padding: '12px 24px',
+            background: 'linear-gradient(135deg, #e6f7ff 0%, #f0f5ff 100%)',
+            borderBottom: '1px solid #d6e4ff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}>
+            <Text>
+              已选择 <Text strong style={{ color: '#667eea' }}>{selectedRowKeys.length}</Text> 家企业
+            </Text>
+            <Space>
+              <Button
+                icon={<SwapOutlined />}
+                onClick={handleBatchStageChange}
+                style={{ borderRadius: 8 }}
+              >
+                批量变更阶段
+              </Button>
+              <Button
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleBatchDelete}
+                style={{ borderRadius: 8 }}
+              >
+                批量删除
+              </Button>
+              <Button
+                type="text"
+                onClick={() => setSelectedRowKeys([])}
+                style={{ color: '#999' }}
+              >
+                取消选择
+              </Button>
+            </Space>
+          </div>
+        )}
         <Table
           columns={columns}
           dataSource={filteredEnterprises}
           rowKey="id"
+          loading={loading}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: (keys) => setSelectedRowKeys(keys),
+          }}
           pagination={{
             total: filteredEnterprises.length,
-            pageSize: 10,
+            pageSize: pageSize,
+            onShowSizeChange: (_, size) => setPageSize(size),
             showTotal: (total) => (
               <span style={{ color: '#666' }}>
                 共 <span style={{ color: '#667eea', fontWeight: 600 }}>{total}</span> 条记录
@@ -730,7 +844,7 @@ function EnterpriseList() {
             <Card 
               title="关键指标" 
               style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', height: '100%' }}
-              bodyStyle={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', height: 'calc(100% - 57px)' }}
+              styles={{ body: { display: 'flex', flexDirection: 'column', justifyContent: 'center', height: 'calc(100% - 57px)' } }}
             >
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <div style={{ textAlign: 'center', padding: '20px 0', background: 'linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%)', borderRadius: 12 }}>
@@ -969,53 +1083,202 @@ function EnterpriseList() {
       </Modal>
 
       <Modal
-        title="导入企业数据"
+        title="导入调研数据"
         open={isImportModalOpen}
-        onOk={() => {
-          message.success('导入成功');
-          setIsImportModalOpen(false);
+        onOk={async () => {
+          if (!importFile) {
+            message.warning('请先选择文件');
+            return;
+          }
+          setImporting(true);
+          try {
+            const result = await surveyExcelApi.import(importFile);
+            const data = result.data;
+            if (data.failed > 0) {
+              message.warning(`导入完成：成功 ${data.success} 条，失败 ${data.failed} 条`);
+            } else {
+              message.success(`导入成功：共 ${data.success} 条数据`);
+            }
+            setIsImportModalOpen(false);
+            setImportFile(null);
+            fetchEnterprises();
+          } catch (error: any) {
+            message.error(error.message || '导入失败');
+          } finally {
+            setImporting(false);
+          }
         }}
-        onCancel={() => setIsImportModalOpen(false)}
+        onCancel={() => { setIsImportModalOpen(false); setImportFile(null); }}
         okText="开始导入"
         cancelText="取消"
+        confirmLoading={importing}
       >
         <div style={{ marginBottom: 16 }}>
-          <Text type="secondary">支持 Excel (.xlsx, .xls) 格式文件，请按照模板格式上传</Text>
+          <Text type="secondary">上传线下收集完成的调研Excel文件，系统将根据企业ID自动匹配并更新数据</Text>
+        </div>
+        <div style={{
+          marginBottom: 16,
+          padding: '12px 16px',
+          background: '#f0f5ff',
+          borderRadius: 8,
+          border: '1px dashed #adc6ff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <FileExcelOutlined style={{ color: '#52c41a', fontSize: 18 }} />
+            <Text type="secondary">首次导入？请先下载标准模板，按格式填写后上传</Text>
+          </div>
+          <Button
+            type="link"
+            icon={<DownloadOutlined />}
+            style={{ padding: 0, fontWeight: 500 }}
+            onClick={async () => {
+              try {
+                const response = await surveyExcelApi.downloadTemplate();
+                const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const url = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.href = url;
+                link.download = '调研导入模板.xlsx';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                window.URL.revokeObjectURL(url);
+                message.success('模板下载成功');
+              } catch (error: any) {
+                message.error(error.message || '模板下载失败');
+              }
+            }}
+          >
+            下载导入模板
+          </Button>
         </div>
         <Upload.Dragger
           name="file"
           multiple={false}
           accept=".xlsx,.xls"
-          beforeUpload={() => false}
+          fileList={importFile ? [{ uid: '-1', name: importFile.name, status: 'done' } as any] : []}
+          beforeUpload={(file) => {
+            setImportFile(file);
+            return false;
+          }}
+          onRemove={() => setImportFile(null)}
         >
           <p className="ant-upload-drag-icon">
             <InboxOutlined />
           </p>
-          <p className="ant-upload-text">点击或拖拽文件到此区域上传</p>
-          <p className="ant-upload-hint">支持 .xlsx, .xls 格式</p>
+          <p className="ant-upload-text">点击或拖拽调研Excel文件到此区域</p>
+          <p className="ant-upload-hint">支持 .xlsx, .xls 格式，文件中需包含企业ID列</p>
         </Upload.Dragger>
-        <Button type="link" style={{ padding: 0, marginTop: 8 }}>下载导入模板</Button>
       </Modal>
 
       <Modal
         title="导出企业数据"
         open={isExportModalOpen}
-        onOk={() => {
-          message.success('导出成功，文件已下载');
-          setIsExportModalOpen(false);
+        onOk={async () => {
+          setExporting(true);
+          try {
+            if (exportType === 'list') {
+              // 列表导出：获取所有匹配企业数据
+              const response = await enterpriseApi.getList({
+                page: 1,
+                pageSize: 99999,
+                keyword: searchTerm || undefined,
+                stage: stageFilter || undefined,
+                district: districtFilter || undefined,
+                industryId: industryFilter ? Number(industryFilter) : undefined,
+              });
+              const list = (response.data?.list || []).map((item: any) => ({
+                id: item.id,
+                enterprise_name: item.name,
+                district: item.district,
+                industry: item.industryName,
+                enterprise_type: item.enterpriseType,
+                funnel_stage: item.stage,
+                contacts: item.contacts || [],
+                has_crossborder: item.hasCrossBorder,
+                main_platforms: item.crossBorderPlatforms,
+                target_markets: item.targetMarkets,
+                created_at: item.createdAt,
+              }));
+              if (list.length === 0) {
+                message.warning('没有可导出的企业');
+                return;
+              }
+              await exportEnterpriseListExcel(list);
+              message.success(`导出成功，共 ${list.length} 家企业`);
+            } else {
+              // 调研表导出
+              const ids = selectedRowKeys.length > 0
+                ? selectedRowKeys
+                : filteredEnterprises.map((e: any) => e.id);
+              if (ids.length === 0) {
+                message.warning('没有可导出的企业');
+                return;
+              }
+              const response = await surveyExcelApi.exportBatch(ids);
+              const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+              const url = window.URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `企业调研表_批量_${new Date().toISOString().slice(0, 10)}.xlsx`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              window.URL.revokeObjectURL(url);
+              message.success('导出成功，文件已下载');
+            }
+            setIsExportModalOpen(false);
+          } catch (error: any) {
+            message.error(error.message || '导出失败');
+          } finally {
+            setExporting(false);
+          }
         }}
         onCancel={() => setIsExportModalOpen(false)}
         okText="确认导出"
         cancelText="取消"
+        confirmLoading={exporting}
       >
         <div style={{ padding: '16px 0' }}>
-          <Text>将导出当前筛选条件下的 <Text strong>{filteredEnterprises.length}</Text> 条企业数据</Text>
-          <div style={{ marginTop: 16 }}>
-            <Text type="secondary">导出格式：Excel (.xlsx)</Text>
+          <div style={{ marginBottom: 16 }}>
+            <Text strong style={{ marginRight: 12 }}>导出类型：</Text>
+            <Radio.Group value={exportType} onChange={(e) => setExportType(e.target.value)}>
+              <Radio.Button value="list">企业列表</Radio.Button>
+              <Radio.Button value="survey">调研表</Radio.Button>
+            </Radio.Group>
           </div>
-          <div style={{ marginTop: 8 }}>
-            <Text type="secondary">导出字段：企业名称、区域、行业、类型、漏斗阶段、联系人、联系电话、对接人等</Text>
-          </div>
+          {exportType === 'list' ? (
+            <>
+              <Text>将导出当前筛选条件下的所有企业为列表 Excel</Text>
+              <div style={{ marginTop: 12 }}>
+                <Text type="secondary">导出格式：Excel (.xlsx)，单 Sheet 表格</Text>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <Text type="secondary">包含字段：企业名称、区域、行业、类型、漏斗阶段、联系人、联系电话、是否跨境、主要平台、录入时间</Text>
+              </div>
+            </>
+          ) : (
+            <>
+              <Text>
+                {selectedRowKeys.length > 0
+                  ? <>将导出选中的 <Text strong>{selectedRowKeys.length}</Text> 家企业的调研表</>
+                  : <>将导出当前列表中 <Text strong>{filteredEnterprises.length}</Text> 家企业的调研表</>
+                }
+              </Text>
+              <div style={{ marginTop: 12 }}>
+                <Text type="secondary">导出格式：Excel (.xlsx)，包含6个Sheet</Text>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <Text type="secondary">Sheet内容：企业基本信息、联系人、产品信息、外贸信息、跨境电商、合作与政策</Text>
+              </div>
+              <div style={{ marginTop: 8 }}>
+                <Text type="secondary">已有数据将预填到表格中，线下人员可直接补充修改</Text>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 
@@ -1203,11 +1466,14 @@ function EnterpriseList() {
                           placeholder="请选择" 
                           allowClear 
                           options={[
-                            { label: 'OEM代工', value: 'OEM代工' },
-                            { label: 'ODM贴牌', value: 'ODM贴牌' },
-                            { label: 'OBM自主品牌', value: 'OBM自主品牌' },
-                            { label: '一般贸易', value: '一般贸易' },
-                            { label: '跨境电商', value: '跨境电商' },
+                            { label: '0110', value: '0110' },
+                            { label: '1039', value: '1039' },
+                            { label: '9610', value: '9610' },
+                            { label: '9710', value: '9710' },
+                            { label: '9810', value: '9810' },
+                            { label: '1210', value: '1210' },
+                            { label: '0139', value: '0139' },
+                            { label: '8000', value: '8000' },
                           ]} 
                         />
                       </Form.Item>
@@ -1507,6 +1773,42 @@ function EnterpriseList() {
             ]}
           />
         </Form>
+      </Modal>
+
+      {/* 批量变更阶段模态框 */}
+      <Modal
+        title="批量变更漏斗阶段"
+        open={batchStageModalOpen}
+        onOk={handleBatchStageOk}
+        onCancel={() => setBatchStageModalOpen(false)}
+        okText="确定变更"
+        cancelText="取消"
+        width={480}
+      >
+        <div style={{ marginTop: 16 }}>
+          <Text style={{ marginBottom: 16, display: 'block' }}>
+            将选中的 <Text strong style={{ color: '#667eea' }}>{selectedRowKeys.length}</Text> 家企业变更至：
+          </Text>
+          <Form layout="vertical">
+            <Form.Item label="目标阶段" required>
+              <Select
+                placeholder="请选择目标阶段"
+                value={batchStage || undefined}
+                onChange={(v) => setBatchStage(v)}
+                options={FUNNEL_STAGES.map(s => ({ label: s.name, value: s.code }))}
+                style={{ width: '100%' }}
+              />
+            </Form.Item>
+            <Form.Item label="变更原因">
+              <Input.TextArea
+                placeholder="请输入变更原因（可选）"
+                rows={3}
+                value={batchReason}
+                onChange={(e) => setBatchReason(e.target.value)}
+              />
+            </Form.Item>
+          </Form>
+        </div>
       </Modal>
     </div>
   );

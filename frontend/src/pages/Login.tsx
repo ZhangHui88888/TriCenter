@@ -50,7 +50,7 @@ function Login() {
           boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
           borderRadius: 12,
         }}
-        bordered={false}
+        variant="borderless"
       >
         <div style={{ textAlign: 'center', marginBottom: 32 }}>
           <Title level={3} style={{ marginBottom: 8, color: '#1a1f35' }}>

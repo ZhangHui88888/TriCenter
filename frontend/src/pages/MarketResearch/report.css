@@ -1,0 +1,349 @@
+/* ========== Market Research Report Template Styles ========== */
+/* Matching original HTML template: 外贸企业市场调研报告模板_深度版 */
+
+:root {
+  --rpt-primary: #1a56db;
+  --rpt-primary-light: #e8eefb;
+  --rpt-accent: #0d9488;
+  --rpt-accent-light: #e6f7f5;
+  --rpt-warning: #d97706;
+  --rpt-warning-light: #fef3c7;
+  --rpt-danger: #dc2626;
+  --rpt-text: #1e293b;
+  --rpt-text-secondary: #64748b;
+  --rpt-border: #e2e8f0;
+  --rpt-bg: #f8fafc;
+  --rpt-white: #ffffff;
+  --rpt-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06);
+  --rpt-shadow-md: 0 4px 6px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.06);
+}
+
+.report-wrapper {
+  max-width: 1100px;
+  margin: 0 auto;
+  background: var(--rpt-white);
+  border-radius: 12px;
+  box-shadow: var(--rpt-shadow-md);
+  padding: 50px 60px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--rpt-text);
+}
+
+/* ========== Title (h1) ========== */
+.report-wrapper h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--rpt-primary);
+  text-align: center;
+  padding-bottom: 20px;
+  margin-bottom: 30px;
+  border-bottom: 3px solid var(--rpt-primary);
+  letter-spacing: 2px;
+}
+
+/* ========== Chapter Heading (h2) — blue gradient banner ========== */
+.report-wrapper h2 {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--rpt-white);
+  background: linear-gradient(135deg, var(--rpt-primary), #2563eb);
+  padding: 12px 24px;
+  border-radius: 8px;
+  margin: 35px 0 20px 0;
+  letter-spacing: 1px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.report-wrapper h2 .anticon {
+  font-size: 20px;
+}
+
+/* ========== Section Heading (h3) — blue left border ========== */
+.report-wrapper h3 {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--rpt-primary);
+  border-left: 4px solid var(--rpt-primary);
+  padding-left: 14px;
+  margin: 28px 0 14px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-wrapper h3 .anticon {
+  font-size: 16px;
+}
+
+/* ========== Sub-section Heading (h4) — teal left border ========== */
+.report-wrapper h4 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--rpt-accent);
+  border-left: 3px solid var(--rpt-accent);
+  padding-left: 12px;
+  margin: 22px 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.report-wrapper h4 .anticon {
+  font-size: 14px;
+}
+
+/* ========== Template Section Heading (h5) — amber bg ========== */
+.report-wrapper h5 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--rpt-warning);
+  background: var(--rpt-warning-light);
+  padding: 10px 16px;
+  border-radius: 6px;
+  margin: 18px 0 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ========== Paragraphs ========== */
+.report-wrapper p {
+  margin: 8px 0;
+  color: var(--rpt-text);
+}
+
+.report-wrapper strong {
+  color: var(--rpt-text);
+  font-weight: 600;
+}
+
+/* ========== Horizontal Rule ========== */
+.report-wrapper hr {
+  border: none;
+  height: 1px;
+  background: linear-gradient(to right, transparent, var(--rpt-border), transparent);
+  margin: 30px 0;
+}
+
+/* ========== Tables ========== */
+.table-wrapper {
+  overflow-x: auto;
+  margin: 12px 0;
+  border-radius: 8px;
+  border: 1px solid var(--rpt-border);
+}
+
+.report-wrapper table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.report-wrapper th {
+  background: linear-gradient(135deg, #f0f4ff, #e8eefb);
+  color: var(--rpt-primary);
+  font-weight: 600;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 2px solid var(--rpt-primary);
+  white-space: nowrap;
+}
+
+.report-wrapper td {
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--rpt-border);
+  vertical-align: top;
+}
+
+.report-wrapper tr:hover td {
+  background: #f8faff;
+}
+
+.report-wrapper tr:last-child td {
+  border-bottom: none;
+}
+
+/* ========== Lists ========== */
+.report-wrapper ul {
+  margin: 8px 0 8px 20px;
+  padding: 0;
+}
+
+.report-wrapper li {
+  margin: 4px 0;
+  padding-left: 4px;
+}
+
+.report-wrapper li::marker {
+  color: var(--rpt-primary);
+}
+
+/* ========== Blockquote / Tip Box ========== */
+.report-wrapper blockquote {
+  background: var(--rpt-primary-light);
+  border-left: 4px solid var(--rpt-primary);
+  padding: 12px 18px;
+  margin: 12px 0;
+  border-radius: 0 8px 8px 0;
+  font-size: 14px;
+  color: var(--rpt-text-secondary);
+}
+
+.report-wrapper blockquote strong {
+  color: var(--rpt-primary);
+}
+
+.report-wrapper blockquote.accent {
+  background: var(--rpt-accent-light);
+  border-left-color: var(--rpt-accent);
+}
+
+.report-wrapper blockquote.warning {
+  background: var(--rpt-warning-light);
+  border-left-color: var(--rpt-warning);
+}
+
+/* ========== Checkbox ========== */
+.report-wrapper .checkbox {
+  font-size: 16px;
+  margin-right: 2px;
+}
+
+/* ========== Report Meta Info ========== */
+.report-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 30px;
+  background: #f8fafc;
+  border: 1px solid var(--rpt-border);
+  border-radius: 8px;
+  padding: 16px 24px;
+  margin: 20px 0;
+  font-size: 14px;
+}
+
+.report-meta p {
+  margin: 3px 0;
+}
+
+/* ========== Code blocks ========== */
+.report-wrapper pre {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 16px 20px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.report-wrapper code {
+  background: #f1f5f9;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--rpt-accent);
+}
+
+.report-wrapper pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+}
+
+/* ========== SWOT Grid ========== */
+.swot-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.swot-item {
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.swot-item.strength { background: #e8f5e9; border: 1px solid #a5d6a7; }
+.swot-item.weakness { background: #fff3e0; border: 1px solid #ffcc80; }
+.swot-item.opportunity { background: #e3f2fd; border: 1px solid #90caf9; }
+.swot-item.threat { background: #fce4ec; border: 1px solid #ef9a9a; }
+
+.swot-item h4 { border-left: none; padding-left: 0; }
+.swot-item.strength h4 { color: #2e7d32; }
+.swot-item.weakness h4 { color: #e65100; }
+.swot-item.opportunity h4 { color: #1565c0; }
+.swot-item.threat h4 { color: #c62828; }
+
+.swot-item ul { margin: 0; padding-left: 1.5em; }
+
+/* ========== Report Footer ========== */
+.report-footer {
+  text-align: center;
+  color: var(--rpt-text-secondary);
+  font-size: 13px;
+  padding-top: 20px;
+  border-top: 1px solid var(--rpt-border);
+  margin-top: 30px;
+}
+
+/* ========== Chart Suggestion Box ========== */
+.chart-suggestion {
+  background: linear-gradient(135deg, #f0f7ff 0%, #e8f4f8 100%);
+  border: 1px dashed var(--rpt-primary);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  font-size: 13px;
+  color: var(--rpt-primary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 768px) {
+  .report-wrapper {
+    padding: 20px 16px;
+  }
+  .report-wrapper h1 { font-size: 22px; }
+  .report-wrapper h2 { font-size: 18px; padding: 10px 16px; }
+  .report-wrapper h3 { font-size: 16px; }
+  .report-wrapper table { font-size: 12px; }
+  .report-wrapper th, .report-wrapper td { padding: 6px 8px; }
+  .swot-grid { grid-template-columns: 1fr; }
+}
+
+/* ========== Print Styles ========== */
+@media print {
+  body { background: white; font-size: 12px; }
+
+  .report-toolbar {
+    display: none !important;
+  }
+
+  .report-wrapper {
+    box-shadow: none;
+    padding: 20px;
+    border-radius: 0;
+    max-width: none;
+  }
+
+  .report-wrapper h2 {
+    background: none !important;
+    color: var(--rpt-primary) !important;
+    border: 2px solid var(--rpt-primary);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .report-wrapper table { font-size: 11px; }
+  .table-wrapper { overflow: visible; }
+  .report-wrapper blockquote { break-inside: avoid; }
+  .chart-suggestion { display: none; }
+}

@@ -261,6 +261,11 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (request.getTricenterDemands() != null) enterprise.setTricenterDemands(request.getTricenterDemands());
         if (request.getTricenterConcerns() != null) enterprise.setTricenterConcerns(request.getTricenterConcerns());
         
+        // 需求分析
+        if (request.getDimensionSelections() != null) enterprise.setDimensionSelections(request.getDimensionSelections());
+        if (request.getRemovedRequirements() != null) enterprise.setRemovedRequirements(request.getRemovedRequirements());
+        if (request.getCustomRequirements() != null) enterprise.setCustomRequirements(request.getCustomRequirements());
+        
         enterpriseMapper.updateById(enterprise);
         
         log.info("更新企业成功: id={}", id);
@@ -559,6 +564,11 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setTricenterDemands(enterprise.getTricenterDemands());
         response.setTricenterConcerns(enterprise.getTricenterConcerns());
         
+        // 需求分析
+        response.setDimensionSelections(enterprise.getDimensionSelections());
+        response.setRemovedRequirements(enterprise.getRemovedRequirements());
+        response.setCustomRequirements(enterprise.getCustomRequirements());
+        
         // 产品列表
         LambdaQueryWrapper<EnterpriseProduct> productWrapper = new LambdaQueryWrapper<>();
         productWrapper.eq(EnterpriseProduct::getEnterpriseId, enterprise.getId());
@@ -824,5 +834,48 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             log.error("下载模板失败", e);
             throw new BusinessException("下载失败: " + e.getMessage());
         }
+    }
+
+    @Override
+    @Transactional
+    public int batchDelete(List<Integer> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        int count = enterpriseMapper.deleteBatchIds(ids);
+        log.info("批量删除企业成功: ids={}, 实际删除={}", ids, count);
+        return count;
+    }
+
+    @Override
+    @Transactional
+    public int batchChangeStage(List<Integer> ids, String stage, String reason, Integer operatorId) {
+        if (ids == null || ids.isEmpty()) {
+            return 0;
+        }
+        int count = 0;
+        for (Integer id : ids) {
+            Enterprise enterprise = enterpriseMapper.selectById(id);
+            if (enterprise == null || enterprise.getIsDeleted() == 1) {
+                continue;
+            }
+            String oldStage = enterprise.getStage();
+            if (oldStage.equals(stage)) {
+                continue;
+            }
+            enterprise.setStage(stage);
+            enterpriseMapper.updateById(enterprise);
+
+            StageChangeLog changeLog = new StageChangeLog();
+            changeLog.setEnterpriseId(id);
+            changeLog.setStageFrom(oldStage);
+            changeLog.setStageTo(stage);
+            changeLog.setReason(reason);
+            changeLog.setOperatorId(operatorId);
+            stageChangeLogMapper.insert(changeLog);
+            count++;
+        }
+        log.info("批量变更阶段成功: ids={}, stage={}, 实际变更={}", ids, stage, count);
+        return count;
     }
 }

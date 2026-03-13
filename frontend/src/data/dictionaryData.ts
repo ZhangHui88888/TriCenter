@@ -86,12 +86,15 @@ export const dictionaryData: DictionaryItem[] = [
   { id: 51, category: 'enterprise_type', value: 'trading', label: '贸易型', sort_order: 2, is_enabled: true, created_at: '2025-01-01' },
   { id: 52, category: 'enterprise_type', value: 'both', label: '工贸一体', sort_order: 3, is_enabled: true, created_at: '2025-01-01' },
 
-  // 外贸模式
-  { id: 60, category: 'trade_mode', value: 'direct_export', label: '直接出口', sort_order: 1, is_enabled: true, created_at: '2025-01-01' },
-  { id: 61, category: 'trade_mode', value: 'agent_export', label: '代理出口', sort_order: 2, is_enabled: true, created_at: '2025-01-01' },
-  { id: 62, category: 'trade_mode', value: 'cross_border', label: '跨境电商', sort_order: 3, is_enabled: true, created_at: '2025-01-01' },
-  { id: 63, category: 'trade_mode', value: 'oem', label: 'OEM/ODM', sort_order: 4, is_enabled: true, created_at: '2025-01-01' },
-  { id: 64, category: 'trade_mode', value: 'mixed', label: '混合模式', sort_order: 5, is_enabled: true, created_at: '2025-01-01' },
+  // 外贸模式（海关监管代码）
+  { id: 60, category: 'trade_mode', value: '0110', label: '0110', sort_order: 1, is_enabled: true, created_at: '2025-01-01' },
+  { id: 61, category: 'trade_mode', value: '1039', label: '1039', sort_order: 2, is_enabled: true, created_at: '2025-01-01' },
+  { id: 62, category: 'trade_mode', value: '9610', label: '9610', sort_order: 3, is_enabled: true, created_at: '2025-01-01' },
+  { id: 63, category: 'trade_mode', value: '9710', label: '9710', sort_order: 4, is_enabled: true, created_at: '2025-01-01' },
+  { id: 64, category: 'trade_mode', value: '9810', label: '9810', sort_order: 5, is_enabled: true, created_at: '2025-01-01' },
+  { id: 65, category: 'trade_mode', value: '1210', label: '1210', sort_order: 6, is_enabled: true, created_at: '2025-01-01' },
+  { id: 66, category: 'trade_mode', value: '0139', label: '0139', sort_order: 7, is_enabled: true, created_at: '2025-01-01' },
+  { id: 67, category: 'trade_mode', value: '8000', label: '8000', sort_order: 8, is_enabled: true, created_at: '2025-01-01' },
 
   // 跨境平台
   { id: 70, category: 'cross_border_platform', value: 'amazon', label: '亚马逊 (Amazon)', sort_order: 1, is_enabled: true, created_at: '2025-01-01' },

@@ -1,0 +1,35 @@
+---
+description: "React 前端编码规范，编辑前端文件时自动应用"
+globs: ["frontend/**/*.tsx", "frontend/**/*.ts"]
+---
+
+# React 前端规范
+
+## 组件规范
+- 使用函数组件 + Hooks，不使用 Class 组件
+- Props 使用 TypeScript interface 定义
+- 组件文件名使用 PascalCase，工具文件名使用 camelCase
+
+## TypeScript
+- 所有变量和函数参数必须有类型标注，禁止 `any`
+- API 响应类型定义集中管理
+- 接口定义放在对应模块目录或 `types/` 下
+
+## Ant Design
+- 使用 Ant Design 5 和 @ant-design/pro-components
+- 表单验证使用 Ant Design Form rules
+- 表格操作列统一放最右，固定宽度
+
+## 状态管理
+- 全局状态使用 Zustand
+- 页面级状态用 `useState`/`useReducer`
+- 避免 prop drilling，合理使用 Context
+
+## API 调用
+- 所有后端请求通过统一的 API 层管理
+- Axios 封装在 `src/utils/request.ts`，自动注入 token 和处理 401
+- 不在组件中直接使用 `axios`，必须走 API 层
+
+## 图表
+- 使用 ECharts 5，按需导入组件
+- 图表配置集中管理，避免内联大段配置

@@ -112,13 +112,13 @@ public class Enterprise {
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Object categoryChanges;
     
-    /** 增长原因ID数组 */
+    /** 增长原因 */
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<Integer> growthReasons;
+    private Object growthReasons;
     
-    /** 下降原因ID数组 */
+    /** 下降原因 */
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<Integer> declineReasons;
+    private Object declineReasons;
     
     // ========== 跨境电商信息 ==========
     /** 是否开展跨境电商 */
@@ -145,9 +145,9 @@ public class Enterprise {
     /** 愿意投入转型程度 */
     private String investmentWillingness;
     
-    /** 跨境平台ID数组 */
+    /** 跨境平台 */
     @TableField(typeHandler = JacksonTypeHandler.class)
-    private List<Integer> crossBorderPlatforms;
+    private Object crossBorderPlatforms;
     
     /** 目标市场及占比 */
     @TableField(typeHandler = JacksonTypeHandler.class)
@@ -210,7 +210,25 @@ public class Enterprise {
     private List<String> tricenterDemands;
     
     /** 不考虑合作主要顾虑 */
-    private String tricenterConcerns;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Object tricenterConcerns;
+    
+    // ========== 需求分析 ==========
+    /** 企业画像维度选择 */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Object dimensionSelections;
+    
+    /** 已移除的需求ID列表 */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Object removedRequirements;
+    
+    /** 自定义需求列表 */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Object customRequirements;
+    
+    // ========== 跨系统关联 ==========
+    /** 关联园区小程序用户ID(booking.users.id) */
+    private Integer bookingUserId;
     
     // ========== 系统字段 ==========
     /** 是否删除 */

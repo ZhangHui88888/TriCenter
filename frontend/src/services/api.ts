@@ -41,6 +41,17 @@ export const enterpriseApi = {
   // 导出企业
   export: (params?: { stage?: string; district?: string }) =>
     request.get('/enterprises/export', { params, responseType: 'blob' }),
+
+  // 下载导入模板
+  downloadTemplate: () =>
+    request.get('/enterprises/template', { responseType: 'blob' }),
+
+  // 批量删除企业
+  batchDelete: (ids: number[]) => request.delete('/enterprises/batch', { data: { ids } }),
+
+  // 批量变更阶段
+  batchChangeStage: (ids: number[], stage: string, reason?: string) =>
+    request.patch('/enterprises/batch/stage', { ids, stage, reason }),
 };
 
 // 跟进记录 API
@@ -113,6 +124,25 @@ export const authApi = {
     request.post('/auth/change-password', data),
 };
 
+// 联系人管理 API
+export const contactApi = {
+  // 获取企业联系人列表
+  getByEnterprise: (enterpriseId: number) =>
+    request.get(`/enterprises/${enterpriseId}/contacts`),
+
+  // 批量更新企业联系人（全量替换）
+  update: (enterpriseId: number, contacts: Array<{
+    id?: number;
+    name: string;
+    phone: string;
+    position?: string;
+    isPrimary?: boolean;
+    email?: string;
+    wechat?: string;
+    remark?: string;
+  }>) => request.put(`/enterprises/${enterpriseId}/contacts`, { contacts }),
+};
+
 // 产品管理 API
 export const productApi = {
   // 添加产品
@@ -141,6 +171,52 @@ export const patentApi = {
   // 删除专利
   delete: (enterpriseId: number, patentId: number) => 
     request.delete(`/enterprises/${enterpriseId}/patents/${patentId}`),
+};
+
+// 调研Excel导入导出 API
+export const surveyExcelApi = {
+  // 导出单个企业调研表
+  exportSingle: (enterpriseId: number) =>
+    request.get(`/survey-excel/export/${enterpriseId}`, { responseType: 'blob' }),
+
+  // 批量导出企业调研表
+  exportBatch: (enterpriseIds: number[]) =>
+    request.post('/survey-excel/export/batch', enterpriseIds, { responseType: 'blob' }),
+
+  // 导入调研数据
+  import: (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return request.post('/survey-excel/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+
+  // 下载调研导入模板
+  downloadTemplate: () =>
+    request.get('/survey-excel/template', { responseType: 'blob' }),
+};
+
+// 市场调研报告 API
+export const marketReportApi = {
+  create: (enterpriseId: number, createdBy?: number) =>
+    request.post('/market-reports', { enterpriseId, createdBy }),
+
+  getById: (id: number) => request.get(`/market-reports/${id}`),
+
+  getByEnterpriseId: (enterpriseId: number, page = 1, size = 10) =>
+    request.get(`/market-reports/enterprise/${enterpriseId}`, { params: { page, size } }),
+
+  updateReportData: (id: number, reportData: string) =>
+    request.put(`/market-reports/${id}/data`, { reportData }),
+
+  updateStatus: (id: number, status: string) =>
+    request.patch(`/market-reports/${id}/status`, { status }),
+
+  updateAiSections: (id: number, aiGeneratedSections: string) =>
+    request.patch(`/market-reports/${id}/ai-sections`, { aiGeneratedSections }),
+
+  delete: (id: number) => request.delete(`/market-reports/${id}`),
 };
 
 // 基础数据/选项 API

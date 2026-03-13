@@ -5,6 +5,9 @@ import {
   EnvironmentOutlined,
   GlobalOutlined,
   StarFilled,
+  MailOutlined,
+  WechatOutlined,
+  MessageOutlined,
 } from '@ant-design/icons';
 import type { TabComponentProps } from '../types';
 
@@ -128,6 +131,24 @@ export default function BasicInfoTab({ enterprise, onEdit }: BasicInfoTabProps) 
                   {contact.position && (
                     <div style={{ marginTop: 6, color: '#888' }}>
                       职位: <span style={{ color: '#555' }}>{contact.position}</span>
+                    </div>
+                  )}
+                  {contact.email && (
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <MailOutlined style={{ color: '#667eea' }} />
+                      <a href={`mailto:${contact.email}`} style={{ color: '#667eea' }}>{contact.email}</a>
+                    </div>
+                  )}
+                  {contact.wechat && (
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <WechatOutlined style={{ color: '#07c160' }} />
+                      <span style={{ color: '#555' }}>{contact.wechat}</span>
+                    </div>
+                  )}
+                  {contact.remark && (
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <MessageOutlined style={{ color: '#faad14' }} />
+                      <span style={{ color: '#888' }}>{contact.remark}</span>
                     </div>
                   )}
                 </div>

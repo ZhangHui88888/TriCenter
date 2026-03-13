@@ -49,8 +49,8 @@ public class EnterpriseUpdateRequest {
     private Object marketChanges;
     private Object modeChanges;
     private Object categoryChanges;
-    private List<Integer> growthReasons;
-    private List<Integer> declineReasons;
+    private Object growthReasons;
+    private Object declineReasons;
     
     // 跨境电商信息
     private Integer hasCrossBorder;
@@ -61,7 +61,7 @@ public class EnterpriseUpdateRequest {
     private Integer usingErp;
     private String transformationWillingness;
     private String investmentWillingness;
-    private List<Integer> crossBorderPlatforms;
+    private Object crossBorderPlatforms;
     private Object targetMarkets;
     
     // 三中心评估
@@ -87,5 +87,10 @@ public class EnterpriseUpdateRequest {
     
     // 三中心合作
     private List<String> tricenterDemands;
-    private String tricenterConcerns;
+    private Object tricenterConcerns;
+    
+    // 需求分析
+    private Object dimensionSelections;
+    private Object removedRequirements;
+    private Object customRequirements;
 }

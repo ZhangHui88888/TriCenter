@@ -7,6 +7,7 @@ import EnterpriseList from './pages/EnterpriseList'
 import EnterpriseDetail from './pages/EnterpriseDetail'
 import FollowUpRecords from './pages/FollowUpRecords'
 import FunnelAnalysis from './pages/FunnelAnalysis'
+import MarketResearch from './pages/MarketResearch'
 import DataDictionary from './pages/DataDictionary'
 import Login from './pages/Login'
 import AuthGuard from './components/AuthGuard'
@@ -36,6 +37,7 @@ function App() {
               <Route path="enterprise" element={<EnterpriseList />} />
               <Route path="enterprise/:id" element={<EnterpriseDetail />} />
               <Route path="funnel" element={<FunnelAnalysis />} />
+              <Route path="market-research" element={<MarketResearch />} />
               <Route path="follow-up" element={<FollowUpRecords />} />
               <Route path="dictionary" element={<DataDictionary />} />
             </Route>
