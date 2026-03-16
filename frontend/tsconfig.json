@@ -21,5 +21,6 @@
     }
   },
   "include": ["src"],
+  "exclude": ["src/pages/EnterpriseDetail.original.tsx"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

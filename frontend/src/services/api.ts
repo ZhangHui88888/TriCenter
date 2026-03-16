@@ -10,8 +10,24 @@ export const enterpriseApi = {
     keyword?: string;
     stage?: string;
     district?: string;
-    industry?: string;
     industryId?: number;
+    province?: string;
+    city?: string;
+    enterpriseType?: string;
+    staffSizeId?: number;
+    domesticRevenueId?: number;
+    crossBorderRevenueId?: number;
+    sourceId?: number;
+    hasCrossBorder?: number;
+    transformationWillingness?: string;
+    usingErp?: number;
+    automationLevelId?: number;
+    localProcurementRatio?: string;
+    logisticsPartnerIds?: string;
+    lastFollowupDays?: number;
+    requirementIds?: string;
+    mainPlatforms?: string;
+    targetMarkets?: string;
   }) => request.get('/enterprises', { params }),
 
   // 获取企业详情
@@ -52,6 +68,21 @@ export const enterpriseApi = {
   // 批量变更阶段
   batchChangeStage: (ids: number[], stage: string, reason?: string) =>
     request.patch('/enterprises/batch/stage', { ids, stage, reason }),
+};
+
+// 企业合作服务档案 API
+export const serviceRecordApi = {
+  getList: (enterpriseId: number) =>
+    request.get(`/enterprises/${enterpriseId}/services`),
+
+  create: (enterpriseId: number, data: any) =>
+    request.post(`/enterprises/${enterpriseId}/services`, data),
+
+  update: (enterpriseId: number, serviceId: number, data: any) =>
+    request.put(`/enterprises/${enterpriseId}/services/${serviceId}`, data),
+
+  delete: (enterpriseId: number, serviceId: number) =>
+    request.delete(`/enterprises/${enterpriseId}/services/${serviceId}`),
 };
 
 // 跟进记录 API

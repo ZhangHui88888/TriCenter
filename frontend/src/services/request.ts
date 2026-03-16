@@ -39,10 +39,14 @@ request.interceptors.response.use(
       const { status } = error.response;
       switch (status) {
         case 401:
-          message.error('登录已过期，请重新登录');
           localStorage.removeItem('token');
-          // 跳转到登录页
-          window.location.href = '/login';
+          if (window.location.pathname === '/login') {
+            // 在登录页：显示后端返回的具体错误信息，不跳转
+            message.error(error.response.data?.message || '用户名或密码错误');
+          } else {
+            message.error('登录已过期，请重新登录');
+            window.location.href = '/login';
+          }
           break;
         case 403:
           message.error('没有权限访问');

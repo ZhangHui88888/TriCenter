@@ -13,6 +13,7 @@ import {
   MoonOutlined,
   BookOutlined,
   SearchOutlined,
+  CustomerServiceOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useThemeStore } from '@/stores/themeStore';
@@ -36,6 +37,11 @@ const menuItems: MenuProps['items'] = [
     key: '/follow-up',
     icon: <FileTextOutlined />,
     label: '跟进记录',
+  },
+  {
+    key: '/service-records',
+    icon: <CustomerServiceOutlined />,
+    label: '合作服务',
   },
   {
     key: '/market-research',
@@ -101,6 +107,7 @@ function MainLayout() {
   const getSelectedKeys = () => {
     const path = location.pathname;
     if (path.startsWith('/enterprise')) return ['/enterprise'];
+    if (path.startsWith('/service-records')) return ['/service-records'];
     if (path.startsWith('/market-research')) return ['/market-research'];
     return [path];
   };

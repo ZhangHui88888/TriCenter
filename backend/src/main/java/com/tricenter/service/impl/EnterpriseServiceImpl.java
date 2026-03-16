@@ -13,6 +13,7 @@ import com.tricenter.dto.response.ImportResultResponse;
 import com.tricenter.entity.*;
 import com.tricenter.mapper.*;
 import com.tricenter.service.EnterpriseService;
+import com.tricenter.util.RequirementFilterHelper;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +24,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URLEncoder;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -42,14 +44,26 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     private final StageChangeLogMapper stageChangeLogMapper;
     private final IndustryCategoryMapper industryCategoryMapper;
     private final SystemOptionMapper systemOptionMapper;
+    private final FollowUpRecordMapper followUpRecordMapper;
     private final UserMapper userMapper;
 
     @Override
     public PageResult<EnterpriseListResponse> getEnterpriseList(EnterpriseQueryRequest request) {
         Page<Enterprise> page = new Page<>(request.getPage(), request.getPageSize());
-        
+
         LambdaQueryWrapper<Enterprise> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(Enterprise::getIsDeleted, 0);
+
+        Set<Integer> matchedEnterpriseIds = null;
+        matchedEnterpriseIds = mergeMatchedEnterpriseIds(matchedEnterpriseIds, findEnterpriseIdsByProductFilters(request));
+        matchedEnterpriseIds = mergeMatchedEnterpriseIds(matchedEnterpriseIds, findEnterpriseIdsByLastFollowup(request.getLastFollowupDays()));
+        matchedEnterpriseIds = mergeMatchedEnterpriseIds(matchedEnterpriseIds, findEnterpriseIdsByRequirements(request.getRequirementIds()));
+        if (matchedEnterpriseIds != null) {
+            if (matchedEnterpriseIds.isEmpty()) {
+                return PageResult.of(Collections.emptyList(), 0, request.getPage(), request.getPageSize());
+            }
+            wrapper.in(Enterprise::getId, matchedEnterpriseIds);
+        }
         
         // 关键词搜索
         if (StringUtils.hasText(request.getKeyword())) {
@@ -63,6 +77,14 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (StringUtils.hasText(request.getDistrict())) {
             wrapper.eq(Enterprise::getDistrict, request.getDistrict());
         }
+        // 省份筛选
+        if (StringUtils.hasText(request.getProvince())) {
+            wrapper.eq(Enterprise::getProvince, request.getProvince());
+        }
+        // 城市筛选
+        if (StringUtils.hasText(request.getCity())) {
+            wrapper.eq(Enterprise::getCity, request.getCity());
+        }
         // 行业筛选
         if (request.getIndustryId() != null) {
             wrapper.eq(Enterprise::getIndustryId, request.getIndustryId());
@@ -75,6 +97,14 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (request.getStaffSizeId() != null) {
             wrapper.eq(Enterprise::getStaffSizeId, request.getStaffSizeId());
         }
+        // 国内营收筛选
+        if (request.getDomesticRevenueId() != null) {
+            wrapper.eq(Enterprise::getDomesticRevenueId, request.getDomesticRevenueId());
+        }
+        // 跨境营收筛选
+        if (request.getCrossBorderRevenueId() != null) {
+            wrapper.eq(Enterprise::getCrossBorderRevenueId, request.getCrossBorderRevenueId());
+        }
         // 来源筛选
         if (request.getSourceId() != null) {
             wrapper.eq(Enterprise::getSourceId, request.getSourceId());
@@ -83,9 +113,29 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (request.getHasCrossBorder() != null) {
             wrapper.eq(Enterprise::getHasCrossBorder, request.getHasCrossBorder());
         }
+        // ERP 使用情况筛选
+        if (request.getUsingErp() != null) {
+            wrapper.eq(Enterprise::getUsingErp, request.getUsingErp());
+        }
         // 转型意愿筛选
         if (StringUtils.hasText(request.getTransformationWillingness())) {
             wrapper.eq(Enterprise::getTransformationWillingness, request.getTransformationWillingness());
+        }
+        // 跨境平台关键词筛选
+        if (StringUtils.hasText(request.getMainPlatforms())) {
+            for (String platform : request.getMainPlatforms().split(",")) {
+                if (StringUtils.hasText(platform)) {
+                    wrapper.like(Enterprise::getCrossBorderPlatforms, platform.trim());
+                }
+            }
+        }
+        // 目标市场关键词筛选
+        if (StringUtils.hasText(request.getTargetMarkets())) {
+            for (String market : request.getTargetMarkets().split(",")) {
+                if (StringUtils.hasText(market)) {
+                    wrapper.like(Enterprise::getTargetMarkets, market.trim());
+                }
+            }
         }
         
         wrapper.orderByDesc(Enterprise::getCreatedAt);
@@ -98,6 +148,220 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 .collect(Collectors.toList());
         
         return PageResult.of(list, result.getTotal(), request.getPage(), request.getPageSize());
+    }
+
+    private Set<Integer> mergeMatchedEnterpriseIds(Set<Integer> current, Set<Integer> incoming) {
+        if (incoming == null) {
+            return current;
+        }
+        if (current == null) {
+            return new LinkedHashSet<>(incoming);
+        }
+        current.retainAll(incoming);
+        return current;
+    }
+
+    private Set<Integer> findEnterpriseIdsByProductFilters(EnterpriseQueryRequest request) {
+        boolean hasProductFilters = request.getAutomationLevelId() != null
+                || StringUtils.hasText(request.getLocalProcurementRatio())
+                || StringUtils.hasText(request.getLogisticsPartnerIds());
+        if (!hasProductFilters) {
+            return null;
+        }
+
+        LambdaQueryWrapper<EnterpriseProduct> productWrapper = new LambdaQueryWrapper<>();
+        productWrapper.select(
+                EnterpriseProduct::getEnterpriseId,
+                EnterpriseProduct::getAutomationLevelId,
+                EnterpriseProduct::getLocalProcurementRatio,
+                EnterpriseProduct::getLogisticsPartnerIds
+        );
+        if (request.getAutomationLevelId() != null) {
+            productWrapper.eq(EnterpriseProduct::getAutomationLevelId, request.getAutomationLevelId());
+        }
+
+        Set<Integer> selectedLogisticsIds = parseIntegerSet(request.getLogisticsPartnerIds());
+        return productMapper.selectList(productWrapper).stream()
+                .filter(product -> matchesLocalProcurementRatio(product.getLocalProcurementRatio(), request.getLocalProcurementRatio()))
+                .filter(product -> matchesLogisticsPartnerIds(product.getLogisticsPartnerIds(), selectedLogisticsIds))
+                .map(EnterpriseProduct::getEnterpriseId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private Set<Integer> findEnterpriseIdsByLastFollowup(Integer lastFollowupDays) {
+        if (lastFollowupDays == null) {
+            return null;
+        }
+
+        Map<Integer, LocalDate> lastFollowDates = new HashMap<>();
+        for (Map<String, Object> row : followUpRecordMapper.selectLastFollowDates()) {
+            Object enterpriseId = row.get("enterpriseId");
+            if (!(enterpriseId instanceof Number number)) {
+                continue;
+            }
+            LocalDate lastFollowDate = convertToLocalDate(row.get("lastFollowDate"));
+            if (lastFollowDate != null) {
+                lastFollowDates.put(number.intValue(), lastFollowDate);
+            }
+        }
+
+        LocalDate threshold = LocalDate.now().minusDays(Math.abs((long) lastFollowupDays));
+        return enterpriseMapper.selectList(
+                        new LambdaQueryWrapper<Enterprise>()
+                                .select(Enterprise::getId)
+                                .eq(Enterprise::getIsDeleted, 0)
+                ).stream()
+                .map(Enterprise::getId)
+                .filter(Objects::nonNull)
+                .filter(enterpriseId -> {
+                    LocalDate lastFollowDate = lastFollowDates.get(enterpriseId);
+                    if (lastFollowupDays > 0) {
+                        return lastFollowDate != null && !lastFollowDate.isBefore(threshold);
+                    }
+                    return lastFollowDate == null || lastFollowDate.isBefore(threshold);
+                })
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private Set<Integer> findEnterpriseIdsByRequirements(String requirementIds) {
+        Set<String> selectedRequirementIds = parseStringSet(requirementIds);
+        if (selectedRequirementIds.isEmpty()) {
+            return null;
+        }
+
+        return enterpriseMapper.selectList(
+                        new LambdaQueryWrapper<Enterprise>()
+                                .select(
+                                        Enterprise::getId,
+                                        Enterprise::getDimensionSelections,
+                                        Enterprise::getRemovedRequirements,
+                                        Enterprise::getCustomRequirements
+                                )
+                                .eq(Enterprise::getIsDeleted, 0)
+                ).stream()
+                .filter(enterprise -> {
+                    Set<String> effectiveRequirementIds = RequirementFilterHelper.calculateEffectiveRequirementIds(
+                            enterprise.getDimensionSelections(),
+                            enterprise.getRemovedRequirements(),
+                            enterprise.getCustomRequirements()
+                    );
+                    return effectiveRequirementIds.stream().anyMatch(selectedRequirementIds::contains);
+                })
+                .map(Enterprise::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+    }
+
+    private boolean matchesLocalProcurementRatio(String actualValue, String filterValue) {
+        if (!StringUtils.hasText(filterValue)) {
+            return true;
+        }
+        if (!StringUtils.hasText(actualValue)) {
+            return false;
+        }
+        Double numericValue = extractFirstNumber(actualValue);
+        if (numericValue == null) {
+            return filterValue.equals(actualValue.trim());
+        }
+        return switch (filterValue) {
+            case "90%以上" -> numericValue >= 90;
+            case "70%-90%" -> numericValue >= 70 && numericValue < 90;
+            case "50%-70%" -> numericValue >= 50 && numericValue < 70;
+            case "30%-50%" -> numericValue >= 30 && numericValue < 50;
+            case "30%以下" -> numericValue < 30;
+            default -> filterValue.equals(actualValue.trim());
+        };
+    }
+
+    private boolean matchesLogisticsPartnerIds(List<Integer> actualIds, Set<Integer> selectedIds) {
+        if (selectedIds.isEmpty()) {
+            return true;
+        }
+        if (actualIds == null || actualIds.isEmpty()) {
+            return false;
+        }
+        return actualIds.stream().anyMatch(selectedIds::contains);
+    }
+
+    private Set<Integer> parseIntegerSet(String rawValue) {
+        Set<Integer> values = new LinkedHashSet<>();
+        if (!StringUtils.hasText(rawValue)) {
+            return values;
+        }
+        for (String part : rawValue.split(",")) {
+            String value = part.trim();
+            if (value.isEmpty()) {
+                continue;
+            }
+            try {
+                values.add(Integer.parseInt(value));
+            } catch (NumberFormatException ignored) {
+                log.warn("无法解析整型筛选值: {}", value);
+            }
+        }
+        return values;
+    }
+
+    private Set<String> parseStringSet(String rawValue) {
+        Set<String> values = new LinkedHashSet<>();
+        if (!StringUtils.hasText(rawValue)) {
+            return values;
+        }
+        for (String part : rawValue.split(",")) {
+            String value = part.trim();
+            if (!value.isEmpty()) {
+                values.add(value);
+            }
+        }
+        return values;
+    }
+
+    private LocalDate convertToLocalDate(Object value) {
+        if (value instanceof LocalDate localDate) {
+            return localDate;
+        }
+        if (value instanceof java.sql.Date sqlDate) {
+            return sqlDate.toLocalDate();
+        }
+        if (value != null) {
+            try {
+                return LocalDate.parse(String.valueOf(value));
+            } catch (Exception ignored) {
+                log.warn("无法解析跟进日期: {}", value);
+            }
+        }
+        return null;
+    }
+
+    private Double extractFirstNumber(String rawValue) {
+        if (!StringUtils.hasText(rawValue)) {
+            return null;
+        }
+        StringBuilder builder = new StringBuilder();
+        boolean seenDot = false;
+        for (char current : rawValue.toCharArray()) {
+            if (Character.isDigit(current)) {
+                builder.append(current);
+                continue;
+            }
+            if (current == '.' && !seenDot) {
+                builder.append(current);
+                seenDot = true;
+                continue;
+            }
+            if (builder.length() > 0) {
+                break;
+            }
+        }
+        if (builder.length() == 0) {
+            return null;
+        }
+        try {
+            return Double.parseDouble(builder.toString());
+        } catch (NumberFormatException ignored) {
+            return null;
+        }
     }
 
     @Override

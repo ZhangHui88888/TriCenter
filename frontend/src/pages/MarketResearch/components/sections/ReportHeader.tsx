@@ -2,7 +2,6 @@ import {
   UnorderedListOutlined,
   BulbOutlined,
   ExperimentOutlined,
-  HistoryOutlined,
   StarOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';

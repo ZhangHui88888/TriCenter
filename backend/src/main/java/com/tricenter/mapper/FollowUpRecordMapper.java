@@ -8,6 +8,7 @@ import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 跟进记录Mapper
@@ -32,4 +33,10 @@ public interface FollowUpRecordMapper extends BaseMapper<FollowUpRecord> {
      */
     @Select("SELECT MAX(follow_date) FROM follow_up_records WHERE enterprise_id = #{enterpriseId}")
     LocalDate getLastFollowUpDate(@Param("enterpriseId") Integer enterpriseId);
+
+    /**
+     * 获取所有企业最近一次跟进日期
+     */
+    @Select("SELECT enterprise_id AS enterpriseId, MAX(follow_date) AS lastFollowDate FROM follow_up_records GROUP BY enterprise_id")
+    List<Map<String, Object>> selectLastFollowDates();
 }

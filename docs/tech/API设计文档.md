@@ -229,7 +229,7 @@ NODE_ENV=production npm start
 | 项 | 值 |
 |-----|-----|
 | 路径 | `GET /api/enterprises` |
-| 参数 | `?keyword=&stage=&district=&industry=&enterprise_type=&employee_scale=&source=&has_crossborder=&transformation_willingness=&main_platforms=&page=1&pageSize=10` |
+| 参数 | `?keyword=&stage=&district=&industryId=&province=&city=&enterpriseType=&staffSizeId=&domesticRevenueId=&crossBorderRevenueId=&sourceId=&hasCrossBorder=&usingErp=&transformationWillingness=&automationLevelId=&localProcurementRatio=&logisticsPartnerIds=&lastFollowupDays=&requirementIds=&mainPlatforms=&targetMarkets=&page=1&pageSize=10` |
 | 响应 | `{ list: Enterprise[], total: number, page: number, pageSize: number }` |
 | 说明 | 支持搜索、多条件筛选、分页 |
 
@@ -239,13 +239,24 @@ NODE_ENV=production npm start
 | keyword | string | 企业名称模糊搜索 |
 | stage | string | 漏斗阶段代码 |
 | district | string | 所属区域 |
-| industry | string | 所属行业 |
-| enterprise_type | string | 企业类型 |
-| employee_scale | string | 人员规模 |
-| source | string | 企业来源 |
-| has_crossborder | boolean | 是否开展跨境电商 |
-| transformation_willingness | string | 跨境转型意愿 |
-| main_platforms | string | 跨境平台（逗号分隔） |
+| industryId | number | 所属行业ID |
+| province | string | 省份 |
+| city | string | 城市 |
+| enterpriseType | string | 企业类型 |
+| staffSizeId | number | 人员规模ID |
+| domesticRevenueId | number | 国内营收档位ID |
+| crossBorderRevenueId | number | 跨境营收档位ID |
+| sourceId | number | 企业来源ID |
+| hasCrossBorder | number | 是否开展跨境电商，`1/0` |
+| usingErp | number | 是否在用ERP，`1/0` |
+| transformationWillingness | string | 跨境转型意愿 |
+| automationLevelId | number | 产品设备自动化程度ID |
+| localProcurementRatio | string | 产品原材料本地采购比例区间 |
+| logisticsPartnerIds | string | 产品物流合作方ID，多个值用逗号分隔 |
+| lastFollowupDays | number | 最近跟进时间筛选，正数表示 X 天内，负数表示超过 X 天 |
+| requirementIds | string | 需求分析中的需求ID，多个值用逗号分隔 |
+| mainPlatforms | string | 主要跨境平台关键词，多个值用逗号分隔 |
+| targetMarkets | string | 目标市场关键词，多个值用逗号分隔 |
 
 **列表响应字段:**
 ```typescript
@@ -445,7 +456,7 @@ interface CreateEnterpriseRequest {
 | 项 | 值 |
 |-----|-----|
 | 路径 | `GET /api/enterprises/export` |
-| 参数 | `?stage=&district=&industry=` (筛选条件) |
+| 参数 | 与 `GET /api/enterprises` 保持一致，复用同一套筛选条件 |
 | 响应 | Excel文件流 (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet) |
 | 说明 | 导出企业列表为Excel |
 

@@ -219,41 +219,6 @@ function DataDictionary() {
   // 是否需要颜色字段
   const needsColor = selectedCategory === 'stage';
 
-  // 构建树形数据
-  const buildTreeData = (items: CategoryTreeItem[]): DataNode[] => {
-    const map = new Map<number, DataNode & { raw: CategoryTreeItem }>();
-    const roots: (DataNode & { raw: CategoryTreeItem })[] = [];
-    
-    items.forEach(item => {
-      map.set(item.id, {
-        key: item.id,
-        title: (
-          <Space>
-            <span style={{ color: item.is_enabled ? undefined : '#999' }}>{item.name}</span>
-            {!item.is_enabled && <Tag color="default" style={{ fontSize: 10 }}>禁用</Tag>}
-          </Space>
-        ),
-        children: [],
-        raw: item,
-      });
-    });
-    
-    items.forEach(item => {
-      const node = map.get(item.id)!;
-      if (item.parent_id === 0) {
-        roots.push(node);
-      } else {
-        const parent = map.get(item.parent_id);
-        if (parent) {
-          parent.children = parent.children || [];
-          parent.children.push(node);
-        }
-      }
-    });
-    
-    return roots;
-  };
-
   // 构建TreeSelect数据
   const buildTreeSelectData = (items: CategoryTreeItem[]): any[] => {
     const map = new Map<number, any>();
@@ -284,16 +249,6 @@ function DataDictionary() {
     
     return roots;
   };
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const currentTreeData = useMemo(() => {
-    if (selectedCategory === '_industry_categories') {
-      return buildTreeData(industryCategories);
-    } else if (selectedCategory === '_product_categories') {
-      return buildTreeData(productCategories);
-    }
-    return [];
-  }, [selectedCategory, industryCategories, productCategories]);
 
   // 打开新增弹窗
   const handleAdd = () => {

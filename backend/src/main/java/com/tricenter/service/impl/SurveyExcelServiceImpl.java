@@ -847,6 +847,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         List<ImportResultResponse.ErrorDetail> errors = new ArrayList<>();
         int successCount = 0;
         int failCount = 0;
+        // 企业名称 → 新生成ID 的映射，用于无ID新建企业时关联后续Sheet
+        Map<String, Integer> nameToIdMap = new HashMap<>();
 
         try {
             // 读取Sheet1: 企业基本信息
@@ -857,16 +859,32 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 int rowNum = i + 2;
                 SurveyBasicInfoData data = basicList.get(i);
                 try {
-                    // 跳过提示行（企业ID为空的行）
-                    if (data.getEnterpriseId() == null) {
+                    // 跳过提示行（企业ID为空且名称为空或为提示文本的行）
+                    if (data.getEnterpriseId() == null && (!StringUtils.hasText(data.getName())
+                            || data.getName().startsWith("【") || data.getName().startsWith("示例"))) {
                         continue;
                     }
-                    Enterprise enterprise = enterpriseMapper.selectById(data.getEnterpriseId());
-                    if (enterprise == null || enterprise.getIsDeleted() == 1) {
-                        throw new RuntimeException("企业ID=" + data.getEnterpriseId() + "不存在");
+
+                    Enterprise enterprise = null;
+                    if (data.getEnterpriseId() != null) {
+                        enterprise = enterpriseMapper.selectById(data.getEnterpriseId());
                     }
-                    updateBasicInfo(enterprise, data);
-                    enterpriseMapper.updateById(enterprise);
+
+                    if (enterprise != null && enterprise.getIsDeleted() != 1) {
+                        // 已有企业，更新
+                        updateBasicInfo(enterprise, data);
+                        enterpriseMapper.updateById(enterprise);
+                    } else {
+                        // 企业不存在或ID为空，新建企业
+                        enterprise = new Enterprise();
+                        enterprise.setName(StringUtils.hasText(data.getName()) ? data.getName().trim() : "未命名企业");
+                        enterprise.setStage("potential"); // 默认漏斗阶段：潜在企业
+                        enterprise.setIsDeleted(0);
+                        updateBasicInfo(enterprise, data);
+                        enterpriseMapper.insert(enterprise);
+                        // 记录名称→ID映射，供后续Sheet使用
+                        nameToIdMap.put(enterprise.getName(), enterprise.getId());
+                    }
                     successCount++;
                 } catch (Exception e) {
                     failCount++;
@@ -879,7 +897,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             try {
                 List<SurveyContactData> contactList = EasyExcel.read(file.getInputStream())
                         .head(SurveyContactData.class).sheet("联系人信息").doReadSync();
-                importContacts(contactList, errors);
+                importContacts(contactList, errors, nameToIdMap);
             } catch (Exception e) {
                 log.warn("读取联系人Sheet失败: {}", e.getMessage());
             }
@@ -888,7 +906,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             try {
                 List<SurveyProductData> productList = EasyExcel.read(file.getInputStream())
                         .head(SurveyProductData.class).sheet("产品信息").doReadSync();
-                importProducts(productList, errors);
+                importProducts(productList, errors, nameToIdMap);
             } catch (Exception e) {
                 log.warn("读取产品Sheet失败: {}", e.getMessage());
             }
@@ -897,7 +915,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             try {
                 List<SurveyTradeData> tradeList = EasyExcel.read(file.getInputStream())
                         .head(SurveyTradeData.class).sheet("外贸信息").doReadSync();
-                importTradeInfo(tradeList, errors);
+                importTradeInfo(tradeList, errors, nameToIdMap);
             } catch (Exception e) {
                 log.warn("读取外贸信息Sheet失败: {}", e.getMessage());
             }
@@ -906,7 +924,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             try {
                 List<SurveyCrossBorderData> cbList = EasyExcel.read(file.getInputStream())
                         .head(SurveyCrossBorderData.class).sheet("跨境电商信息").doReadSync();
-                importCrossBorderInfo(cbList, errors);
+                importCrossBorderInfo(cbList, errors, nameToIdMap);
             } catch (Exception e) {
                 log.warn("读取跨境电商Sheet失败: {}", e.getMessage());
             }
@@ -915,7 +933,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             try {
                 List<SurveyCooperationData> coopList = EasyExcel.read(file.getInputStream())
                         .head(SurveyCooperationData.class).sheet("合作与政策信息").doReadSync();
-                importCooperationInfo(coopList, errors);
+                importCooperationInfo(coopList, errors, nameToIdMap);
             } catch (Exception e) {
                 log.warn("读取合作与政策Sheet失败: {}", e.getMessage());
             }
@@ -981,8 +999,14 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         }
     }
 
-    private void importContacts(List<SurveyContactData> contactList, List<ImportResultResponse.ErrorDetail> errors) {
-        // 按企业ID分组
+    private void importContacts(List<SurveyContactData> contactList, List<ImportResultResponse.ErrorDetail> errors, Map<String, Integer> nameToIdMap) {
+        // 按企业ID分组（先解析无ID的行）
+        for (SurveyContactData c : contactList) {
+            if (c.getEnterpriseId() == null && StringUtils.hasText(c.getEnterpriseName())) {
+                Integer resolvedId = nameToIdMap.get(c.getEnterpriseName().trim());
+                if (resolvedId != null) c.setEnterpriseId(resolvedId);
+            }
+        }
         Map<Integer, List<SurveyContactData>> grouped = contactList.stream()
                 .filter(c -> c.getEnterpriseId() != null)
                 .collect(Collectors.groupingBy(SurveyContactData::getEnterpriseId));
@@ -1026,7 +1050,13 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         }
     }
 
-    private void importProducts(List<SurveyProductData> productList, List<ImportResultResponse.ErrorDetail> errors) {
+    private void importProducts(List<SurveyProductData> productList, List<ImportResultResponse.ErrorDetail> errors, Map<String, Integer> nameToIdMap) {
+        for (SurveyProductData p : productList) {
+            if (p.getEnterpriseId() == null && StringUtils.hasText(p.getEnterpriseName())) {
+                Integer resolvedId = nameToIdMap.get(p.getEnterpriseName().trim());
+                if (resolvedId != null) p.setEnterpriseId(resolvedId);
+            }
+        }
         Map<Integer, List<SurveyProductData>> grouped = productList.stream()
                 .filter(p -> p.getEnterpriseId() != null)
                 .collect(Collectors.groupingBy(SurveyProductData::getEnterpriseId));
@@ -1091,8 +1121,12 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         }
     }
 
-    private void importTradeInfo(List<SurveyTradeData> tradeList, List<ImportResultResponse.ErrorDetail> errors) {
+    private void importTradeInfo(List<SurveyTradeData> tradeList, List<ImportResultResponse.ErrorDetail> errors, Map<String, Integer> nameToIdMap) {
         for (SurveyTradeData data : tradeList) {
+            if (data.getEnterpriseId() == null && StringUtils.hasText(data.getEnterpriseName())) {
+                Integer resolvedId = nameToIdMap.get(data.getEnterpriseName().trim());
+                if (resolvedId != null) data.setEnterpriseId(resolvedId);
+            }
             if (data.getEnterpriseId() == null) continue;
             try {
                 Enterprise enterprise = enterpriseMapper.selectById(data.getEnterpriseId());
@@ -1146,8 +1180,12 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         }
     }
 
-    private void importCrossBorderInfo(List<SurveyCrossBorderData> cbList, List<ImportResultResponse.ErrorDetail> errors) {
+    private void importCrossBorderInfo(List<SurveyCrossBorderData> cbList, List<ImportResultResponse.ErrorDetail> errors, Map<String, Integer> nameToIdMap) {
         for (SurveyCrossBorderData data : cbList) {
+            if (data.getEnterpriseId() == null && StringUtils.hasText(data.getEnterpriseName())) {
+                Integer resolvedId = nameToIdMap.get(data.getEnterpriseName().trim());
+                if (resolvedId != null) data.setEnterpriseId(resolvedId);
+            }
             if (data.getEnterpriseId() == null) continue;
             try {
                 Enterprise enterprise = enterpriseMapper.selectById(data.getEnterpriseId());
@@ -1204,8 +1242,12 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         }
     }
 
-    private void importCooperationInfo(List<SurveyCooperationData> coopList, List<ImportResultResponse.ErrorDetail> errors) {
+    private void importCooperationInfo(List<SurveyCooperationData> coopList, List<ImportResultResponse.ErrorDetail> errors, Map<String, Integer> nameToIdMap) {
         for (SurveyCooperationData data : coopList) {
+            if (data.getEnterpriseId() == null && StringUtils.hasText(data.getEnterpriseName())) {
+                Integer resolvedId = nameToIdMap.get(data.getEnterpriseName().trim());
+                if (resolvedId != null) data.setEnterpriseId(resolvedId);
+            }
             if (data.getEnterpriseId() == null) continue;
             try {
                 Enterprise enterprise = enterpriseMapper.selectById(data.getEnterpriseId());

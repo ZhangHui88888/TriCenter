@@ -51,6 +51,37 @@ import type { Enterprise } from '@/types';
 
 const { Title, Text } = Typography;
 
+type SelectOption = {
+  label: string;
+  value: number;
+};
+
+type EnterpriseListQueryParams = {
+  page?: number;
+  pageSize?: number;
+  keyword?: string;
+  stage?: string;
+  district?: string;
+  industryId?: number;
+  province?: string;
+  city?: string;
+  enterpriseType?: string;
+  staffSizeId?: number;
+  domesticRevenueId?: number;
+  crossBorderRevenueId?: number;
+  sourceId?: number;
+  hasCrossBorder?: number;
+  transformationWillingness?: string;
+  usingErp?: number;
+  automationLevelId?: number;
+  localProcurementRatio?: string;
+  logisticsPartnerIds?: string;
+  lastFollowupDays?: number;
+  requirementIds?: string;
+  mainPlatforms?: string;
+  targetMarkets?: string;
+};
+
 // 漏斗阶段配置
 const FUNNEL_STAGES = [
   { code: 'POTENTIAL', name: '潜在企业', color: '#94a3b8' },
@@ -70,7 +101,7 @@ function EnterpriseList() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [industryFilter, setIndustryFilter] = useState<string>('');
+  const [industryFilter, setIndustryFilter] = useState<number | undefined>();
   const [form] = Form.useForm();
   const [filterForm] = Form.useForm();
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -93,20 +124,89 @@ function EnterpriseList() {
   const [pageSize, setPageSize] = useState(10);
   const [districts, setDistricts] = useState<string[]>([]);
   const [industries, setIndustries] = useState<any[]>([]);
+  const [staffSizeOptions, setStaffSizeOptions] = useState<SelectOption[]>([]);
+  const [domesticRevenueOptions, setDomesticRevenueOptions] = useState<SelectOption[]>([]);
+  const [crossBorderRevenueOptions, setCrossBorderRevenueOptions] = useState<SelectOption[]>([]);
+  const [sourceOptions, setSourceOptions] = useState<SelectOption[]>([]);
+  const [automationLevelOptions, setAutomationLevelOptions] = useState<SelectOption[]>([]);
+  const [logisticsOptions, setLogisticsOptions] = useState<SelectOption[]>([]);
   const [funnelStats, setFunnelStats] = useState<any[]>([]);
   
+  const buildListParams = (
+    currentPage = page,
+    currentPageSize = pageSize,
+    filters = advancedFilters
+  ): EnterpriseListQueryParams => {
+    const requirementIds = filters.requirements && typeof filters.requirements === 'object'
+      ? Array.from(new Set(
+          Object.values(filters.requirements)
+            .flatMap((value) => Array.isArray(value) ? value : [])
+        ))
+      : [];
+
+    return ({
+    page: currentPage,
+    pageSize: currentPageSize,
+    keyword: searchTerm || undefined,
+    stage: filters.funnel_stage || stageFilter || undefined,
+    district: filters.district || districtFilter || undefined,
+    industryId: industryFilter,
+    province: filters.province || undefined,
+    city: filters.city || undefined,
+    enterpriseType: filters.enterprise_type || undefined,
+    staffSizeId: filters.employee_scale || undefined,
+    domesticRevenueId: filters.domestic_revenue || undefined,
+    crossBorderRevenueId: filters.crossborder_revenue || undefined,
+    sourceId: filters.source || undefined,
+    hasCrossBorder: typeof filters.has_crossborder === 'boolean'
+      ? (filters.has_crossborder ? 1 : 0)
+      : undefined,
+    transformationWillingness: filters.transformation_willingness || undefined,
+    usingErp: typeof filters.has_erp === 'boolean'
+      ? (filters.has_erp ? 1 : 0)
+      : undefined,
+    automationLevelId: filters.automation_level || undefined,
+    localProcurementRatio: filters.local_procurement_ratio || undefined,
+    logisticsPartnerIds: Array.isArray(filters.logistics_partners) && filters.logistics_partners.length > 0
+      ? filters.logistics_partners.join(',')
+      : undefined,
+    lastFollowupDays: filters.last_followup_days || undefined,
+    requirementIds: requirementIds.length > 0
+      ? requirementIds.join(',')
+      : undefined,
+    mainPlatforms: Array.isArray(filters.main_platforms) && filters.main_platforms.length > 0
+      ? filters.main_platforms.join(',')
+      : undefined,
+    targetMarkets: Array.isArray(filters.target_markets) && filters.target_markets.length > 0
+      ? filters.target_markets.join(',')
+      : undefined,
+    });
+  };
+
+  const normalizeListField = (value: any) => {
+    if (Array.isArray(value)) {
+      return value
+        .map((item: any) => {
+          if (typeof item === 'string') return item;
+          if (item?.market) return item.market;
+          if (item?.name) return item.name;
+          return '';
+        })
+        .filter(Boolean)
+        .join(',');
+    }
+    return value;
+  };
+
   // 加载企业列表
-  const fetchEnterprises = async () => {
+  const fetchEnterprises = async (
+    currentPage = page,
+    currentPageSize = pageSize,
+    filters = advancedFilters
+  ) => {
     setLoading(true);
     try {
-      const response = await enterpriseApi.getList({
-        page,
-        pageSize,
-        keyword: searchTerm || undefined,
-        stage: stageFilter || undefined,
-        district: districtFilter || undefined,
-        industryId: industryFilter ? Number(industryFilter) : undefined,
-      });
+      const response = await enterpriseApi.getList(buildListParams(currentPage, currentPageSize, filters));
       if (response.data) {
         // 转换字段名
         const list = (response.data.list || []).map((item: any) => ({
@@ -118,8 +218,8 @@ function EnterpriseList() {
           funnel_stage: item.stage,
           contacts: item.contacts || [],
           has_crossborder: item.hasCrossBorder,
-          main_platforms: item.crossBorderPlatforms,
-          target_markets: item.targetMarkets,
+          main_platforms: normalizeListField(item.crossBorderPlatforms),
+          target_markets: normalizeListField(item.targetMarkets),
           created_at: item.createdAt,
         }));
         setEnterprises(list);
@@ -135,10 +235,16 @@ function EnterpriseList() {
   // 加载选项数据
   const fetchOptions = async () => {
     try {
-      const [districtRes, industryRes, funnelRes] = await Promise.all([
+      const [districtRes, industryRes, funnelRes, staffSizeRes, domesticRevenueRes, crossBorderRevenueRes, sourceRes, automationLevelRes, logisticsRes] = await Promise.all([
         optionsApi.getOptions('district'),
         optionsApi.getIndustries(),
         dashboardApi.getFunnelStats(),
+        optionsApi.getOptions('staff_size'),
+        optionsApi.getOptions('domestic_revenue'),
+        optionsApi.getOptions('cross_border_revenue'),
+        optionsApi.getOptions('source'),
+        optionsApi.getOptions('automation_level'),
+        optionsApi.getOptions('logistics'),
       ]);
       
       // 区域选项
@@ -158,6 +264,30 @@ function EnterpriseList() {
         flatten(industryRes.data);
         setIndustries(flatIndustries);
       }
+
+      if (staffSizeRes.data) {
+        setStaffSizeOptions(staffSizeRes.data.map((item: any) => ({ label: item.label, value: item.id })));
+      }
+
+      if (domesticRevenueRes.data) {
+        setDomesticRevenueOptions(domesticRevenueRes.data.map((item: any) => ({ label: item.label, value: item.id })));
+      }
+
+      if (crossBorderRevenueRes.data) {
+        setCrossBorderRevenueOptions(crossBorderRevenueRes.data.map((item: any) => ({ label: item.label, value: item.id })));
+      }
+
+      if (sourceRes.data) {
+        setSourceOptions(sourceRes.data.map((item: any) => ({ label: item.label, value: item.id })));
+      }
+
+      if (automationLevelRes.data) {
+        setAutomationLevelOptions(automationLevelRes.data.map((item: any) => ({ label: item.label, value: item.id })));
+      }
+
+      if (logisticsRes.data) {
+        setLogisticsOptions(logisticsRes.data.map((item: any) => ({ label: item.label, value: item.id })));
+      }
       
       // 漏斗统计
       if (funnelRes.data) {
@@ -170,16 +300,13 @@ function EnterpriseList() {
   
   useEffect(() => {
     fetchOptions();
+    fetchEnterprises(1, pageSize, {});
   }, []);
-  
-  useEffect(() => {
-    fetchEnterprises();
-  }, [page, pageSize]);
   
   // 搜索
   const handleSearch = () => {
     setPage(1);
-    fetchEnterprises();
+    fetchEnterprises(1, pageSize);
   };
 
   // 批量删除
@@ -239,11 +366,95 @@ function EnterpriseList() {
     }
   };
 
+  const supportedAdvancedFilterKeys = new Set([
+    'province',
+    'city',
+    'district',
+    'enterprise_type',
+    'employee_scale',
+    'domestic_revenue',
+    'crossborder_revenue',
+    'source',
+    'automation_level',
+    'local_procurement_ratio',
+    'logistics_partners',
+    'has_crossborder',
+    'transformation_willingness',
+    'main_platforms',
+    'target_markets',
+    'funnel_stage',
+    'last_followup_days',
+    'requirements',
+    'has_erp',
+  ]);
+
+  const advancedFilterLabels: Record<string, string> = {
+    province: '省份',
+    city: '城市',
+    district: '区县',
+    enterprise_type: '企业类型',
+    employee_scale: '人员规模',
+    domestic_revenue: '国内营收',
+    crossborder_revenue: '跨境营收',
+    source: '企业来源',
+    automation_level: '设备自动化程度',
+    local_procurement_ratio: '原材料本地采购比例',
+    logistics_partners: '物流合作方',
+    has_crossborder: '是否开展跨境电商',
+    transformation_willingness: '跨境转型意愿',
+    main_platforms: '主要跨境平台',
+    target_markets: '目标市场',
+    funnel_stage: '漏斗阶段',
+    has_erp: '是否在用ERP',
+    has_foreign_trade: '是否开展外贸',
+    trade_mode: '外贸模式',
+    export_qualification: '进出口资质',
+    export_markets: '主要出口市场',
+    trade_team_mode: '外贸业务团队模式',
+    trade_team_size: '外贸团队人数',
+    annual_export_volume: '年出口额',
+    trade_experience_years: '外贸经验年限',
+    crossborder_team_size: '跨境团队规模',
+    logistics_mode: '跨境物流模式',
+    payment_method: '支付结算方式',
+    last_followup_days: '最近跟进时间',
+    requirements: '需求分析',
+  };
+
+  const hasActiveFilterValue = (value: any): boolean => {
+    if (value === undefined || value === null || value === '') {
+      return false;
+    }
+    if (Array.isArray(value)) {
+      return value.length > 0;
+    }
+    if (typeof value === 'object') {
+      return Object.values(value).some(hasActiveFilterValue);
+    }
+    return true;
+  };
+
+  const splitAdvancedFilters = (values: Record<string, any>) => {
+    const supported: Record<string, any> = {};
+    const ignoredKeys: string[] = [];
+
+    Object.entries(values).forEach(([key, value]) => {
+      if (!hasActiveFilterValue(value)) {
+        return;
+      }
+
+      if (supportedAdvancedFilterKeys.has(key)) {
+        supported[key] = value;
+      } else {
+        ignoredKeys.push(key);
+      }
+    });
+
+    return { supported, ignoredKeys };
+  };
+
   // 计算已应用的筛选条件数量
-  const activeFilterCount = Object.values(advancedFilters).filter(v => 
-    v !== undefined && v !== null && v !== '' && 
-    !(Array.isArray(v) && v.length === 0)
-  ).length;
+  const activeFilterCount = Object.values(advancedFilters).filter(hasActiveFilterValue).length;
 
   const getStageInfo = (code: string) => {
     const stage = FUNNEL_STAGES.find(s => s.code === code);
@@ -271,8 +482,22 @@ function EnterpriseList() {
   // 应用高级筛选
   const handleApplyFilters = () => {
     const values = filterForm.getFieldsValue();
-    setAdvancedFilters(values);
+    const { supported, ignoredKeys } = splitAdvancedFilters(values);
+    if (ignoredKeys.length > 0) {
+      const sanitizedValues = { ...values };
+      ignoredKeys.forEach((key) => {
+        sanitizedValues[key] = undefined;
+      });
+      filterForm.setFieldsValue(sanitizedValues);
+    }
+    setAdvancedFilters(supported);
     setIsFilterModalOpen(false);
+    setPage(1);
+    fetchEnterprises(1, pageSize, supported);
+    if (ignoredKeys.length > 0) {
+      message.warning(`已应用可用筛选；以下条件当前列表暂不支持：${ignoredKeys.map((key) => advancedFilterLabels[key] || key).join('、')}`);
+      return;
+    }
     message.success('筛选条件已应用');
   };
   
@@ -280,6 +505,8 @@ function EnterpriseList() {
   const handleResetFilters = () => {
     filterForm.resetFields();
     setAdvancedFilters({});
+    setPage(1);
+    fetchEnterprises(1, pageSize, {});
     message.success('筛选条件已重置');
   };
 
@@ -704,9 +931,9 @@ function EnterpriseList() {
             placeholder="所属行业"
             style={{ width: 130, height: 40 }}
             allowClear
-            value={industryFilter || undefined}
-            onChange={(value) => setIndustryFilter(value || '')}
-            options={industries.map(i => ({ label: i, value: i }))}
+            value={industryFilter}
+            onChange={(value) => setIndustryFilter(value)}
+            options={industries.map(i => ({ label: i.name, value: i.id }))}
           />
           <Button
             type="primary"
@@ -806,9 +1033,21 @@ function EnterpriseList() {
             onChange: (keys) => setSelectedRowKeys(keys),
           }}
           pagination={{
-            total: filteredEnterprises.length,
+            current: page,
+            total: _total,
             pageSize: pageSize,
-            onShowSizeChange: (_, size) => setPageSize(size),
+            onChange: (current, size) => {
+              const nextPageSize = size || pageSize;
+              const nextPage = nextPageSize !== pageSize ? 1 : current;
+              setPage(nextPage);
+              setPageSize(nextPageSize);
+              fetchEnterprises(nextPage, nextPageSize);
+            },
+            onShowSizeChange: (_, size) => {
+              setPage(1);
+              setPageSize(size);
+              fetchEnterprises(1, size);
+            },
             showTotal: (total) => (
               <span style={{ color: '#666' }}>
                 共 <span style={{ color: '#667eea', fontWeight: 600 }}>{total}</span> 条记录
@@ -1182,14 +1421,7 @@ function EnterpriseList() {
           try {
             if (exportType === 'list') {
               // 列表导出：获取所有匹配企业数据
-              const response = await enterpriseApi.getList({
-                page: 1,
-                pageSize: 99999,
-                keyword: searchTerm || undefined,
-                stage: stageFilter || undefined,
-                district: districtFilter || undefined,
-                industryId: industryFilter ? Number(industryFilter) : undefined,
-              });
+              const response = await enterpriseApi.getList(buildListParams(1, 99999));
               const list = (response.data?.list || []).map((item: any) => ({
                 id: item.id,
                 enterprise_name: item.name,
@@ -1199,8 +1431,8 @@ function EnterpriseList() {
                 funnel_stage: item.stage,
                 contacts: item.contacts || [],
                 has_crossborder: item.hasCrossBorder,
-                main_platforms: item.crossBorderPlatforms,
-                target_markets: item.targetMarkets,
+                main_platforms: normalizeListField(item.crossBorderPlatforms),
+                target_markets: normalizeListField(item.targetMarkets),
                 created_at: item.createdAt,
               }));
               if (list.length === 0) {
@@ -1370,22 +1602,22 @@ function EnterpriseList() {
                     </Col>
                     <Col span={8}>
                       <Form.Item name="employee_scale" label="人员规模">
-                        <Select placeholder="请选择" allowClear options={EMPLOYEE_SCALES.map(s => ({ label: s, value: s }))} />
+                        <Select placeholder="请选择" allowClear options={staffSizeOptions} />
                       </Form.Item>
                     </Col>
                     <Col span={8}>
                       <Form.Item name="domestic_revenue" label="国内营收(万元)">
-                        <Select placeholder="请选择" allowClear options={REVENUE_SCALES.map(r => ({ label: r, value: r }))} />
+                        <Select placeholder="请选择" allowClear options={domesticRevenueOptions} />
                       </Form.Item>
                     </Col>
                     <Col span={8}>
                       <Form.Item name="crossborder_revenue" label="跨境营收(万元)">
-                        <Select placeholder="请选择" allowClear options={REVENUE_SCALES.map(r => ({ label: r, value: r }))} />
+                        <Select placeholder="请选择" allowClear options={crossBorderRevenueOptions} />
                       </Form.Item>
                     </Col>
                     <Col span={8}>
                       <Form.Item name="source" label="企业来源">
-                        <Select placeholder="请选择" allowClear options={ENTERPRISE_SOURCES.map(s => ({ label: s, value: s }))} />
+                        <Select placeholder="请选择" allowClear options={sourceOptions} />
                       </Form.Item>
                     </Col>
                   </Row>
@@ -1401,11 +1633,7 @@ function EnterpriseList() {
                         <Select 
                           placeholder="请选择" 
                           allowClear
-                          options={[
-                            { label: '全自动化', value: '全自动化' },
-                            { label: '半自动化', value: '半自动化' },
-                            { label: '手工为主', value: '手工为主' },
-                          ]} 
+                          options={automationLevelOptions} 
                         />
                       </Form.Item>
                     </Col>
@@ -1415,16 +1643,7 @@ function EnterpriseList() {
                           mode="multiple"
                           placeholder="请选择" 
                           allowClear
-                          options={[
-                            { label: '顺丰', value: '顺丰' },
-                            { label: '德邦', value: '德邦' },
-                            { label: '京东物流', value: '京东物流' },
-                            { label: '菜鸟', value: '菜鸟' },
-                            { label: 'DHL', value: 'DHL' },
-                            { label: 'FedEx', value: 'FedEx' },
-                            { label: 'UPS', value: 'UPS' },
-                            { label: '其他', value: '其他' },
-                          ]} 
+                          options={logisticsOptions} 
                         />
                       </Form.Item>
                     </Col>

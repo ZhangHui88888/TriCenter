@@ -199,7 +199,7 @@ export function useEnterpriseHandlers(state: ReturnType<typeof useEnterpriseDeta
     setIsFollowUpModalOpen(true);
   };
 
-  const handleDeleteFollowUp = (record: any) => {
+  const handleDeleteFollowUp = (_record: any) => {
     Modal.confirm({
       title: '确认删除',
       content: `确定要删除该条跟进记录吗？此操作不可恢复。`,
