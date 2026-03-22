@@ -35,7 +35,18 @@ export const ENTERPRISE_TYPES = [
   '生产型',
   '贸易型',
   '工贸一体',
+  '跨境卖家型',
+  '品牌运营型',
+  '供应链服务型',
+  '技术服务型',
+  '综合服务型',
+  '未定义',
 ];
+
+export const ENTERPRISE_TYPE_OPTIONS = ENTERPRISE_TYPES.map(type => ({
+  label: type,
+  value: type,
+}));
 
 export const ENTERPRISE_SOURCES = [
   '调研',

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Avatar, Dropdown, Space, theme, Switch, Tooltip, Modal, message } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Space, Switch, Tooltip, Modal, message, Input } from 'antd';
 import {
   DashboardOutlined,
   ShopOutlined,
@@ -14,6 +14,9 @@ import {
   BookOutlined,
   SearchOutlined,
   CustomerServiceOutlined,
+  BellOutlined,
+  SettingOutlined,
+  BarChartOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useThemeStore } from '@/stores/themeStore';
@@ -23,61 +26,27 @@ import { authApi } from '@/services/api';
 const { Header, Sider, Content } = Layout;
 
 const menuItems: MenuProps['items'] = [
-  {
-    key: '/dashboard',
-    icon: <DashboardOutlined />,
-    label: '概览看板',
-  },
-  {
-    key: '/enterprise',
-    icon: <ShopOutlined />,
-    label: '企业管理',
-  },
-  {
-    key: '/follow-up',
-    icon: <FileTextOutlined />,
-    label: '跟进记录',
-  },
-  {
-    key: '/service-records',
-    icon: <CustomerServiceOutlined />,
-    label: '合作服务',
-  },
-  {
-    key: '/market-research',
-    icon: <SearchOutlined />,
-    label: '市场调研',
-  },
-  {
-    key: '/dictionary',
-    icon: <BookOutlined />,
-    label: '数据字典',
-  },
+  { key: '/dashboard', icon: <DashboardOutlined />, label: '概览看板' },
+  { key: '/enterprise', icon: <ShopOutlined />, label: '企业管理' },
+  { key: '/follow-up', icon: <FileTextOutlined />, label: '跟进记录' },
+  { key: '/service-records', icon: <CustomerServiceOutlined />, label: '合作服务' },
+  { key: '/market-research', icon: <SearchOutlined />, label: '市场调研' },
+  { key: '/data-analysis', icon: <BarChartOutlined />, label: '数据分析' },
+  { key: '/dictionary', icon: <BookOutlined />, label: '数据字典' },
 ];
 
 const userMenuItems: MenuProps['items'] = [
-  {
-    key: 'profile',
-    icon: <UserOutlined />,
-    label: '个人中心',
-  },
-  {
-    type: 'divider',
-  },
-  {
-    key: 'logout',
-    icon: <LogoutOutlined />,
-    label: '退出登录',
-  },
+  { key: 'profile', icon: <UserOutlined />, label: '个人中心' },
+  { type: 'divider' },
+  { key: 'logout', icon: <LogoutOutlined />, label: '退出登录' },
 ];
 
 function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-  const { token } = theme.useToken();
   const { mode, toggleTheme } = useThemeStore();
-  const { user, clearAuth } = useAuthStore();
+  const { clearAuth } = useAuthStore();
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     navigate(key);
@@ -91,11 +60,7 @@ function MainLayout() {
         okText: '确定',
         cancelText: '取消',
         onOk: async () => {
-          try {
-            await authApi.logout();
-          } catch (e) {
-            // 忽略登出接口错误
-          }
+          try { await authApi.logout(); } catch { /* ignore */ }
           clearAuth();
           message.success('已退出登录');
           navigate('/login', { replace: true });
@@ -109,6 +74,7 @@ function MainLayout() {
     if (path.startsWith('/enterprise')) return ['/enterprise'];
     if (path.startsWith('/service-records')) return ['/service-records'];
     if (path.startsWith('/market-research')) return ['/market-research'];
+    if (path.startsWith('/data-analysis')) return ['/data-analysis'];
     return [path];
   };
 
@@ -118,117 +84,120 @@ function MainLayout() {
         trigger={null}
         collapsible
         collapsed={collapsed}
-        style={{
-          background: 'linear-gradient(180deg, #1a1f35 0%, #2d1f47 100%)',
-        }}
-        width={240}
+        width={250}
+        style={{ background: '#fff', borderRight: '1px solid #E6EFF5' }}
       >
-        <div
-          style={{
-            height: 64,
-            padding: collapsed ? '16px 8px' : '16px 24px',
-            borderBottom: '1px solid rgba(255,255,255,0.1)',
-          }}
-        >
-          <h1
-            style={{
-              color: '#fff',
-              fontSize: collapsed ? 14 : 16,
-              fontWeight: 'bold',
-              margin: 0,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-            }}
-          >
-            {collapsed ? '三中心' : '常州跨境电商三中心'}
-          </h1>
+        <div style={{
+          height: 100, display: 'flex', alignItems: 'center',
+          padding: collapsed ? '0 16px' : '0 28px',
+        }}>
+          <div style={{
+            width: 36, height: 36, borderRadius: 12,
+            background: 'linear-gradient(135deg, #396AFF 0%, #2948FF 100%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            fontSize: 18, color: '#fff', fontWeight: 700, flexShrink: 0,
+          }}>
+            三
+          </div>
           {!collapsed && (
-            <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: '4px 0 0 0' }}>
-              企业信息管理系统
-            </p>
+            <div style={{ marginLeft: 12 }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: '#343C6A', lineHeight: 1.2 }}>
+                TriCenter
+              </div>
+              <div style={{ fontSize: 11, color: '#B1B1B1', marginTop: 2 }}>
+                企业信息管理
+              </div>
+            </div>
           )}
         </div>
+
         <Menu
-          theme="dark"
           mode="inline"
           selectedKeys={getSelectedKeys()}
           items={menuItems}
           onClick={handleMenuClick}
           style={{
-            background: 'transparent',
-            borderRight: 0,
+            border: 'none',
+            padding: '16px 0',
+            fontSize: 18,
           }}
         />
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 0,
-            width: '100%',
-            padding: '16px',
-            borderTop: '1px solid rgba(255,255,255,0.1)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <Avatar
-              style={{
-                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
-              }}
-              icon={<UserOutlined />}
-            />
-            {!collapsed && (
-              <div>
-                <div style={{ color: '#fff', fontSize: 14, fontWeight: 500 }}>{user?.name || '用户'}</div>
-                <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12 }}>
-                  {user?.email || user?.username}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
       </Sider>
+
       <Layout>
-        <Header
-          style={{
-            padding: '0 24px',
-            background: token.colorBgContainer,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-          }}
-        >
-          <Space size="large">
-            <div
-              onClick={() => setCollapsed(!collapsed)}
-              style={{ cursor: 'pointer', fontSize: 18 }}
-            >
+        {/* 顶栏 */}
+        <Header style={{
+          padding: '0 40px', height: 100, lineHeight: '100px',
+          background: '#fff',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          borderBottom: '1px solid #E6EFF5',
+          boxShadow: 'none',
+        }}>
+          <Space size="large" align="center">
+            <div onClick={() => setCollapsed(!collapsed)} style={{ cursor: 'pointer', fontSize: 22, color: '#333' }}>
               {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             </div>
-            <Tooltip title={mode === 'dark' ? '切换到亮色模式' : '切换到暗色模式'}>
+            <span style={{ fontSize: 28, fontWeight: 600, color: '#343C6A' }}>
+              {menuItems?.find(item => item && 'key' in item && getSelectedKeys().includes(item.key as string))
+                ? (menuItems.find(item => item && 'key' in item && getSelectedKeys().includes(item.key as string)) as any)?.label
+                : '概览看板'}
+            </span>
+          </Space>
+
+          <Space size={20} align="center">
+            <Input
+              prefix={<SearchOutlined style={{ color: '#8BA3CB' }} />}
+              placeholder="搜索..."
+              style={{
+                width: 255, height: 50, borderRadius: 40,
+                background: '#F5F7FA', border: 'none',
+                fontSize: 15,
+              }}
+            />
+            <Tooltip title={mode === 'dark' ? '切换亮色' : '切换暗色'}>
               <Switch
-                checked={mode === 'dark'}
-                onChange={toggleTheme}
-                checkedChildren={<MoonOutlined />}
-                unCheckedChildren={<SunOutlined />}
+                checked={mode === 'dark'} onChange={toggleTheme}
+                checkedChildren={<MoonOutlined />} unCheckedChildren={<SunOutlined />}
+                style={{ background: mode === 'dark' ? '#396AFF' : '#d9d9d9' }}
               />
             </Tooltip>
+            <div style={{
+              width: 50, height: 50, borderRadius: '50%',
+              background: '#F5F7FA', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#396AFF', fontSize: 20,
+            }}>
+              <SettingOutlined />
+            </div>
+            <div style={{
+              width: 50, height: 50, borderRadius: '50%', position: 'relative',
+              background: '#F5F7FA', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#FE5C73', fontSize: 20,
+            }}>
+              <BellOutlined />
+              <div style={{
+                position: 'absolute', top: 6, right: 6, width: 8, height: 8,
+                borderRadius: 4, background: '#FE5C73', border: '2px solid #fff',
+              }} />
+            </div>
+            <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
+              <Space style={{ cursor: 'pointer' }}>
+                <Avatar
+                  size={60}
+                  style={{ background: 'linear-gradient(135deg, #396AFF 0%, #2948FF 100%)' }}
+                  icon={<UserOutlined />}
+                />
+              </Space>
+            </Dropdown>
           </Space>
-          <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
-            <Space style={{ cursor: 'pointer' }}>
-              <Avatar style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' }} icon={<UserOutlined />} />
-              <span>{user?.name || '用户'}</span>
-            </Space>
-          </Dropdown>
         </Header>
-        <Content
-          style={{
-            margin: 0,
-            padding: 24,
-            background: mode === 'dark' ? '#111827' : '#f5f7fa',
-            overflow: 'auto',
-            transition: 'background 0.3s ease',
-          }}
-        >
+
+        {/* 内容区 */}
+        <Content style={{
+          padding: '28px 40px',
+          background: mode === 'dark' ? '#111827' : '#F5F7FA',
+          overflow: 'auto',
+          transition: 'background 0.3s ease',
+        }}>
           <Outlet />
         </Content>
       </Layout>

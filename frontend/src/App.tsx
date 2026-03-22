@@ -10,6 +10,7 @@ import FunnelAnalysis from './pages/FunnelAnalysis'
 import MarketResearch from './pages/MarketResearch'
 import DataDictionary from './pages/DataDictionary'
 import ServiceRecords from './pages/ServiceRecords'
+import DataAnalysis from './pages/DataAnalysis'
 import Login from './pages/Login'
 import AuthGuard from './components/AuthGuard'
 import { useThemeStore } from './stores/themeStore'
@@ -41,6 +42,7 @@ function App() {
               <Route path="market-research" element={<MarketResearch />} />
               <Route path="follow-up" element={<FollowUpRecords />} />
               <Route path="service-records" element={<ServiceRecords />} />
+              <Route path="data-analysis" element={<DataAnalysis />} />
               <Route path="dictionary" element={<DataDictionary />} />
             </Route>
           </Routes>

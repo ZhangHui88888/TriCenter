@@ -3,28 +3,29 @@
 @tailwind utilities;
 
 :root {
-  --primary-color: #667eea;
-  --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --success-color: #43e97b;
-  --warning-color: #faad14;
-  --error-color: #f5576c;
-  --bg-primary: #f5f7fa;
+  --primary-color: #396AFF;
+  --primary-gradient: linear-gradient(135deg, #396AFF 0%, #2948FF 100%);
+  --success-color: #16DBCC;
+  --warning-color: #FFBB38;
+  --error-color: #FE5C73;
+  --bg-primary: #F5F7FA;
   --bg-secondary: #ffffff;
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
-  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.12);
-  --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --shadow-sm: 0 1px 4px rgba(0, 0, 0, 0.03);
+  --shadow-md: 0 2px 10px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 4px 20px rgba(0, 0, 0, 0.06);
+  --radius-sm: 10px;
+  --radius-md: 15px;
+  --radius-lg: 20px;
   --transition-fast: 0.15s ease;
   --transition-normal: 0.25s ease;
+  --text-dark: #343C6A;
+  --text-muted: #718EBF;
 }
 
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
-    'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
-    'Noto Color Emoji';
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial,
+    'Noto Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--bg-primary);
@@ -32,19 +33,21 @@ body {
 
 /* ===== 卡片优化 ===== */
 .ant-card {
-  border-radius: var(--radius-md) !important;
-  box-shadow: var(--shadow-sm) !important;
-  border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-md) !important;
+  border: none !important;
   transition: box-shadow var(--transition-normal), transform var(--transition-normal) !important;
 }
 
 .ant-card:hover {
-  box-shadow: var(--shadow-md) !important;
+  box-shadow: var(--shadow-lg) !important;
 }
 
 .ant-card-head {
-  border-bottom: 1px solid rgba(0, 0, 0, 0.04) !important;
+  border-bottom: 1px solid #F3F3F5 !important;
   font-weight: 600 !important;
+  padding: 0 28px !important;
+  min-height: 56px !important;
 }
 
 /* ===== 按钮优化 ===== */
@@ -55,48 +58,48 @@ body {
 }
 
 .ant-btn-primary {
-  box-shadow: 0 2px 4px rgba(24, 144, 255, 0.3) !important;
+  box-shadow: 0 4px 12px rgba(57, 106, 255, 0.25) !important;
 }
 
 .ant-btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(24, 144, 255, 0.4) !important;
+  box-shadow: 0 6px 16px rgba(57, 106, 255, 0.35) !important;
 }
 
 .ant-btn:active {
   transform: translateY(0) scale(0.98);
 }
 
-/* ===== 表格优化 ===== */
+/* ===== 表格优化（BankDash Loan 页风格） ===== */
 .ant-table {
-  border-radius: var(--radius-md) !important;
+  border-radius: var(--radius-lg) !important;
   overflow: hidden;
 }
 
 .ant-table-thead > tr > th {
-  background: #fafbfc !important;
-  color: #555 !important;
-  font-weight: 600 !important;
-  font-size: 13px !important;
-  padding: 14px 16px !important;
-  border-bottom: 2px solid #f0f0f0 !important;
-}
-
-.ant-table-tbody > tr:hover > td {
-  background: linear-gradient(90deg, rgba(102, 126, 234, 0.04) 0%, rgba(118, 75, 162, 0.04) 100%) !important;
-}
-
-.ant-table-tbody > tr {
-  transition: all var(--transition-fast);
+  background: #fff !important;
+  color: var(--text-muted) !important;
+  font-weight: 500 !important;
+  font-size: 15px !important;
+  font-family: 'Inter', sans-serif !important;
+  padding: 16px 20px !important;
+  border-bottom: 1px solid #E6EFF5 !important;
 }
 
 .ant-table-tbody > tr > td {
-  padding: 16px !important;
-  border-bottom: 1px solid #f5f5f5 !important;
+  color: #232323 !important;
+  font-size: 14px !important;
+  padding: 16px 20px !important;
+  border-bottom: 1px solid #F2F4F7 !important;
+  transition: background var(--transition-fast) !important;
 }
 
-.custom-table-row:hover {
-  transform: scale(1.002);
+.ant-table-tbody > tr:hover > td {
+  background: rgba(57, 106, 255, 0.03) !important;
+}
+
+.ant-table-tbody > tr:last-child > td {
+  border-bottom: none !important;
 }
 
 /* ===== 标签优化 ===== */
@@ -132,14 +135,14 @@ body {
   left: 50% !important;
   width: 0 !important;
   height: 3px !important;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%) !important;
+  background: var(--primary-color) !important;
   border-radius: 3px 3px 0 0 !important;
   transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
   transform: translateX(-50%) !important;
 }
 
 .ant-tabs-tab:hover {
-  color: #667eea !important;
+  color: var(--primary-color) !important;
   transform: translateY(-1px) !important;
 }
 
@@ -150,7 +153,7 @@ body {
 
 .ant-tabs-tab-active {
   font-weight: 600 !important;
-  color: #667eea !important;
+  color: var(--primary-color) !important;
   transform: translateY(-3px) !important;
 }
 
@@ -166,9 +169,9 @@ body {
 .ant-tabs-ink-bar {
   height: 3px !important;
   border-radius: 3px 3px 0 0 !important;
-  background: linear-gradient(90deg, #667eea 0%, #764ba2 100%) !important;
+  background: var(--primary-color) !important;
   transition: left 0.35s cubic-bezier(0.4, 0, 0.2, 1), width 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
-  box-shadow: 0 -2px 8px rgba(102, 126, 234, 0.4) !important;
+  box-shadow: 0 -2px 8px rgba(57, 106, 255, 0.3) !important;
 }
 
 /* 标签页内容切换动画 */
@@ -312,23 +315,43 @@ body {
   background: #f0f0f0 !important;
 }
 
-/* ===== 侧边栏优化 ===== */
+/* ===== 侧边栏优化（BankDash Figma） ===== */
 .ant-layout-sider {
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05) !important;
+  box-shadow: none !important;
 }
 
-.ant-menu-item {
-  border-radius: var(--radius-sm) !important;
-  margin: 4px 8px !important;
-  transition: all var(--transition-fast) !important;
+.ant-layout-sider .ant-menu-inline .ant-menu-item {
+  margin: 4px 0 !important;
+  height: 48px !important;
+  line-height: 48px !important;
+  padding-left: 28px !important;
+  color: #B1B1B1 !important;
+  font-weight: 500 !important;
+  font-size: 16px !important;
+  border-left: 6px solid transparent;
+  border-radius: 0 !important;
+  cursor: pointer !important;
 }
 
-.ant-menu-item:hover {
-  background: rgba(102, 126, 234, 0.1) !important;
+.ant-layout-sider .ant-menu-inline .ant-menu-item .ant-menu-item-icon {
+  font-size: 18px !important;
+  color: inherit !important;
 }
 
-.ant-menu-item-selected {
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.15) 100%) !important;
+.ant-layout-sider .ant-menu-inline .ant-menu-item:hover {
+  background: rgba(57, 106, 255, 0.06) !important;
+  color: var(--primary-color) !important;
+}
+
+.ant-layout-sider .ant-menu-inline .ant-menu-item-selected {
+  background: rgba(57, 106, 255, 0.08) !important;
+  color: var(--primary-color) !important;
+  font-weight: 500 !important;
+  border-left: 6px solid var(--primary-color) !important;
+}
+
+.ant-layout-sider .ant-menu-inline .ant-menu-item-selected .ant-menu-item-icon {
+  color: var(--primary-color) !important;
 }
 
 /* ===== 面包屑优化 ===== */
@@ -727,4 +750,541 @@ body {
 .ant-select-item-option-selected {
   background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.1) 100%) !important;
   font-weight: 600 !important;
+}
+
+/* ===== 数据分析页暗色 Select ===== */
+.dark-analysis .ant-select .ant-select-selector {
+  background: #1C2333 !important;
+  border: 1px solid #3A4560 !important;
+  color: #E0E6EF !important;
+  border-radius: 10px !important;
+}
+
+.dark-analysis .ant-select .ant-select-arrow {
+  color: #8899B0 !important;
+}
+
+.dark-analysis .ant-select .ant-select-clear {
+  background: #1C2333 !important;
+  color: #8899B0 !important;
+}
+
+.dark-analysis .ant-select .ant-select-selection-placeholder {
+  color: #8899B0 !important;
+}
+
+.dark-analysis .ant-input {
+  background: #1C2333 !important;
+  border: 1px solid #3A4560 !important;
+  color: #E0E6EF !important;
+}
+
+.dark-analysis .ant-input::placeholder {
+  color: #8899B0 !important;
+}
+
+.dark-analysis .ant-input-affix-wrapper {
+  background: #1C2333 !important;
+  border: 1px solid #3A4560 !important;
+  border-radius: 10px !important;
+  height: 32px !important;
+}
+
+.dark-analysis .ant-input-affix-wrapper .ant-input {
+  background: transparent !important;
+  border: none !important;
+}
+
+.dark-analysis .ant-input-affix-wrapper:focus,
+.dark-analysis .ant-input-affix-wrapper-focused {
+  border-color: #4361EE !important;
+  box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.2) !important;
+}
+
+.dark-analysis .ant-input-clear-icon {
+  color: #8899B0 !important;
+}
+
+.dark-analysis .ant-select-focused .ant-select-selector {
+  border-color: #4361EE !important;
+  box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.2) !important;
+}
+
+.dark-analysis .ant-select-dropdown,
+.dark-analysis .ant-autocomplete .ant-select-dropdown {
+  background: #1C2333 !important;
+  border: 1px solid #3A4560 !important;
+}
+
+.dark-analysis .ant-select-dropdown .ant-select-item {
+  color: #CED8E1 !important;
+}
+
+.dark-analysis .ant-select-dropdown .ant-select-item-option-active {
+  background: rgba(67, 97, 238, 0.15) !important;
+}
+
+.dark-analysis .ant-select-dropdown .ant-select-item-option-selected {
+  background: rgba(67, 97, 238, 0.25) !important;
+}
+
+/* 企业列表：批量操作条进入（缓动下移 + 淡入） */
+@keyframes enterprise-list-batch-bar-in {
+  from {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.enterprise-list-batch-bar {
+  animation: enterprise-list-batch-bar-in 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* 企业列表表：固定布局 + 列宽按比例分配，避免名称列占满右侧挤压 */
+.enterprise-list-table .ant-table-wrapper .ant-table,
+.enterprise-list-table .ant-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.enterprise-list-table .ant-table-thead > tr > th {
+  vertical-align: middle;
+}
+
+/* 企业名称：悬停动效（颜色、下划线展开、轻微上浮） */
+.enterprise-list-name-link {
+  display: inline-block;
+  width: fit-content;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin-bottom: 4px;
+  padding-bottom: 2px;
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 22px;
+  color: #396aff;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: top;
+  background-image: linear-gradient(currentColor, currentColor);
+  background-position: 0 100%;
+  background-repeat: no-repeat;
+  background-size: 0% 2px;
+  transition:
+    color 0.22s ease,
+    background-size 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.22s ease;
+  transform-origin: left center;
+  /* 避免父级 flex 列把链接拉满整格，下划线才会与文字同宽 */
+  align-self: flex-start;
+}
+
+.enterprise-list-name-link:hover {
+  color: #2854e8;
+  background-size: 100% 2px;
+  transform: translateY(-1px);
+}
+
+.enterprise-list-name-link:active {
+  color: #1a3db5;
+  transform: translateY(0);
+}
+
+.enterprise-list-name-link:focus-visible {
+  outline: 2px solid rgba(57, 106, 255, 0.45);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enterprise-list-name-link {
+    transition: color 0.15s ease;
+    transform: none !important;
+  }
+
+  .enterprise-list-name-link:hover {
+    background-size: 100% 2px;
+  }
+}
+
+/* 列表单元格：区域 / 行业 / 类型 / 漏斗阶段统一字号，无背景块 */
+.enterprise-list-cell-pill {
+  display: inline-block;
+  max-width: 100%;
+  padding: 0;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  vertical-align: middle;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  box-sizing: border-box;
+}
+
+.enterprise-list-cell-pill--default {
+  background: transparent;
+  color: rgba(0, 0, 0, 0.88);
+}
+
+/* 企业列表表：固定行高，避免选中态与内容差异造成视觉抖动 */
+.enterprise-list-table .ant-table-tbody > tr {
+  height: 80px !important;
+}
+
+.enterprise-list-table .ant-table-tbody > tr > td {
+  height: 80px !important;
+  box-sizing: border-box !important;
+  padding-block: 14px !important;
+  vertical-align: middle !important;
+}
+
+.enterprise-list-table .ant-table-tbody > tr > .ant-table-selection-column {
+  vertical-align: middle !important;
+}
+
+.enterprise-list-table .ant-table-tbody > tr.ant-table-row-selected > td {
+  /* 与未选中行保持完全相同的盒模型，仅用主题色浅底区分 */
+  height: 80px !important;
+  padding-block: 14px !important;
+  box-shadow: none !important;
+}
+
+.enterprise-list-table .ant-table-selection-column .ant-checkbox-wrapper {
+  margin-inline: 0 !important;
+  line-height: 1 !important;
+}
+
+/* 企业列表：勾选框描边加深、略放大，避免在浅底上几乎看不见 */
+.enterprise-list-table .ant-checkbox .ant-checkbox-inner {
+  width: 18px;
+  height: 18px;
+  border-width: 2px;
+  border-color: rgba(0, 0, 0, 0.38);
+  background-color: #fff;
+}
+
+.enterprise-list-table .ant-checkbox:hover .ant-checkbox-inner,
+.enterprise-list-table .ant-checkbox-wrapper:hover .ant-checkbox .ant-checkbox-inner {
+  border-color: #396aff;
+}
+
+.enterprise-list-table .ant-checkbox-checked .ant-checkbox-inner,
+.enterprise-list-table .ant-checkbox-indeterminate .ant-checkbox-inner {
+  background-color: #396aff !important;
+  border-color: #396aff !important;
+}
+
+.enterprise-list-table .ant-checkbox-wrapper:focus-within .ant-checkbox-inner,
+.enterprise-list-table .ant-checkbox-focused .ant-checkbox-inner {
+  border-color: #396aff;
+}
+
+/* 企业管理页顶部概览区：参考 BankDash 卡片 + 柱状图布局 */
+.enterprise-bankdash-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1.55fr) minmax(320px, 0.95fr);
+  gap: 24px;
+  margin-bottom: 18px;
+}
+
+.enterprise-bankdash-overview__left {
+  min-width: 0;
+}
+
+.enterprise-bankdash-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.enterprise-bankdash-section-head--compact {
+  margin-bottom: 18px;
+}
+
+.enterprise-bankdash-section-head__title {
+  color: #343C6A;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 22px;
+}
+
+.enterprise-bankdash-section-head__headline-value {
+  color: #343C6A;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 22px;
+  letter-spacing: -0.02em;
+}
+
+.enterprise-bankdash-section-head__action-placeholder,
+.enterprise-bankdash-section-head__value-placeholder {
+  border-radius: 999px;
+  background: rgba(113, 142, 191, 0.14);
+}
+
+.enterprise-bankdash-section-head__action-placeholder {
+  width: 74px;
+  height: 16px;
+}
+
+.enterprise-bankdash-section-head__value-placeholder {
+  width: 64px;
+  height: 18px;
+}
+
+.enterprise-bankdash-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.enterprise-bank-card {
+  position: relative;
+  min-height: 182px;
+  padding: 17px 20px;
+  border-radius: 20px;
+  overflow: hidden;
+  background: linear-gradient(136deg, rgba(76, 73, 237, 1) 0%, rgba(10, 6, 244, 1) 100%);
+  box-shadow: 0 18px 30px rgba(67, 56, 202, 0.18);
+}
+
+.enterprise-bank-card--light {
+  background: #FFFFFF;
+  border: 1px solid #DFEAF2;
+  box-shadow: none;
+}
+
+.enterprise-bank-card__top,
+.enterprise-bank-card__meta-row,
+.enterprise-bank-card__bottom {
+  position: relative;
+  z-index: 1;
+}
+
+.enterprise-bank-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 23px;
+}
+
+.enterprise-bank-card__stat {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.enterprise-bank-card__meta-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  /* 第二行指标与底部栏（渐变/分隔线）之间留白 */
+  margin-bottom: 20px;
+}
+
+.enterprise-bank-card__meta-block {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.enterprise-bank-card__meta-block--trailing {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.enterprise-bank-card__label--on-dark {
+  font-size: 11px;
+  line-height: 1.25;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.enterprise-bank-card__value--on-dark {
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.enterprise-bank-card__label--on-light {
+  font-size: 10px;
+  line-height: 1.25;
+  font-weight: 400;
+  color: #718ebf;
+  white-space: normal;
+}
+
+.enterprise-bank-card__value--on-light {
+  font-size: 16px;
+  line-height: 1.2;
+  font-weight: 600;
+  color: #343c6a;
+}
+
+.enterprise-bank-card__footer-label {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.enterprise-bank-card__footer-label--on-dark {
+  color: #ffffff;
+}
+
+.enterprise-bank-card__footer-label--on-light {
+  color: #343c6a;
+}
+
+.enterprise-bank-card__placeholder {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.enterprise-bank-card--light .enterprise-bank-card__placeholder {
+  background: rgba(113, 142, 191, 0.18);
+}
+
+.enterprise-bank-card__placeholder--label {
+  width: 42px;
+  height: 10px;
+}
+
+.enterprise-bank-card__placeholder--value {
+  width: 74px;
+  height: 18px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.enterprise-bank-card--light .enterprise-bank-card__placeholder--value {
+  background: rgba(52, 60, 106, 0.16);
+}
+
+.enterprise-bank-card__placeholder--meta-label {
+  width: 58px;
+  height: 10px;
+}
+
+.enterprise-bank-card__placeholder--meta-value {
+  width: 72px;
+  height: 14px;
+}
+
+.enterprise-bank-card__placeholder--number {
+  width: 128px;
+  height: 14px;
+}
+
+.enterprise-bank-card__chip {
+  width: 29px;
+  height: 29px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.24);
+}
+
+.enterprise-bank-card--light .enterprise-bank-card__chip {
+  background: rgba(196, 202, 212, 0.65);
+}
+
+.enterprise-bank-card__bottom-glow {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 51px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.28) 0%, rgba(255, 255, 255, 0) 100%);
+}
+
+.enterprise-bank-card--light .enterprise-bank-card__bottom-glow {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(255, 255, 255, 0) 100%);
+  border-top: 1px solid #DFEAF2;
+}
+
+.enterprise-bank-card__bottom {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 15px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.enterprise-bank-card__logo {
+  position: relative;
+  width: 28px;
+  height: 18px;
+}
+
+.enterprise-bank-card__logo span {
+  position: absolute;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.enterprise-bank-card__logo span:last-child {
+  right: 0;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.enterprise-bank-card--light .enterprise-bank-card__logo span {
+  background: rgba(145, 153, 175, 0.5);
+}
+
+.enterprise-bank-card--light .enterprise-bank-card__logo span:last-child {
+  background: rgba(145, 153, 175, 0.3);
+}
+
+.enterprise-expense-card {
+  min-height: 260px;
+  padding: 4px 0 0;
+}
+
+/* BankDash「My Expense」式柱图容器 */
+.enterprise-expense-chart-panel {
+  min-height: 200px;
+  padding: 4px 14px 12px;
+  background: #ffffff;
+  border-radius: 25px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+}
+
+.enterprise-expense-chart-panel__loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+}
+
+@media (max-width: 1200px) {
+  .enterprise-bankdash-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .enterprise-expense-card {
+    padding-top: 0;
+  }
+}
+
+@media (max-width: 768px) {
+  .enterprise-bankdash-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .enterprise-expense-chart-panel {
+    padding-inline: 10px;
+  }
 }

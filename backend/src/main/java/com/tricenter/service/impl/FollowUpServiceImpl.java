@@ -17,6 +17,7 @@ import com.tricenter.mapper.EnterpriseMapper;
 import com.tricenter.mapper.FollowUpRecordMapper;
 import com.tricenter.mapper.StageChangeLogMapper;
 import com.tricenter.mapper.UserMapper;
+import com.tricenter.service.DashboardService;
 import com.tricenter.service.FollowUpService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,7 @@ public class FollowUpServiceImpl implements FollowUpService {
     private final EnterpriseMapper enterpriseMapper;
     private final UserMapper userMapper;
     private final StageChangeLogMapper stageChangeLogMapper;
+    private final DashboardService dashboardService;
 
     @Override
     public PageResult<FollowUpResponse> getFollowUpList(FollowUpQueryRequest request) {
@@ -130,6 +132,7 @@ public class FollowUpServiceImpl implements FollowUpService {
             stageChangeLogMapper.insert(log);
         }
         
+        dashboardService.evictAllCache();
         return convertToResponse(record);
     }
 
@@ -159,6 +162,7 @@ public class FollowUpServiceImpl implements FollowUpService {
         
         followUpRecordMapper.updateById(record);
         
+        dashboardService.evictAllCache();
         return convertToResponse(record);
     }
 
@@ -171,6 +175,7 @@ public class FollowUpServiceImpl implements FollowUpService {
         }
         
         followUpRecordMapper.deleteById(id);
+        dashboardService.evictAllCache();
     }
 
     @Override

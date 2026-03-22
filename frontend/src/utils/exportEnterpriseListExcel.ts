@@ -9,7 +9,14 @@ export interface EnterpriseListItem {
   industry?: string;
   enterprise_type?: string;
   funnel_stage?: string;
-  contacts?: Array<{ name?: string; phone?: string; position?: string; is_primary?: boolean; isPrimary?: boolean }>;
+  contacts?: Array<{
+    name?: string;
+    phone?: string;
+    email?: string;
+    position?: string;
+    is_primary?: boolean;
+    isPrimary?: boolean;
+  }>;
   has_crossborder?: boolean;
   main_platforms?: string;
   target_markets?: string;
@@ -51,6 +58,8 @@ export async function exportEnterpriseListExcel(enterprises: EnterpriseListItem[
   // 数据行
   enterprises.forEach((e, idx) => {
     const primaryContact = e.contacts?.find(c => c.is_primary || c.isPrimary) || e.contacts?.[0];
+    const phoneOrEmail =
+      [primaryContact?.phone, primaryContact?.email].map((s) => String(s ?? '').trim()).find(Boolean) || '-';
     const row = ws.addRow([
       idx + 1,
       e.enterprise_name || '-',
@@ -59,7 +68,7 @@ export async function exportEnterpriseListExcel(enterprises: EnterpriseListItem[
       e.enterprise_type || '-',
       STAGE_MAP[e.funnel_stage || ''] || e.funnel_stage || '-',
       primaryContact?.name || '-',
-      primaryContact?.phone || '-',
+      phoneOrEmail,
       e.has_crossborder ? '是' : '否',
       e.main_platforms || '-',
       e.created_at ? e.created_at.slice(0, 10) : '-',

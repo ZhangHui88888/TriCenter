@@ -17,6 +17,8 @@ export const enterpriseApi = {
     staffSizeId?: number;
     domesticRevenueId?: number;
     crossBorderRevenueId?: number;
+    crossBorderRevenueMinWan?: number;
+    crossBorderRevenueMaxWan?: number;
     sourceId?: number;
     hasCrossBorder?: number;
     transformationWillingness?: string;
@@ -29,6 +31,10 @@ export const enterpriseApi = {
     mainPlatforms?: string;
     targetMarkets?: string;
   }) => request.get('/enterprises', { params }),
+
+  /** 与列表相同筛选条件下的概览统计（全量匹配企业，不受分页影响） */
+  getOverviewStats: (params?: Record<string, unknown>) =>
+    request.get('/enterprises/overview-stats', { params }),
 
   // 获取企业详情
   getDetail: (id: number) => request.get(`/enterprises/${id}`),
@@ -51,12 +57,13 @@ export const enterpriseApi = {
     formData.append('file', file);
     return request.post('/enterprises/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 0,
     });
   },
 
   // 导出企业
   export: (params?: { stage?: string; district?: string }) =>
-    request.get('/enterprises/export', { params, responseType: 'blob' }),
+    request.get('/enterprises/export', { params, responseType: 'blob', timeout: 0 }),
 
   // 下载导入模板
   downloadTemplate: () =>
@@ -124,6 +131,15 @@ export const dashboardApi = {
 
   // 获取待跟进提醒
   getPendingFollowUps: () => request.get('/dashboard/pending-follow-ups'),
+
+  // 获取月度新增趋势
+  getMonthlyTrend: () => request.get('/dashboard/monthly-trend'),
+
+  // 数据分析聚合统计（替代前端全量拉取）
+  getAnalysisStats: (params?: Record<string, any>) => request.get('/dashboard/analysis-stats', { params }),
+
+  // 清除所有缓存
+  clearCache: () => request.delete('/dashboard/cache'),
 };
 
 // 漏斗分析 API
@@ -212,7 +228,7 @@ export const surveyExcelApi = {
 
   // 批量导出企业调研表
   exportBatch: (enterpriseIds: number[]) =>
-    request.post('/survey-excel/export/batch', enterpriseIds, { responseType: 'blob' }),
+    request.post('/survey-excel/export/batch', enterpriseIds, { responseType: 'blob', timeout: 0 }),
 
   // 导入调研数据
   import: (file: File) => {
@@ -220,6 +236,7 @@ export const surveyExcelApi = {
     formData.append('file', file);
     return request.post('/survey-excel/import', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 0,
     });
   },
 
@@ -230,24 +247,11 @@ export const surveyExcelApi = {
 
 // 市场调研报告 API
 export const marketReportApi = {
-  create: (enterpriseId: number, createdBy?: number) =>
-    request.post('/market-reports', { enterpriseId, createdBy }),
+  get: (enterpriseId: number) =>
+    request.get(`/market-reports/${enterpriseId}`),
 
-  getById: (id: number) => request.get(`/market-reports/${id}`),
-
-  getByEnterpriseId: (enterpriseId: number, page = 1, size = 10) =>
-    request.get(`/market-reports/enterprise/${enterpriseId}`, { params: { page, size } }),
-
-  updateReportData: (id: number, reportData: string) =>
-    request.put(`/market-reports/${id}/data`, { reportData }),
-
-  updateStatus: (id: number, status: string) =>
-    request.patch(`/market-reports/${id}/status`, { status }),
-
-  updateAiSections: (id: number, aiGeneratedSections: string) =>
-    request.patch(`/market-reports/${id}/ai-sections`, { aiGeneratedSections }),
-
-  delete: (id: number) => request.delete(`/market-reports/${id}`),
+  save: (enterpriseId: number, version: 'basic' | 'deep', data: Record<string, any>) =>
+    request.put(`/market-reports/${enterpriseId}/${version}`, data),
 };
 
 // 基础数据/选项 API
@@ -263,4 +267,12 @@ export const optionsApi = {
 
   // 获取用户列表（对接人）
   getUsers: () => request.get('/options/users'),
+};
+
+/** 数据字典管理（新增选项等，写入 system_options 并刷新服务端缓存） */
+export const dictionaryApi = {
+  addOption: (
+    category: string,
+    body: { value: string; label: string; color?: string; sortOrder?: number; isEnabled?: number }
+  ) => request.post(`/dictionary/${category}`, body),
 };

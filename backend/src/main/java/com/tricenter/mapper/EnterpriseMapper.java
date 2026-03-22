@@ -54,7 +54,7 @@ public interface EnterpriseMapper extends BaseMapper<Enterprise> {
     /**
      * 统计各行业企业数量
      */
-    @Select("SELECT ic.name, COUNT(e.id) as count " +
+    @Select("SELECT e.industry_id AS industry_id, ic.name, COUNT(e.id) AS count " +
             "FROM enterprises e " +
             "LEFT JOIN industry_categories ic ON e.industry_id = ic.id " +
             "WHERE e.is_deleted = 0 " +
@@ -69,4 +69,12 @@ public interface EnterpriseMapper extends BaseMapper<Enterprise> {
             "WHERE is_deleted = 0 AND created_at <= #{beforeDate} " +
             "GROUP BY stage")
     List<Map<String, Object>> countByStageBeforeDate(@Param("beforeDate") java.time.LocalDateTime beforeDate);
+
+    @Select("SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS total, " +
+            "SUM(CASE WHEN stage IN ('SIGNED','SETTLED','INCUBATING') THEN 1 ELSE 0 END) AS signed_count " +
+            "FROM enterprises WHERE is_deleted = 0 " +
+            "AND created_at >= #{startDate} " +
+            "GROUP BY DATE_FORMAT(created_at, '%Y-%m') " +
+            "ORDER BY month")
+    List<Map<String, Object>> countMonthlyTrend(@Param("startDate") java.time.LocalDateTime startDate);
 }

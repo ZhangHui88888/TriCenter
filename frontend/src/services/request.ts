@@ -22,6 +22,19 @@ request.interceptors.request.use(
   }
 );
 
+let isRedirecting = false;
+const recentErrors = new Map<string, number>();
+const ERROR_DEDUPE_MS = 2000;
+
+function showErrorOnce(msg: string) {
+  const now = Date.now();
+  const last = recentErrors.get(msg);
+  if (last && now - last < ERROR_DEDUPE_MS) return;
+  recentErrors.set(msg, now);
+  message.error(msg);
+  setTimeout(() => recentErrors.delete(msg), ERROR_DEDUPE_MS);
+}
+
 request.interceptors.response.use(
   (response: AxiosResponse) => {
     const { data } = response;
@@ -29,7 +42,7 @@ request.interceptors.response.use(
       return response;
     }
     if (data.code && data.code !== 200 && data.code !== 0) {
-      message.error(data.message || '请求失败');
+      showErrorOnce(data.message || '请求失败');
       return Promise.reject(new Error(data.message || '请求失败'));
     }
     return data;
@@ -39,31 +52,31 @@ request.interceptors.response.use(
       const { status } = error.response;
       switch (status) {
         case 401:
-          localStorage.removeItem('token');
+        case 403:
           if (window.location.pathname === '/login') {
-            // 在登录页：显示后端返回的具体错误信息，不跳转
-            message.error(error.response.data?.message || '用户名或密码错误');
-          } else {
-            message.error('登录已过期，请重新登录');
-            window.location.href = '/login';
+            showErrorOnce(error.response.data?.message || '用户名或密码错误');
+          } else if (!isRedirecting) {
+            isRedirecting = true;
+            localStorage.removeItem('token');
+            showErrorOnce('登录已过期或没有权限，请重新登录');
+            setTimeout(() => {
+              window.location.href = '/login';
+              isRedirecting = false;
+            }, 300);
           }
           break;
-        case 403:
-          message.error('没有权限访问');
-          break;
         case 404:
-          message.error('请求的资源不存在');
           break;
         case 500:
-          message.error('服务器错误');
+          showErrorOnce(error.response.data?.message || '服务器错误');
           break;
         default:
-          message.error(error.response.data?.message || '请求失败');
+          showErrorOnce(error.response.data?.message || '请求失败');
       }
     } else if (error.message.includes('timeout')) {
-      message.error('请求超时');
+      showErrorOnce('请求超时');
     } else {
-      message.error('网络错误');
+      showErrorOnce('网络错误');
     }
     return Promise.reject(error);
   }

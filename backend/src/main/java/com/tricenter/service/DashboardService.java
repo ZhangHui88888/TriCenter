@@ -32,4 +32,14 @@ public interface DashboardService {
      * 获取待跟进提醒
      */
     PendingFollowUpsResponse getPendingFollowUps();
+
+    /**
+     * 获取月度新增趋势（最近12个月）
+     */
+    List<MonthlyTrendResponse> getMonthlyTrend();
+
+    /**
+     * 清除所有看板缓存（企业数据变更时调用）
+     */
+    void evictAllCache();
 }

@@ -25,4 +25,12 @@ public interface EnterpriseContactMapper extends BaseMapper<EnterpriseContact> {
      */
     @Select("SELECT * FROM enterprise_contacts WHERE enterprise_id = #{enterpriseId} AND is_primary = 1 LIMIT 1")
     EnterpriseContact selectPrimaryByEnterpriseId(@Param("enterpriseId") Integer enterpriseId);
+
+    /**
+     * 批量获取多个企业的联系人（消除 N+1）
+     */
+    @Select("<script>SELECT * FROM enterprise_contacts WHERE enterprise_id IN " +
+            "<foreach item='id' collection='enterpriseIds' open='(' separator=',' close=')'>#{id}</foreach>" +
+            " ORDER BY is_primary DESC, id ASC</script>")
+    List<EnterpriseContact> selectByEnterpriseIds(@Param("enterpriseIds") List<Integer> enterpriseIds);
 }

@@ -1,8 +1,11 @@
 package com.tricenter.controller;
 
 import com.tricenter.common.result.Result;
+import com.tricenter.dto.request.EnterpriseQueryRequest;
 import com.tricenter.dto.response.*;
 import com.tricenter.service.DashboardService;
+import com.tricenter.service.DictionaryCacheService;
+import com.tricenter.service.EnterpriseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +23,8 @@ import java.util.List;
 public class DashboardController {
     
     private final DashboardService dashboardService;
+    private final EnterpriseService enterpriseService;
+    private final DictionaryCacheService dictionaryCache;
     
     @Operation(summary = "6.1 统计概览", description = "获取首页统计卡片数据")
     @GetMapping("/overview")
@@ -49,5 +54,25 @@ public class DashboardController {
     @GetMapping("/pending-follow-ups")
     public Result<PendingFollowUpsResponse> getPendingFollowUps() {
         return Result.success(dashboardService.getPendingFollowUps());
+    }
+
+    @Operation(summary = "6.6 月度新增趋势", description = "最近12个月每月新增企业数和签约数")
+    @GetMapping("/monthly-trend")
+    public Result<List<MonthlyTrendResponse>> getMonthlyTrend() {
+        return Result.success(dashboardService.getMonthlyTrend());
+    }
+
+    @Operation(summary = "6.7 数据分析聚合统计", description = "支持筛选的聚合统计（区域/类型/平台/市场），替代前端全量拉取")
+    @GetMapping("/analysis-stats")
+    public Result<AnalysisStatsResponse> getAnalysisStats(EnterpriseQueryRequest request) {
+        return Result.success(enterpriseService.getAnalysisStats(request));
+    }
+
+    @Operation(summary = "6.8 清除所有缓存", description = "手动清除 Redis 看板缓存和内存字典缓存")
+    @DeleteMapping("/cache")
+    public Result<String> clearCache() {
+        dashboardService.evictAllCache();
+        dictionaryCache.refresh();
+        return Result.success("缓存已清除");
     }
 }

@@ -63,31 +63,31 @@ interface ServiceRecord {
 }
 
 const SERVICE_TYPES = [
-  { value: 'training', label: '培训与赋能', icon: <BookOutlined />, color: '#667eea' },
-  { value: 'policy', label: '政策对接', icon: <BankOutlined />, color: '#10b981' },
-  { value: 'incubation', label: '孵化与辅导', icon: <RocketOutlined />, color: '#f97316' },
-  { value: 'platform', label: '平台资源对接', icon: <AppstoreOutlined />, color: '#3b82f6' },
-  { value: 'settlement', label: '招商入驻', icon: <ShopOutlined />, color: '#8b5cf6' },
-  { value: 'activity', label: '活动与展会', icon: <TrophyOutlined />, color: '#ec4899' },
-  { value: 'finance', label: '金融与资金', icon: <DollarOutlined />, color: '#eab308' },
-  { value: 'other', label: '其他服务', icon: <CustomerServiceOutlined />, color: '#94a3b8' },
+  { value: 'training', label: '培训与赋能', icon: <BookOutlined />, color: '#396AFF' },
+  { value: 'policy', label: '政策对接', icon: <BankOutlined />, color: '#16DBCC' },
+  { value: 'incubation', label: '孵化与辅导', icon: <RocketOutlined />, color: '#FFBB38' },
+  { value: 'platform', label: '平台资源对接', icon: <AppstoreOutlined />, color: '#396AFF' },
+  { value: 'settlement', label: '招商入驻', icon: <ShopOutlined />, color: '#7B61FF' },
+  { value: 'activity', label: '活动与展会', icon: <TrophyOutlined />, color: '#FE5C73' },
+  { value: 'finance', label: '金融与资金', icon: <DollarOutlined />, color: '#FFBB38' },
+  { value: 'other', label: '其他服务', icon: <CustomerServiceOutlined />, color: '#718EBF' },
 ];
 
 const SERVICE_STATUSES = [
-  { value: 'pending', label: '待启动', color: '#94a3b8', icon: <ClockCircleOutlined /> },
-  { value: 'in_progress', label: '进行中', color: '#3b82f6', icon: <SyncOutlined spin /> },
-  { value: 'completed', label: '已完成', color: '#10b981', icon: <CheckCircleOutlined /> },
-  { value: 'terminated', label: '已终止', color: '#ef4444', icon: <StopOutlined /> },
+  { value: 'pending', label: '待启动', color: '#FFBB38', icon: <ClockCircleOutlined /> },
+  { value: 'in_progress', label: '进行中', color: '#396AFF', icon: <SyncOutlined spin /> },
+  { value: 'completed', label: '已完成', color: '#16DBCC', icon: <CheckCircleOutlined /> },
+  { value: 'terminated', label: '已终止', color: '#FE5C73', icon: <StopOutlined /> },
 ];
 
 const FUNNEL_STAGES = [
-  { code: 'POTENTIAL', name: '潜在企业', color: '#94a3b8' },
-  { code: 'NO_DEMAND', name: '无明确需求', color: '#fbbf24' },
-  { code: 'NO_INTENTION', name: '没有合作意向', color: '#ef4444' },
-  { code: 'HAS_DEMAND', name: '有明确需求', color: '#3b82f6' },
-  { code: 'SIGNED', name: '已签约', color: '#8b5cf6' },
-  { code: 'SETTLED', name: '已入驻', color: '#10b981' },
-  { code: 'INCUBATING', name: '重点孵化', color: '#f97316' },
+  { code: 'POTENTIAL', name: '潜在企业', color: '#718EBF' },
+  { code: 'NO_DEMAND', name: '无明确需求', color: '#FFBB38' },
+  { code: 'NO_INTENTION', name: '没有合作意向', color: '#FE5C73' },
+  { code: 'HAS_DEMAND', name: '有明确需求', color: '#396AFF' },
+  { code: 'SIGNED', name: '已签约', color: '#7B61FF' },
+  { code: 'SETTLED', name: '已入驻', color: '#16DBCC' },
+  { code: 'INCUBATING', name: '重点孵化', color: '#FFBB38' },
 ];
 
 const getServiceTypeInfo = (type: string) =>
@@ -235,7 +235,7 @@ export default function ServiceRecords() {
         <Button
           type="link"
           size="small"
-          style={{ padding: 0, fontWeight: 500, color: '#1a1a2e' }}
+          style={{ padding: 0, fontWeight: 500, color: '#343C6A' }}
           onClick={() => navigate(`/enterprise/${record.enterpriseId}`)}
         >
           {name || '-'}
@@ -272,7 +272,7 @@ export default function ServiceRecords() {
       dataIndex: 'serviceName',
       key: 'serviceName',
       ellipsis: true,
-      render: (text: string) => <span style={{ fontWeight: 500, color: '#1a1a2e' }}>{text}</span>,
+      render: (text: string) => <span style={{ fontWeight: 500, color: '#343C6A' }}>{text}</span>,
     },
     {
       title: '服务日期',
@@ -282,7 +282,7 @@ export default function ServiceRecords() {
       sorter: (a, b) => (a.serviceDate || '').localeCompare(b.serviceDate || ''),
       defaultSortOrder: 'descend',
       render: (date: string) => (
-        <span style={{ fontSize: 13, color: '#666' }}>
+        <span style={{ fontSize: 13, color: '#718EBF' }}>
           <CalendarOutlined style={{ marginRight: 4 }} />{date || '-'}
         </span>
       ),
@@ -318,8 +318,8 @@ export default function ServiceRecords() {
       key: 'responsibleName',
       width: 90,
       render: (name: string) => (
-        <span style={{ color: '#555', fontSize: 13 }}>
-          {name ? <><TeamOutlined style={{ marginRight: 4, color: '#667eea' }} />{name}</> : '-'}
+        <span style={{ color: '#718EBF', fontSize: 13 }}>
+          {name ? <><TeamOutlined style={{ marginRight: 4, color: '#396AFF' }} />{name}</> : '-'}
         </span>
       ),
     },
@@ -332,14 +332,14 @@ export default function ServiceRecords() {
           <Button
             type="text"
             size="small"
-            icon={<EyeOutlined style={{ color: '#667eea' }} />}
+            icon={<EyeOutlined style={{ color: '#396AFF' }} />}
             onClick={() => navigate(`/enterprise/${record.enterpriseId}`)}
             style={{ borderRadius: 6 }}
           />
           <Button
             type="text"
             size="small"
-            icon={<EditOutlined style={{ color: '#43e97b' }} />}
+            icon={<EditOutlined style={{ color: '#16DBCC' }} />}
             onClick={() => handleOpenEdit(record)}
             style={{ borderRadius: 6 }}
           />
@@ -357,7 +357,7 @@ export default function ServiceRecords() {
   ];
 
   return (
-    <div>
+    <div style={{ background: '#F5F7FA', minHeight: '100%', padding: 24, fontFamily: 'Inter, sans-serif' }}>
       {/* 页面标题 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, padding: '0 4px' }}>
         <div>
@@ -366,14 +366,14 @@ export default function ServiceRecords() {
               <Button
                 icon={<ArrowLeftOutlined />}
                 onClick={() => navigate(`/enterprise/${paramEnterpriseId}`)}
-                style={{ borderRadius: 8 }}
+                style={{ borderRadius: 12 }}
               >
                 返回企业详情
               </Button>
             )}
-            <Title level={4} style={{ margin: 0, fontWeight: 700 }}>合作服务档案</Title>
+            <Title level={4} style={{ margin: 0, fontWeight: 700, color: '#343C6A' }}>合作服务档案</Title>
           </div>
-          <Text type="secondary">
+          <Text type="secondary" style={{ color: '#718EBF' }}>
             {currentEnterprise
               ? `${currentEnterprise.name} — 合作与服务历史记录`
               : '管理所有企业与三中心的合作服务记录'}
@@ -384,12 +384,11 @@ export default function ServiceRecords() {
           icon={<PlusOutlined />}
           onClick={handleOpenAdd}
           style={{
-            borderRadius: 10,
+            borderRadius: 12,
             height: 40,
             fontWeight: 500,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            background: '#396AFF',
             border: 'none',
-            boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)',
           }}
         >
           新增服务
@@ -397,13 +396,14 @@ export default function ServiceRecords() {
       </div>
 
       {/* 筛选与状态切换栏 */}
-      <Card style={{ marginBottom: 16, borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }} styles={{ body: { padding: '16px 24px' } }}>
+      <Card style={{ marginBottom: 16, borderRadius: 25, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', background: '#FFFFFF' }} styles={{ body: { padding: '16px 24px' } }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <Radio.Group 
-            value={filterStatus || 'all'} 
+          <Radio.Group
+            value={filterStatus || 'all'}
             onChange={e => setFilterStatus(e.target.value === 'all' ? undefined : e.target.value)}
             optionType="button"
             buttonStyle="solid"
+            style={{ borderRadius: 12 }}
           >
             <Radio.Button value="all">
               全部服务 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => filterType ? r.serviceType === filterType : true).length}</span>
@@ -422,7 +422,7 @@ export default function ServiceRecords() {
           <Space wrap size={16}>
             <Select
               placeholder="按企业筛选"
-              style={{ width: 220 }}
+              style={{ width: 220, borderRadius: 12, background: '#F5F7FA', border: 'none' }}
               allowClear
               showSearch
               optionFilterProp="label"
@@ -432,7 +432,7 @@ export default function ServiceRecords() {
             />
             <Select
               placeholder="服务类型"
-              style={{ width: 150 }}
+              style={{ width: 150, borderRadius: 12, background: '#F5F7FA', border: 'none' }}
               allowClear
               value={filterType}
               onChange={setFilterType}
@@ -443,7 +443,7 @@ export default function ServiceRecords() {
       </Card>
 
       {/* 列表 */}
-      <Card style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }} styles={{ body: { padding: '8px 0' } }}>
+      <Card style={{ borderRadius: 25, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', background: '#FFFFFF' }} styles={{ body: { padding: '8px 0' } }}>
         {filteredRecords.length > 0 ? (
           <Table
             columns={columns}
@@ -453,8 +453,8 @@ export default function ServiceRecords() {
             pagination={{
               pageSize: 10,
               showTotal: (total) => (
-                <span style={{ color: '#666' }}>
-                  共 <span style={{ color: '#667eea', fontWeight: 600 }}>{total}</span> 条记录，涉及 <span style={{ color: '#f97316', fontWeight: 600 }}>{new Set(filteredRecords.map(r => r.enterpriseId)).size}</span> 家企业
+                <span style={{ color: '#718EBF' }}>
+                  共 <span style={{ color: '#396AFF', fontWeight: 600 }}>{total}</span> 条记录，涉及 <span style={{ color: '#FFBB38', fontWeight: 600 }}>{new Set(filteredRecords.map(r => r.enterpriseId)).size}</span> 家企业
                 </span>
               ),
               showSizeChanger: true,
@@ -462,7 +462,7 @@ export default function ServiceRecords() {
             }}
             expandable={{
               expandedRowRender: (record) => (
-                <div style={{ padding: '8px 16px', color: '#555', fontSize: 13, lineHeight: 1.8 }}>
+                <div style={{ padding: '8px 16px', color: '#718EBF', fontSize: 13, lineHeight: 1.8 }}>
                   {record.contractNo && <div><Text type="secondary">合同编号：</Text>{record.contractNo}</div>}
                   {record.description && <div><Text type="secondary">服务内容：</Text>{record.description}</div>}
                   {record.result && <div><Text type="secondary">服务成果：</Text>{record.result}</div>}
@@ -472,7 +472,7 @@ export default function ServiceRecords() {
                       <Tag color={FUNNEL_STAGES.find(s => s.code === record.stageFrom)?.color}>
                         {FUNNEL_STAGES.find(s => s.code === record.stageFrom)?.name || record.stageFrom}
                       </Tag>
-                      <span style={{ margin: '0 4px', color: '#bbb' }}>→</span>
+                      <span style={{ margin: '0 4px', color: '#718EBF' }}>→</span>
                       <Tag color={FUNNEL_STAGES.find(s => s.code === record.stageTo)?.color}>
                         {FUNNEL_STAGES.find(s => s.code === record.stageTo)?.name || record.stageTo}
                       </Tag>
@@ -487,16 +487,10 @@ export default function ServiceRecords() {
           />
         ) : (
           <div style={{ textAlign: 'center', padding: 80 }}>
-            <div style={{
-              width: 72, height: 72, margin: '0 auto 20px', borderRadius: 18,
-              background: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <CustomerServiceOutlined style={{ fontSize: 32, color: '#667eea' }} />
-            </div>
-            <Text type="secondary" style={{ fontSize: 15 }}>暂无合作服务记录</Text>
+            <CustomerServiceOutlined style={{ fontSize: 48, color: '#718EBF', marginBottom: 16, display: 'block' }} />
+            <Text type="secondary" style={{ fontSize: 15, color: '#718EBF' }}>暂无合作服务记录</Text>
             <br />
-            <Button type="link" icon={<PlusOutlined />} onClick={handleOpenAdd} style={{ marginTop: 8, color: '#667eea', fontWeight: 500 }}>
+            <Button type="link" icon={<PlusOutlined />} onClick={handleOpenAdd} style={{ marginTop: 8, color: '#396AFF', fontWeight: 500 }}>
               添加第一条服务记录
             </Button>
           </div>
@@ -506,8 +500,8 @@ export default function ServiceRecords() {
       {/* 新增/编辑弹窗 */}
       <Modal
         title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <CustomerServiceOutlined style={{ color: '#667eea' }} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#343C6A' }}>
+            <CustomerServiceOutlined style={{ color: '#396AFF' }} />
             <span>{editingRecord ? '编辑服务记录' : '新增服务记录'}</span>
           </div>
         }
@@ -516,8 +510,8 @@ export default function ServiceRecords() {
         width={700}
         footer={
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button onClick={() => { setModalOpen(false); form.resetFields(); }}>取消</Button>
-            <Button type="primary" loading={submitting} onClick={handleSubmit} style={{ background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none' }}>
+            <Button onClick={() => { setModalOpen(false); form.resetFields(); }} style={{ borderRadius: 12 }}>取消</Button>
+            <Button type="primary" loading={submitting} onClick={handleSubmit} style={{ background: '#396AFF', border: 'none', borderRadius: 12 }}>
               {editingRecord ? '保存修改' : '创建记录'}
             </Button>
           </div>
@@ -528,7 +522,7 @@ export default function ServiceRecords() {
             {!filterEnterpriseId && (
               <Col span={24}>
                 <Form.Item name="enterpriseId" label="所属企业" rules={[{ required: true, message: '请选择企业' }]}>
-                  <Select placeholder="搜索并选择企业" showSearch optionFilterProp="label" options={enterprises.map(e => ({ label: e.name, value: e.id }))} />
+                  <Select placeholder="搜索并选择企业" showSearch optionFilterProp="label" options={enterprises.map(e => ({ label: e.name, value: e.id }))} style={{ borderRadius: 12, background: '#F5F7FA', border: 'none' }} />
                 </Form.Item>
               </Col>
             )}
@@ -537,7 +531,7 @@ export default function ServiceRecords() {
                 <Select placeholder="请选择" options={SERVICE_TYPES.map(t => ({
                   label: <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ color: t.color }}>{t.icon}</span>{t.label}</span>,
                   value: t.value,
-                }))} />
+                }))} style={{ borderRadius: 12, background: '#F5F7FA', border: 'none' }} />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -547,7 +541,7 @@ export default function ServiceRecords() {
             </Col>
             <Col span={12}>
               <Form.Item name="serviceDate" label="服务日期" rules={[{ required: true, message: '请选择日期' }]}>
-                <DatePicker style={{ width: '100%' }} placeholder="选择日期" />
+                <DatePicker style={{ width: '100%', borderRadius: 12, background: '#F5F7FA', border: 'none' }} placeholder="选择日期" />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -555,12 +549,12 @@ export default function ServiceRecords() {
                 <Select placeholder="请选择" options={SERVICE_STATUSES.map(s => ({
                   label: <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ color: s.color }}>{s.icon}</span>{s.label}</span>,
                   value: s.value,
-                }))} />
+                }))} style={{ borderRadius: 12, background: '#F5F7FA', border: 'none' }} />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="responsibleId" label="负责人">
-                <Select placeholder="请选择对接人" allowClear showSearch optionFilterProp="label" options={userOptions} />
+                <Select placeholder="请选择对接人" allowClear showSearch optionFilterProp="label" options={userOptions} style={{ borderRadius: 12, background: '#F5F7FA', border: 'none' }} />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -585,7 +579,7 @@ export default function ServiceRecords() {
                     <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: s.color }} />{s.name}
                   </span>,
                   value: s.code,
-                }))} />
+                }))} style={{ borderRadius: 12, background: '#F5F7FA', border: 'none' }} />
               </Form.Item>
             </Col>
           </Row>

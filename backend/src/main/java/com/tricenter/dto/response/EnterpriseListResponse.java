@@ -19,8 +19,6 @@ public class EnterpriseListResponse {
     private String stageName;
     private String stageColor;
     private Integer hasCrossBorder;
-    private String mainPlatforms;
-    private String targetMarkets;
     private LocalDateTime createdAt;
     
     /** 联系人列表 */
@@ -30,6 +28,8 @@ public class EnterpriseListResponse {
     public static class ContactInfo {
         private String name;
         private String phone;
+        /** 列表副行：电话为空时前端可展示邮箱 */
+        private String email;
         private Boolean isPrimary;
     }
 }

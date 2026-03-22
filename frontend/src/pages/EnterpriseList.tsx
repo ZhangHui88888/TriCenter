@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Card,
@@ -6,6 +6,7 @@ import {
   Button,
   Input,
   Select,
+  InputNumber,
   Space,
   Modal,
   Form,
@@ -13,20 +14,16 @@ import {
   Col,
   Typography,
   message,
-  Progress,
+  Spin,
 } from 'antd';
 import {
   SearchOutlined,
   PlusOutlined,
   UploadOutlined,
   DownloadOutlined,
-  EyeOutlined,
-  EditOutlined,
   InboxOutlined,
   FilterOutlined,
   CloseCircleOutlined,
-  ArrowRightOutlined,
-  RiseOutlined,
   LoadingOutlined,
   FileExcelOutlined,
   DeleteOutlined,
@@ -34,22 +31,23 @@ import {
   ExclamationCircleOutlined,
 } from '@ant-design/icons';
 import { Upload, Tabs, Badge, Radio } from 'antd';
-import ReactECharts from 'echarts-for-react';
 import type { ColumnsType } from 'antd/es/table';
 import { requirements } from '@/data/requirementsData';
 import {
-  ENTERPRISE_TYPES,
+  ENTERPRISE_TYPE_OPTIONS,
   ENTERPRISE_SOURCES,
   EMPLOYEE_SCALES,
   REVENUE_SCALES,
   CROSSBORDER_PLATFORMS,
   TRANSFORMATION_WILLINGNESS,
 } from '@/utils/constants';
-import { enterpriseApi, optionsApi, dashboardApi, surveyExcelApi } from '@/services/api';
+import ReactECharts from 'echarts-for-react';
+import { enterpriseApi, optionsApi, surveyExcelApi, dashboardApi } from '@/services/api';
+import EnterpriseSearch from '@/components/EnterpriseSearch';
 import { exportEnterpriseListExcel } from '@/utils/exportEnterpriseListExcel';
 import type { Enterprise } from '@/types';
 
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
 type SelectOption = {
   label: string;
@@ -69,6 +67,8 @@ type EnterpriseListQueryParams = {
   staffSizeId?: number;
   domesticRevenueId?: number;
   crossBorderRevenueId?: number;
+  crossBorderRevenueMinWan?: number;
+  crossBorderRevenueMaxWan?: number;
   sourceId?: number;
   hasCrossBorder?: number;
   transformationWillingness?: string;
@@ -80,18 +80,189 @@ type EnterpriseListQueryParams = {
   requirementIds?: string;
   mainPlatforms?: string;
   targetMarkets?: string;
+  hasForeignTrade?: number;
+  tradeModeId?: number;
+  hasExportQualification?: number;
+  tradeTeamModeId?: number;
+  tradeTeamSize?: string;
+  crossBorderTeamSize?: string;
+  logisticsMode?: string;
+  paymentMethod?: string;
 };
 
 // 漏斗阶段配置
 const FUNNEL_STAGES = [
-  { code: 'POTENTIAL', name: '潜在企业', color: '#94a3b8' },
-  { code: 'NO_DEMAND', name: '无明确需求', color: '#fbbf24' },
-  { code: 'NO_INTENTION', name: '没有合作意向', color: '#ef4444' },
-  { code: 'HAS_DEMAND', name: '有明确需求', color: '#3b82f6' },
-  { code: 'SIGNED', name: '已签约', color: '#8b5cf6' },
-  { code: 'SETTLED', name: '已入驻', color: '#10b981' },
-  { code: 'INCUBATING', name: '重点孵化', color: '#f97316' },
+  { code: 'POTENTIAL', name: '潜在企业', color: '#718EBF' },
+  { code: 'NO_DEMAND', name: '无明确需求', color: '#FFBB38' },
+  { code: 'NO_INTENTION', name: '没有合作意向', color: '#FE5C73' },
+  { code: 'HAS_DEMAND', name: '有明确需求', color: '#396AFF' },
+  { code: 'SIGNED', name: '已签约', color: '#7B61FF' },
+  { code: 'SETTLED', name: '已入驻', color: '#16DBCC' },
+  { code: 'INCUBATING', name: '重点孵化', color: '#FF6B35' },
 ];
+
+/** 与批量操作条同高（含底边），未选中时占位，避免布局跳动 */
+const SELECTION_ACTION_BAR_SLOT_MIN_PX = 60;
+
+/** 企业列表每页条数（与表格分页器联动） */
+const ENTERPRISE_PAGE_SIZE_OPTIONS = Array.from({ length: 26 }, (_, i) => {
+  const n = 5 + i;
+  return { label: `${n} 条/页`, value: n };
+});
+
+/** 列表「主联系人」副行：后端已按 is_primary 优先排序，此处再兜底排序后只取第一位；电话为空时用邮箱 */
+type ListContactRaw = {
+  phone?: string | null;
+  email?: string | null;
+  isPrimary?: boolean | null;
+  is_primary?: boolean | null;
+};
+
+function sortListContactsByPrimary(contacts: ListContactRaw[]): ListContactRaw[] {
+  return [...contacts].sort((a, b) => {
+    const pa = a.isPrimary === true || a.is_primary === true ? 1 : 0;
+    const pb = b.isPrimary === true || b.is_primary === true ? 1 : 0;
+    return pb - pa;
+  });
+}
+
+function getEnterpriseListContactSubline(contacts: ListContactRaw[] | undefined | null): string {
+  if (!contacts?.length) return '';
+  const [first] = sortListContactsByPrimary(contacts);
+  const phone = String(first?.phone ?? '').trim();
+  const email = String(first?.email ?? '').trim();
+  return phone || email || '';
+}
+
+type EnterpriseOverviewStats = {
+  totalCount: number;
+  hasDemandCount: number;
+  signedCount: number;
+  totalExportRevenueWan: number;
+  offlineExportRevenueWan: number;
+  onlineCrossBorderExportRevenueWan: number;
+};
+
+type FunnelStatItem = { code: string; name: string; count: number };
+
+function formatOverviewCount(value: number | undefined, loading: boolean): string {
+  if (loading) return '—';
+  const n = value ?? 0;
+  return n.toLocaleString('zh-CN');
+}
+
+function formatOverviewWan(value: number | undefined, loading: boolean): string {
+  if (loading) return '—';
+  const n = Number(value ?? 0);
+  if (Number.isNaN(n)) return '0';
+  return n.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+function OverviewEnterpriseCountCard({
+  totalCount,
+  hasDemandCount,
+  signedCount,
+  loading,
+}: {
+  totalCount: number;
+  hasDemandCount: number;
+  signedCount: number;
+  loading: boolean;
+}) {
+  return (
+    <div className="enterprise-bank-card">
+      <div className="enterprise-bank-card__top">
+        <div className="enterprise-bank-card__stat">
+          <div className="enterprise-bank-card__label enterprise-bank-card__label--on-dark">企业总数</div>
+          <div className="enterprise-bank-card__value enterprise-bank-card__value--on-dark">
+            {formatOverviewCount(totalCount, loading)}
+          </div>
+        </div>
+        <div className="enterprise-bank-card__chip" aria-hidden />
+      </div>
+
+      <div className="enterprise-bank-card__meta-row">
+        <div className="enterprise-bank-card__meta-block">
+          <div className="enterprise-bank-card__label enterprise-bank-card__label--on-dark">有明确需求企业数</div>
+          <div className="enterprise-bank-card__value enterprise-bank-card__value--on-dark">
+            {formatOverviewCount(hasDemandCount, loading)}
+          </div>
+        </div>
+        <div className="enterprise-bank-card__meta-block enterprise-bank-card__meta-block--trailing">
+          <div className="enterprise-bank-card__label enterprise-bank-card__label--on-dark">已签约企业数</div>
+          <div className="enterprise-bank-card__value enterprise-bank-card__value--on-dark">
+            {formatOverviewCount(signedCount, loading)}
+          </div>
+        </div>
+      </div>
+
+      <div className="enterprise-bank-card__bottom-glow" />
+
+      <div className="enterprise-bank-card__bottom">
+        <span className="enterprise-bank-card__footer-label enterprise-bank-card__footer-label--on-dark">
+          企业数量统计
+        </span>
+        <div className="enterprise-bank-card__logo" aria-hidden>
+          <span />
+          <span />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function OverviewExportRevenueCard({
+  totalWan,
+  offlineWan,
+  onlineWan,
+  loading,
+}: {
+  totalWan: number;
+  offlineWan: number;
+  onlineWan: number;
+  loading: boolean;
+}) {
+  return (
+    <div className="enterprise-bank-card enterprise-bank-card--light">
+      <div className="enterprise-bank-card__top">
+        <div className="enterprise-bank-card__stat">
+          <div className="enterprise-bank-card__label enterprise-bank-card__label--on-light">出口总贸易额（万元）</div>
+          <div className="enterprise-bank-card__value enterprise-bank-card__value--on-light">
+            {formatOverviewWan(totalWan, loading)}
+          </div>
+        </div>
+        <div className="enterprise-bank-card__chip" aria-hidden />
+      </div>
+
+      <div className="enterprise-bank-card__meta-row">
+        <div className="enterprise-bank-card__meta-block">
+          <div className="enterprise-bank-card__label enterprise-bank-card__label--on-light">线下出口贸易额（万元）</div>
+          <div className="enterprise-bank-card__value enterprise-bank-card__value--on-light">
+            {formatOverviewWan(offlineWan, loading)}
+          </div>
+        </div>
+        <div className="enterprise-bank-card__meta-block enterprise-bank-card__meta-block--trailing">
+          <div className="enterprise-bank-card__label enterprise-bank-card__label--on-light">线上跨境电商出口贸易额（万元）</div>
+          <div className="enterprise-bank-card__value enterprise-bank-card__value--on-light">
+            {formatOverviewWan(onlineWan, loading)}
+          </div>
+        </div>
+      </div>
+
+      <div className="enterprise-bank-card__bottom-glow" />
+
+      <div className="enterprise-bank-card__bottom">
+        <span className="enterprise-bank-card__footer-label enterprise-bank-card__footer-label--on-light">
+          出口贸易额统计
+        </span>
+        <div className="enterprise-bank-card__logo" aria-hidden>
+          <span />
+          <span />
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function EnterpriseList() {
   const navigate = useNavigate();
@@ -121,17 +292,28 @@ function EnterpriseList() {
   const [enterprises, setEnterprises] = useState<any[]>([]);
   const [_total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(10);
+  const [pageSize, setPageSize] = useState(5);
   const [districts, setDistricts] = useState<string[]>([]);
   const [industries, setIndustries] = useState<any[]>([]);
   const [staffSizeOptions, setStaffSizeOptions] = useState<SelectOption[]>([]);
   const [domesticRevenueOptions, setDomesticRevenueOptions] = useState<SelectOption[]>([]);
-  const [crossBorderRevenueOptions, setCrossBorderRevenueOptions] = useState<SelectOption[]>([]);
   const [sourceOptions, setSourceOptions] = useState<SelectOption[]>([]);
   const [automationLevelOptions, setAutomationLevelOptions] = useState<SelectOption[]>([]);
   const [logisticsOptions, setLogisticsOptions] = useState<SelectOption[]>([]);
-  const [funnelStats, setFunnelStats] = useState<any[]>([]);
-  
+  const [tradeModeOptions, setTradeModeOptions] = useState<SelectOption[]>([]);
+  const [tradeTeamModeOptions, setTradeTeamModeOptions] = useState<SelectOption[]>([]);
+
+  const [overviewStats, setOverviewStats] = useState<EnterpriseOverviewStats>({
+    totalCount: 0,
+    hasDemandCount: 0,
+    signedCount: 0,
+    totalExportRevenueWan: 0,
+    offlineExportRevenueWan: 0,
+    onlineCrossBorderExportRevenueWan: 0,
+  });
+  const [overviewLoading, setOverviewLoading] = useState(true);
+  const [funnelStats, setFunnelStats] = useState<FunnelStatItem[]>([]);
+
   const buildListParams = (
     currentPage = page,
     currentPageSize = pageSize,
@@ -156,7 +338,8 @@ function EnterpriseList() {
     enterpriseType: filters.enterprise_type || undefined,
     staffSizeId: filters.employee_scale || undefined,
     domesticRevenueId: filters.domestic_revenue || undefined,
-    crossBorderRevenueId: filters.crossborder_revenue || undefined,
+    crossBorderRevenueMinWan: filters.crossborder_revenue_min_wan != null ? Number(filters.crossborder_revenue_min_wan) : undefined,
+    crossBorderRevenueMaxWan: filters.crossborder_revenue_max_wan != null ? Number(filters.crossborder_revenue_max_wan) : undefined,
     sourceId: filters.source || undefined,
     hasCrossBorder: typeof filters.has_crossborder === 'boolean'
       ? (filters.has_crossborder ? 1 : 0)
@@ -180,23 +363,167 @@ function EnterpriseList() {
     targetMarkets: Array.isArray(filters.target_markets) && filters.target_markets.length > 0
       ? filters.target_markets.join(',')
       : undefined,
+    hasForeignTrade: typeof filters.has_foreign_trade === 'boolean'
+      ? (filters.has_foreign_trade ? 1 : 0)
+      : undefined,
+    tradeModeId: filters.trade_mode || undefined,
+    hasExportQualification: typeof filters.export_qualification === 'boolean'
+      ? (filters.export_qualification ? 1 : 0)
+      : undefined,
+    tradeTeamModeId: filters.trade_team_mode || undefined,
+    tradeTeamSize: filters.trade_team_size || undefined,
+    crossBorderTeamSize: filters.crossborder_team_size || undefined,
+    logisticsMode: Array.isArray(filters.logistics_mode) && filters.logistics_mode.length > 0
+      ? filters.logistics_mode.join(',')
+      : undefined,
+    paymentMethod: Array.isArray(filters.payment_method) && filters.payment_method.length > 0
+      ? filters.payment_method.join(',')
+      : undefined,
     });
   };
 
-  const normalizeListField = (value: any) => {
-    if (Array.isArray(value)) {
-      return value
-        .map((item: any) => {
-          if (typeof item === 'string') return item;
-          if (item?.market) return item.market;
-          if (item?.name) return item.name;
-          return '';
-        })
-        .filter(Boolean)
-        .join(',');
-    }
-    return value;
+  const buildOverviewQueryParams = (filters = advancedFilters) => {
+    const full = buildListParams(1, pageSize, filters);
+    const { page: _p, pageSize: _ps, ...rest } = full;
+    return rest;
   };
+
+  const normalizeOverviewPayload = (raw: any): EnterpriseOverviewStats => ({
+    totalCount: Number(raw?.totalCount ?? 0),
+    hasDemandCount: Number(raw?.hasDemandCount ?? 0),
+    signedCount: Number(raw?.signedCount ?? 0),
+    totalExportRevenueWan: Number(raw?.totalExportRevenueWan ?? 0),
+    offlineExportRevenueWan: Number(raw?.offlineExportRevenueWan ?? 0),
+    onlineCrossBorderExportRevenueWan: Number(raw?.onlineCrossBorderExportRevenueWan ?? 0),
+  });
+
+  const fetchOverviewStats = async (filters = advancedFilters) => {
+    setOverviewLoading(true);
+    const params = buildOverviewQueryParams(filters) as Record<string, unknown>;
+    try {
+      const [overviewResult, analysisResult] = await Promise.allSettled([
+        enterpriseApi.getOverviewStats(params as any),
+        dashboardApi.getAnalysisStats(params as any),
+      ]);
+
+      if (overviewResult.status === 'fulfilled') {
+        const res: any = overviewResult.value;
+        const payload = res?.data ?? res;
+        if (payload != null && typeof payload === 'object') {
+          setOverviewStats(normalizeOverviewPayload(payload));
+        }
+      } else {
+        console.error('Failed to fetch overview stats:', overviewResult.reason);
+      }
+
+      if (analysisResult.status === 'fulfilled') {
+        const res: any = analysisResult.value;
+        const payload = res?.data ?? res;
+        const list = Array.isArray(payload?.funnelStats) ? payload.funnelStats : [];
+        setFunnelStats(
+          list.map((it: any) => ({
+            code: String(it.code ?? ''),
+            name: String(it.name ?? ''),
+            count: Number(it.count ?? 0),
+          }))
+        );
+      } else {
+        console.error('Failed to fetch funnel stats:', analysisResult.reason);
+      }
+    } catch (error) {
+      console.error('Failed to fetch overview / funnel stats:', error);
+    } finally {
+      setOverviewLoading(false);
+    }
+  };
+
+  /** BankDash「My Expense」式阶段柱图：浅灰柱 + 圆顶 + 当前最高阶段青色高亮 */
+  const stageExpenseBarChart = useMemo(() => {
+    const shortAxis: Record<string, string> = {
+      POTENTIAL: '潜在',
+      NO_DEMAND: '无需求',
+      NO_INTENTION: '无意向',
+      HAS_DEMAND: '有需求',
+      SIGNED: '签约',
+      SETTLED: '入驻',
+      INCUBATING: '孵化',
+    };
+    const barMuted = '#EDF1F7';
+    const barAccent = '#16DBCC';
+    const byCode = new Map(funnelStats.map((s) => [s.code, s]));
+    const ordered = FUNNEL_STAGES.map((stage) => {
+      const item = byCode.get(stage.code);
+      const value = item?.count ?? 0;
+      return {
+        code: stage.code,
+        fullName: item?.name ?? stage.name,
+        short: shortAxis[stage.code] ?? stage.name.slice(0, 2),
+        value,
+      };
+    });
+    let maxIdx = 0;
+    let maxVal = 0;
+    ordered.forEach((d, i) => {
+      if (d.value > maxVal) {
+        maxVal = d.value;
+        maxIdx = i;
+      }
+    });
+    const yMax = maxVal > 0 ? Math.ceil(maxVal * 1.12) : 1;
+    const data = ordered.map((d, i) => ({
+      value: d.value,
+      itemStyle: {
+        color: maxVal > 0 && i === maxIdx ? barAccent : barMuted,
+        borderRadius: [12, 12, 0, 0],
+        shadowBlur: maxVal > 0 && i === maxIdx ? 14 : 0,
+        shadowColor: maxVal > 0 && i === maxIdx ? 'rgba(22, 219, 204, 0.28)' : 'transparent',
+        shadowOffsetY: maxVal > 0 && i === maxIdx ? 6 : 0,
+      },
+    }));
+    return {
+      headlineCount: maxVal,
+      option: {
+        tooltip: {
+          trigger: 'axis' as const,
+          axisPointer: { type: 'none' as const },
+          formatter: (items: { dataIndex: number; value: number }[]) => {
+            const p = items[0];
+            if (!p) return '';
+            const row = ordered[p.dataIndex];
+            return `${row.fullName}<br/>企业数：${p.value}`;
+          },
+        },
+        grid: { left: 6, right: 6, top: 8, bottom: 4, containLabel: true },
+        xAxis: {
+          type: 'category' as const,
+          data: ordered.map((d) => d.short),
+          axisLine: { show: false },
+          axisTick: { show: false },
+          axisLabel: { color: '#8899B0', fontSize: 11, interval: 0, margin: 10 },
+        },
+        yAxis: {
+          type: 'value' as const,
+          max: yMax,
+          show: false,
+        },
+        series: [
+          {
+            type: 'bar' as const,
+            data,
+            barMaxWidth: 22,
+            barCategoryGap: '42%',
+            emphasis: {
+              focus: 'self' as const,
+              itemStyle: {
+                shadowBlur: 18,
+                shadowColor: 'rgba(22, 219, 204, 0.35)',
+              },
+            },
+          },
+        ],
+      },
+    };
+  }, [funnelStats]);
 
   // 加载企业列表
   const fetchEnterprises = async (
@@ -218,8 +545,6 @@ function EnterpriseList() {
           funnel_stage: item.stage,
           contacts: item.contacts || [],
           has_crossborder: item.hasCrossBorder,
-          main_platforms: normalizeListField(item.crossBorderPlatforms),
-          target_markets: normalizeListField(item.targetMarkets),
           created_at: item.createdAt,
         }));
         setEnterprises(list);
@@ -235,16 +560,16 @@ function EnterpriseList() {
   // 加载选项数据
   const fetchOptions = async () => {
     try {
-      const [districtRes, industryRes, funnelRes, staffSizeRes, domesticRevenueRes, crossBorderRevenueRes, sourceRes, automationLevelRes, logisticsRes] = await Promise.all([
+      const [districtRes, industryRes, staffSizeRes, domesticRevenueRes, sourceRes, automationLevelRes, logisticsRes, tradeModeRes, tradeTeamModeRes] = await Promise.all([
         optionsApi.getOptions('district'),
         optionsApi.getIndustries(),
-        dashboardApi.getFunnelStats(),
         optionsApi.getOptions('staff_size'),
         optionsApi.getOptions('domestic_revenue'),
-        optionsApi.getOptions('cross_border_revenue'),
         optionsApi.getOptions('source'),
         optionsApi.getOptions('automation_level'),
         optionsApi.getOptions('logistics'),
+        optionsApi.getOptions('trade_mode'),
+        optionsApi.getOptions('trade_team_mode'),
       ]);
       
       // 区域选项
@@ -273,10 +598,6 @@ function EnterpriseList() {
         setDomesticRevenueOptions(domesticRevenueRes.data.map((item: any) => ({ label: item.label, value: item.id })));
       }
 
-      if (crossBorderRevenueRes.data) {
-        setCrossBorderRevenueOptions(crossBorderRevenueRes.data.map((item: any) => ({ label: item.label, value: item.id })));
-      }
-
       if (sourceRes.data) {
         setSourceOptions(sourceRes.data.map((item: any) => ({ label: item.label, value: item.id })));
       }
@@ -288,10 +609,13 @@ function EnterpriseList() {
       if (logisticsRes.data) {
         setLogisticsOptions(logisticsRes.data.map((item: any) => ({ label: item.label, value: item.id })));
       }
-      
-      // 漏斗统计
-      if (funnelRes.data) {
-        setFunnelStats(funnelRes.data);
+
+      if (tradeModeRes.data) {
+        setTradeModeOptions(tradeModeRes.data.map((item: any) => ({ label: item.label, value: item.id })));
+      }
+
+      if (tradeTeamModeRes.data) {
+        setTradeTeamModeOptions(tradeTeamModeRes.data.map((item: any) => ({ label: item.label, value: item.id })));
       }
     } catch (error) {
       console.error('Failed to fetch options:', error);
@@ -301,12 +625,14 @@ function EnterpriseList() {
   useEffect(() => {
     fetchOptions();
     fetchEnterprises(1, pageSize, {});
+    fetchOverviewStats({});
   }, []);
   
   // 搜索
   const handleSearch = () => {
     setPage(1);
-    fetchEnterprises(1, pageSize);
+    void fetchEnterprises(1, pageSize);
+    void fetchOverviewStats();
   };
 
   // 批量删除
@@ -327,10 +653,32 @@ function EnterpriseList() {
           const res = await enterpriseApi.batchDelete(selectedRowKeys as number[]);
           message.success(`成功删除 ${res.data} 家企业`);
           setSelectedRowKeys([]);
-          fetchEnterprises();
-          dashboardApi.getFunnelStats().then(r => r.data && setFunnelStats(r.data));
+          void fetchEnterprises();
+          void fetchOverviewStats();
         } catch {
           message.error('批量删除失败');
+        }
+      },
+    });
+  };
+
+  const handleDeleteEnterprise = (record: Enterprise) => {
+    Modal.confirm({
+      title: '删除确认',
+      icon: <ExclamationCircleOutlined />,
+      content: `确定要删除企业「${record.enterprise_name}」吗？此操作不可恢复。`,
+      okText: '确定删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        try {
+          await enterpriseApi.delete(record.id);
+          message.success('删除成功');
+          setSelectedRowKeys((keys) => keys.filter((k) => k !== record.id));
+          void fetchEnterprises();
+          void fetchOverviewStats();
+        } catch {
+          message.error('删除失败');
         }
       },
     });
@@ -359,8 +707,8 @@ function EnterpriseList() {
       message.success(`成功变更 ${res.data} 家企业阶段`);
       setSelectedRowKeys([]);
       setBatchStageModalOpen(false);
-      fetchEnterprises();
-      dashboardApi.getFunnelStats().then(r => r.data && setFunnelStats(r.data));
+      void fetchEnterprises();
+      void fetchOverviewStats();
     } catch {
       message.error('批量变更阶段失败');
     }
@@ -373,7 +721,8 @@ function EnterpriseList() {
     'enterprise_type',
     'employee_scale',
     'domestic_revenue',
-    'crossborder_revenue',
+    'crossborder_revenue_min_wan',
+    'crossborder_revenue_max_wan',
     'source',
     'automation_level',
     'local_procurement_ratio',
@@ -386,6 +735,14 @@ function EnterpriseList() {
     'last_followup_days',
     'requirements',
     'has_erp',
+    'has_foreign_trade',
+    'trade_mode',
+    'export_qualification',
+    'trade_team_mode',
+    'trade_team_size',
+    'crossborder_team_size',
+    'logistics_mode',
+    'payment_method',
   ]);
 
   const advancedFilterLabels: Record<string, string> = {
@@ -395,7 +752,8 @@ function EnterpriseList() {
     enterprise_type: '企业类型',
     employee_scale: '人员规模',
     domestic_revenue: '国内营收',
-    crossborder_revenue: '跨境营收',
+    crossborder_revenue_min_wan: '跨境营收≥(万元)',
+    crossborder_revenue_max_wan: '跨境营收≤(万元)',
     source: '企业来源',
     automation_level: '设备自动化程度',
     local_procurement_ratio: '原材料本地采购比例',
@@ -408,12 +766,9 @@ function EnterpriseList() {
     has_erp: '是否在用ERP',
     has_foreign_trade: '是否开展外贸',
     trade_mode: '外贸模式',
-    export_qualification: '进出口资质',
-    export_markets: '主要出口市场',
+    export_qualification: '是否有进出口资质',
     trade_team_mode: '外贸业务团队模式',
     trade_team_size: '外贸团队人数',
-    annual_export_volume: '年出口额',
-    trade_experience_years: '外贸经验年限',
     crossborder_team_size: '跨境团队规模',
     logistics_mode: '跨境物流模式',
     payment_method: '支付结算方式',
@@ -458,27 +813,32 @@ function EnterpriseList() {
 
   const getStageInfo = (code: string) => {
     const stage = FUNNEL_STAGES.find(s => s.code === code);
-    if (!stage) return { name: code, color: '#94a3b8', gradient: 'linear-gradient(135deg, #94a3b8 0%, #64748b 100%)' };
+    if (!stage) return { name: code, color: '#718EBF', gradient: '#718EBF' };
     
-    const gradientMap: Record<string, string> = {
-      'INITIAL': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      'POTENTIAL': 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-      'NO_DEMAND': 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
-      'NO_INTENTION': 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-      'HAS_DEMAND': 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
-      'NEGOTIATING': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-      'SIGNED': 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
-      'SETTLED': 'linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)',
-      'INCUBATING': 'linear-gradient(135deg, #5ee7df 0%, #b490ca 100%)',
-      'CHURNED': 'linear-gradient(135deg, #d299c2 0%, #fef9d7 100%)',
-    };
-    
-    return { ...stage, gradient: gradientMap[code] || stage.color };
+    return { ...stage, gradient: stage.color };
   };
 
   // 使用API返回的数据
   const filteredEnterprises = enterprises;
-  
+
+  const renderAttributePill = (raw: string | undefined | null) => {
+    const text = raw?.trim() ? String(raw) : '—';
+    return (
+      <span className="enterprise-list-cell-pill enterprise-list-cell-pill--default" title={text}>
+        {text}
+      </span>
+    );
+  };
+
+  const renderStagePill = (stage: string) => {
+    const info = getStageInfo(stage);
+    return (
+      <span className="enterprise-list-cell-pill enterprise-list-cell-pill--default" title={info.name}>
+        {info.name}
+      </span>
+    );
+  };
+
   // 应用高级筛选
   const handleApplyFilters = () => {
     const values = filterForm.getFieldsValue();
@@ -493,7 +853,8 @@ function EnterpriseList() {
     setAdvancedFilters(supported);
     setIsFilterModalOpen(false);
     setPage(1);
-    fetchEnterprises(1, pageSize, supported);
+    void fetchEnterprises(1, pageSize, supported);
+    void fetchOverviewStats(supported);
     if (ignoredKeys.length > 0) {
       message.warning(`已应用可用筛选；以下条件当前列表暂不支持：${ignoredKeys.map((key) => advancedFilterLabels[key] || key).join('、')}`);
       return;
@@ -506,175 +867,9 @@ function EnterpriseList() {
     filterForm.resetFields();
     setAdvancedFilters({});
     setPage(1);
-    fetchEnterprises(1, pageSize, {});
+    void fetchEnterprises(1, pageSize, {});
+    void fetchOverviewStats({});
     message.success('筛选条件已重置');
-  };
-
-  // 数据分析 - 使用API返回的漏斗统计数据
-  const filteredStageStats = funnelStats.length > 0 ? funnelStats : FUNNEL_STAGES.map(stage => ({
-    ...stage,
-    count: filteredEnterprises.filter(e => e.funnel_stage === stage.code).length,
-  }));
-  
-  const totalFilteredEnterprises = filteredEnterprises.length;
-  const filteredSignedCount = filteredEnterprises.filter(e => e.funnel_stage === 'SIGNED').length;
-  const filteredSettledCount = filteredEnterprises.filter(e => e.funnel_stage === 'SETTLED').length;
-  const filteredIncubatingCount = filteredEnterprises.filter(e => e.funnel_stage === 'INCUBATING').length;
-  
-  const overallConversionRate = totalFilteredEnterprises > 0 
-    ? ((filteredSignedCount + filteredSettledCount + filteredIncubatingCount) / totalFilteredEnterprises * 100).toFixed(1) 
-    : '0.0';
-  const settlementRate = filteredSignedCount > 0 
-    ? (filteredSettledCount / filteredSignedCount * 100).toFixed(1) 
-    : '0.0';
-
-  // 平台分布统计 - 基于筛选后的企业数据
-  const platformColors = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#84cc16'];
-  const platformStats = (() => {
-    const platformMap = new Map<string, number>();
-    filteredEnterprises.forEach(e => {
-      if (e.main_platforms) {
-        e.main_platforms.split(',').forEach((platform: string) => {
-          const p = platform.trim();
-          if (p) platformMap.set(p, (platformMap.get(p) || 0) + 1);
-        });
-      }
-    });
-    return Array.from(platformMap.entries())
-      .map(([name, value], index) => ({ name, value, itemStyle: { color: platformColors[index % platformColors.length] } }))
-      .sort((a, b) => b.value - a.value);
-  })();
-
-  // 市场分布统计 - 基于筛选后的企业目标地区
-  const marketColors = ['#6366f1', '#22c55e', '#eab308', '#f97316', '#ec4899', '#14b8a6', '#a855f7', '#f43f5e'];
-  const targetMarketStats = (() => {
-    const marketMap = new Map<string, number>();
-    filteredEnterprises.forEach(e => {
-      if (e.target_markets) {
-        e.target_markets.split(',').forEach((market: string) => {
-          const m = market.trim();
-          if (m) marketMap.set(m, (marketMap.get(m) || 0) + 1);
-        });
-      }
-    });
-    return Array.from(marketMap.entries())
-      .map(([name, value], index) => ({ name, value, itemStyle: { color: marketColors[index % marketColors.length] } }))
-      .sort((a, b) => b.value - a.value);
-  })();
-
-  // 调整颜色亮度的辅助函数
-  function adjustColor(color: string, amount: number): string {
-    const hex = color.replace('#', '');
-    const r = Math.min(255, parseInt(hex.slice(0, 2), 16) + amount);
-    const g = Math.min(255, parseInt(hex.slice(2, 4), 16) + amount);
-    const b = Math.min(255, parseInt(hex.slice(4, 6), 16) + amount);
-    return `rgb(${r}, ${g}, ${b})`;
-  }
-
-  // 漏斗柱状图配置 - 使用筛选后的数据
-  const funnelOption = {
-    tooltip: { 
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' },
-      formatter: (params: Array<{ name: string; value: number; color: string }>) => {
-        const item = params[0];
-        return `<div style="font-weight:500">${item.name}</div><div style="color:${item.color};font-size:16px;font-weight:600">${item.value}家</div>`;
-      },
-      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-      borderColor: '#e5e7eb',
-      borderWidth: 1,
-      extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px;',
-    },
-    grid: { left: '3%', right: '8%', bottom: '3%', top: '10%', containLabel: true },
-    xAxis: {
-      type: 'category',
-      data: filteredStageStats.map(s => s.name),
-      axisLabel: { interval: 0, fontSize: 11, color: '#666' },
-      axisLine: { lineStyle: { color: '#e5e7eb' } },
-      axisTick: { show: false },
-    },
-    yAxis: {
-      type: 'value',
-      axisLabel: { color: '#999', fontSize: 11 },
-      axisLine: { show: false },
-      splitLine: { lineStyle: { color: '#f0f0f0', type: 'dashed' } },
-    },
-    series: [{
-      type: 'bar',
-      barWidth: '50%',
-      data: filteredStageStats.map(stage => ({
-        value: stage.count,
-        itemStyle: {
-          color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: stage.color }, { offset: 1, color: adjustColor(stage.color, 30) }] },
-          borderRadius: [6, 6, 0, 0],
-        },
-      })),
-      label: { show: true, position: 'top', formatter: '{c}家', fontSize: 12, fontWeight: 600, color: '#333' },
-    }],
-  };
-
-  // 平台分布饼状图配置
-  const platformPieOption = {
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}: {c}家 ({d}%)',
-      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-      borderColor: '#e5e7eb',
-      borderWidth: 1,
-      extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px;',
-    },
-    legend: { show: false },
-    series: [{
-      type: 'pie',
-      radius: ['35%', '65%'],
-      center: ['50%', '50%'],
-      avoidLabelOverlap: true,
-      itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
-      label: { 
-        show: true, 
-        formatter: '{b}\n{c}家',
-        fontSize: 11,
-        color: '#333',
-        lineHeight: 16,
-      },
-      labelLine: { show: true, length: 10, length2: 8 },
-      emphasis: {
-        itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.2)' },
-      },
-      data: platformStats.length > 0 ? platformStats : [{ name: '暂无数据', value: 1, itemStyle: { color: '#e5e7eb' } }],
-    }],
-  };
-
-  // 市场分布饼状图配置
-  const targetMarketPieOption = {
-    tooltip: {
-      trigger: 'item',
-      formatter: '{b}: {c}家 ({d}%)',
-      backgroundColor: 'rgba(255, 255, 255, 0.95)',
-      borderColor: '#e5e7eb',
-      borderWidth: 1,
-      extraCssText: 'box-shadow: 0 4px 12px rgba(0,0,0,0.1); border-radius: 8px;',
-    },
-    legend: { show: false },
-    series: [{
-      type: 'pie',
-      radius: ['35%', '65%'],
-      center: ['50%', '50%'],
-      avoidLabelOverlap: true,
-      itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
-      label: { 
-        show: true, 
-        formatter: '{b}\n{c}家',
-        fontSize: 11,
-        color: '#333',
-        lineHeight: 16,
-      },
-      labelLine: { show: true, length: 10, length2: 8 },
-      emphasis: {
-        itemStyle: { shadowBlur: 10, shadowOffsetX: 0, shadowColor: 'rgba(0, 0, 0, 0.2)' },
-      },
-      data: targetMarketStats.length > 0 ? targetMarketStats : [{ name: '暂无数据', value: 1, itemStyle: { color: '#e5e7eb' } }],
-    }],
   };
 
   const columns: ColumnsType<Enterprise> = [
@@ -682,130 +877,126 @@ function EnterpriseList() {
       title: '企业名称',
       dataIndex: 'enterprise_name',
       key: 'enterprise_name',
-      render: (text, record) => (
-        <div style={{ padding: '4px 0' }}>
-          <div style={{ 
-            fontWeight: 600, 
-            fontSize: 14,
-            color: '#1a1a2e',
-            marginBottom: 4
-          }}>
-            {text}
+      width: '28%',
+      ellipsis: true,
+      render: (text, record) => {
+        const contactLine = getEnterpriseListContactSubline(record.contacts as ListContactRaw[]);
+        const sublineText = contactLine || '暂无联系方式';
+        return (
+          <div
+            style={{
+              minHeight: 48,
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              minWidth: 0,
+              overflow: 'hidden',
+            }}
+          >
+            <div
+              className="enterprise-list-name-link"
+              role="link"
+              tabIndex={0}
+              onClick={() => navigate(`/enterprise/${record.id}`)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  navigate(`/enterprise/${record.id}`);
+                }
+              }}
+              title={typeof text === 'string' ? text : undefined}
+            >
+              {text}
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                lineHeight: '22px',
+                minHeight: 22,
+                color: '#8c8c8c',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                minWidth: 0,
+              }}
+              title={sublineText}
+            >
+              <span
+                style={{
+                  display: 'inline-block',
+                  flexShrink: 0,
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  background: '#16DBCC',
+                }}
+                aria-hidden
+              />
+              <span
+                style={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  minWidth: 0,
+                  flex: 1,
+                }}
+              >
+                {sublineText}
+              </span>
+            </div>
           </div>
-          <div style={{ 
-            fontSize: 12, 
-            color: '#8c8c8c',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 4
-          }}>
-            <span style={{
-              display: 'inline-block',
-              width: 6,
-              height: 6,
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)'
-            }} />
-            {record.contacts[0]?.phone}
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       title: '区域',
       dataIndex: 'district',
       key: 'district',
-      width: 100,
-      render: (text) => (
-        <span style={{ 
-          color: '#555',
-          fontSize: 13
-        }}>
-          {text}
-        </span>
-      ),
+      width: '15%',
+      align: 'center',
+      render: (text) => renderAttributePill(text as string | undefined),
     },
     {
       title: '行业',
       dataIndex: 'industry',
       key: 'industry',
-      width: 100,
-      render: (text) => (
-        <span style={{ 
-          color: '#555',
-          fontSize: 13
-        }}>
-          {text}
-        </span>
-      ),
+      width: '15%',
+      align: 'center',
+      render: (text) => renderAttributePill(text as string | undefined),
     },
     {
       title: '类型',
       dataIndex: 'enterprise_type',
       key: 'enterprise_type',
-      width: 100,
-      render: (text) => (
-        <span style={{
-          padding: '4px 10px',
-          borderRadius: 6,
-          background: 'rgba(102, 126, 234, 0.08)',
-          color: '#667eea',
-          fontSize: 12,
-          fontWeight: 500
-        }}>
-          {text}
-        </span>
-      ),
+      width: '15%',
+      align: 'center',
+      render: (text) => renderAttributePill(text as string | undefined),
     },
     {
       title: '漏斗阶段',
       dataIndex: 'funnel_stage',
       key: 'funnel_stage',
-      width: 130,
-      render: (stage: string) => {
-        const info = getStageInfo(stage);
-        return (
-          <span style={{
-            display: 'inline-block',
-            padding: '5px 12px',
-            borderRadius: 20,
-            background: info.gradient,
-            color: '#fff',
-            fontSize: 12,
-            fontWeight: 500,
-            boxShadow: '0 2px 6px rgba(0,0,0,0.1)'
-          }}>
-            {info.name}
-          </span>
-        );
-      },
+      width: '15%',
+      align: 'center',
+      render: (stage: string) => renderStagePill(stage),
     },
     {
       title: '操作',
       key: 'action',
-      width: 100,
+      width: 88,
       render: (_, record) => (
-        <Space size={4}>
-          <Button
-            type="text"
-            icon={<EyeOutlined style={{ color: '#667eea' }} />}
-            onClick={() => navigate(`/enterprise/${record.id}`)}
-            style={{ 
-              borderRadius: 8,
-              width: 32,
-              height: 32
-            }}
-          />
-          <Button 
-            type="text" 
-            icon={<EditOutlined style={{ color: '#43e97b' }} />}
-            style={{ 
-              borderRadius: 8,
-              width: 32,
-              height: 32
-            }}
-          />
-        </Space>
+        <Button
+          type="text"
+          danger
+          icon={<DeleteOutlined />}
+          onClick={() => handleDeleteEnterprise(record)}
+          style={{
+            borderRadius: 8,
+            width: 32,
+            height: 32,
+          }}
+          title="删除"
+        />
       ),
     },
   ];
@@ -836,199 +1027,258 @@ function EnterpriseList() {
 
   return (
     <div>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: 24,
-        padding: '0 4px'
-      }}>
-        <div>
-          <Title level={4} style={{ margin: 0, fontWeight: 700 }}>企业管理</Title>
-          <Text type="secondary">管理和查看所有企业信息</Text>
+      <div className="enterprise-bankdash-overview">
+        <div className="enterprise-bankdash-overview__left">
+          <div className="enterprise-bankdash-section-head">
+            <span className="enterprise-bankdash-section-head__title">企业卡片</span>
+          </div>
+          <div className="enterprise-bankdash-cards">
+            <OverviewEnterpriseCountCard
+              totalCount={overviewStats.totalCount}
+              hasDemandCount={overviewStats.hasDemandCount}
+              signedCount={overviewStats.signedCount}
+              loading={overviewLoading}
+            />
+            <OverviewExportRevenueCard
+              totalWan={overviewStats.totalExportRevenueWan}
+              offlineWan={overviewStats.offlineExportRevenueWan}
+              onlineWan={overviewStats.onlineCrossBorderExportRevenueWan}
+              loading={overviewLoading}
+            />
+          </div>
         </div>
-        <Space size={12}>
-          <Button 
-            icon={<UploadOutlined />} 
-            onClick={() => setIsImportModalOpen(true)}
-            style={{ 
-              borderRadius: 10,
-              height: 40,
-              fontWeight: 500
-            }}
-          >
-            导入
-          </Button>
-          <Button 
-            icon={<DownloadOutlined />} 
-            onClick={() => setIsExportModalOpen(true)}
-            style={{ 
-              borderRadius: 10,
-              height: 40,
-              fontWeight: 500
-            }}
-          >
-            导出
-          </Button>
-          <Button 
-            type="primary" 
-            icon={isCreating ? <LoadingOutlined /> : <PlusOutlined />} 
-            onClick={handleAddEnterprise}
-            loading={isCreating}
-            style={{ 
-              borderRadius: 10,
-              height: 40,
-              fontWeight: 500,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              border: 'none',
-              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.4)'
-            }}
-          >
-            新增企业
-          </Button>
-        </Space>
+
+        <div className="enterprise-expense-card">
+          <div className="enterprise-bankdash-section-head enterprise-bankdash-section-head--compact">
+            <span className="enterprise-bankdash-section-head__title">阶段分布</span>
+            <span className="enterprise-bankdash-section-head__headline-value">
+              {overviewLoading ? '—' : stageExpenseBarChart.headlineCount.toLocaleString('zh-CN')}
+            </span>
+          </div>
+
+          <div className="enterprise-expense-chart-panel">
+            {overviewLoading ? (
+              <div className="enterprise-expense-chart-panel__loading">
+                <Spin />
+              </div>
+            ) : (
+              <ReactECharts
+                option={stageExpenseBarChart.option}
+                style={{ height: 200, width: '100%' }}
+                opts={{ renderer: 'svg' }}
+              />
+            )}
+          </div>
+        </div>
       </div>
 
       <Card 
         style={{ 
           marginBottom: 16, 
-          borderRadius: 16, 
+          borderRadius: 25, 
           border: 'none',
           boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
         }}
         styles={{ body: { padding: '20px 24px' } }}
       >
-        <Space wrap size={16}>
-          <Input
-            placeholder="搜索企业名称..."
-            prefix={<SearchOutlined style={{ color: '#999' }} />}
-            style={{ 
-              width: 280,
-              borderRadius: 10,
-              height: 40
-            }}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            allowClear
-          />
-          <Select
-            placeholder="所属阶段"
-            style={{ width: 140, height: 40 }}
-            allowClear
-            value={stageFilter || undefined}
-            onChange={(value) => setStageFilter(value || '')}
-            options={FUNNEL_STAGES.map(s => ({ label: s.name, value: s.code }))}
-          />
-          <Select
-            placeholder="所属区域"
-            style={{ width: 130, height: 40 }}
-            allowClear
-            value={districtFilter || undefined}
-            onChange={(value) => setDistrictFilter(value || '')}
-            options={districts.map(d => ({ label: d, value: d }))}
-          />
-          <Select
-            placeholder="所属行业"
-            style={{ width: 130, height: 40 }}
-            allowClear
-            value={industryFilter}
-            onChange={(value) => setIndustryFilter(value)}
-            options={industries.map(i => ({ label: i.name, value: i.id }))}
-          />
-          <Button
-            type="primary"
-            icon={<SearchOutlined />}
-            onClick={handleSearch}
-            style={{
-              borderRadius: 10,
-              height: 40,
-              fontWeight: 500,
-              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-              border: 'none',
-            }}
-          >
-            搜索
-          </Button>
-          <Badge count={activeFilterCount} size="small" offset={[-5, 5]}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 16,
+            justifyContent: 'space-between',
+          }}
+        >
+          <Space wrap size={16} style={{ flex: '1 1 auto', minWidth: 0 }}>
+            <EnterpriseSearch
+              value={searchTerm}
+              onChange={setSearchTerm}
+              onSearch={handleSearch}
+              placeholder="搜索企业名称..."
+              style={{ width: 280 }}
+            />
+            <Select
+              placeholder="所属阶段"
+              style={{ width: 140, height: 40 }}
+              allowClear
+              value={stageFilter || undefined}
+              onChange={(value) => setStageFilter(value || '')}
+              options={FUNNEL_STAGES.map(s => ({ label: s.name, value: s.code }))}
+            />
+            <Select
+              placeholder="所属区域"
+              style={{ width: 130, height: 40 }}
+              allowClear
+              value={districtFilter || undefined}
+              onChange={(value) => setDistrictFilter(value || '')}
+              options={districts.map(d => ({ label: d, value: d }))}
+            />
+            <Select
+              placeholder="所属行业"
+              style={{ width: 130, height: 40 }}
+              allowClear
+              value={industryFilter}
+              onChange={(value) => setIndustryFilter(value)}
+              options={industries.map(i => ({ label: i.name, value: i.id }))}
+            />
             <Button
-              icon={<FilterOutlined />}
-              onClick={() => setIsFilterModalOpen(true)}
+              type="primary"
+              icon={<SearchOutlined />}
+              onClick={handleSearch}
               style={{
-                borderRadius: 10,
+                borderRadius: 12,
                 height: 40,
                 fontWeight: 500,
-                borderColor: activeFilterCount > 0 ? '#667eea' : undefined,
-                color: activeFilterCount > 0 ? '#667eea' : undefined,
+                background: '#396AFF',
+                border: 'none',
               }}
             >
-              高级筛选
+              搜索
             </Button>
-          </Badge>
-          {activeFilterCount > 0 && (
+            <Badge count={activeFilterCount} size="small" offset={[-5, 5]}>
+              <Button
+                icon={<FilterOutlined />}
+                onClick={() => setIsFilterModalOpen(true)}
+                style={{
+                  borderRadius: 12,
+                  height: 40,
+                  fontWeight: 500,
+                  borderColor: activeFilterCount > 0 ? '#396AFF' : undefined,
+                  color: activeFilterCount > 0 ? '#396AFF' : undefined,
+                }}
+              >
+                高级筛选
+              </Button>
+            </Badge>
+            {activeFilterCount > 0 && (
+              <Button
+                type="text"
+                icon={<CloseCircleOutlined />}
+                onClick={handleResetFilters}
+                style={{ color: '#999', height: 40 }}
+              >
+                清除筛选
+              </Button>
+            )}
+          </Space>
+          <Space size={12} wrap style={{ flexShrink: 0, marginLeft: 'auto' }}>
+            <Select
+              value={pageSize}
+              options={ENTERPRISE_PAGE_SIZE_OPTIONS}
+              onChange={(size) => {
+                setPage(1);
+                setPageSize(size);
+                void fetchEnterprises(1, size);
+              }}
+              style={{ width: 118, height: 40 }}
+              styles={{ popup: { root: { minWidth: 112 } } }}
+            />
             <Button
-              type="text"
-              icon={<CloseCircleOutlined />}
-              onClick={handleResetFilters}
-              style={{ color: '#999', height: 40 }}
+              icon={<UploadOutlined />}
+              onClick={() => setIsImportModalOpen(true)}
+              style={{
+                borderRadius: 12,
+                height: 40,
+                fontWeight: 500,
+              }}
             >
-              清除筛选
+              导入
             </Button>
-          )}
-        </Space>
+            <Button
+              icon={<DownloadOutlined />}
+              onClick={() => setIsExportModalOpen(true)}
+              style={{
+                borderRadius: 12,
+                height: 40,
+                fontWeight: 500,
+              }}
+            >
+              导出
+            </Button>
+            <Button
+              type="primary"
+              icon={isCreating ? <LoadingOutlined /> : <PlusOutlined />}
+              onClick={handleAddEnterprise}
+              loading={isCreating}
+              style={{
+                borderRadius: 12,
+                height: 40,
+                fontWeight: 500,
+                background: '#396AFF',
+                border: 'none',
+                boxShadow: '0 4px 12px rgba(57, 106, 255, 0.4)',
+              }}
+            >
+              新增企业
+            </Button>
+          </Space>
+        </div>
       </Card>
 
       <Card
         style={{ 
-          borderRadius: 16, 
+          borderRadius: 25, 
           border: 'none',
           boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
         }}
         styles={{ body: { padding: '8px 0' } }}
       >
-        {selectedRowKeys.length > 0 && (
-          <div style={{
-            padding: '12px 24px',
-            background: 'linear-gradient(135deg, #e6f7ff 0%, #f0f5ff 100%)',
-            borderBottom: '1px solid #d6e4ff',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-          }}>
-            <Text>
-              已选择 <Text strong style={{ color: '#667eea' }}>{selectedRowKeys.length}</Text> 家企业
-            </Text>
-            <Space>
-              <Button
-                icon={<SwapOutlined />}
-                onClick={handleBatchStageChange}
-                style={{ borderRadius: 8 }}
-              >
-                批量变更阶段
-              </Button>
-              <Button
-                danger
-                icon={<DeleteOutlined />}
-                onClick={handleBatchDelete}
-                style={{ borderRadius: 8 }}
-              >
-                批量删除
-              </Button>
-              <Button
-                type="text"
-                onClick={() => setSelectedRowKeys([])}
-                style={{ color: '#999' }}
-              >
-                取消选择
-              </Button>
-            </Space>
-          </div>
-        )}
+        <div
+          style={{
+            minHeight: SELECTION_ACTION_BAR_SLOT_MIN_PX,
+            boxSizing: 'border-box',
+          }}
+        >
+          {selectedRowKeys.length > 0 ? (
+            <div
+              className="enterprise-list-batch-bar"
+              style={{
+                padding: '12px 24px',
+                background: 'rgba(57, 106, 255, 0.04)',
+                borderBottom: '1px solid rgba(57, 106, 255, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
+            >
+              <Text>
+                已选择 <Text strong style={{ color: '#396AFF' }}>{selectedRowKeys.length}</Text> 家企业
+              </Text>
+              <Space>
+                <Button
+                  icon={<SwapOutlined />}
+                  onClick={handleBatchStageChange}
+                  style={{ borderRadius: 8 }}
+                >
+                  批量变更阶段
+                </Button>
+                <Button
+                  danger
+                  icon={<DeleteOutlined />}
+                  onClick={handleBatchDelete}
+                  style={{ borderRadius: 8 }}
+                >
+                  批量删除
+                </Button>
+                <Button
+                  type="text"
+                  onClick={() => setSelectedRowKeys([])}
+                  style={{ color: '#999' }}
+                >
+                  取消选择
+                </Button>
+              </Space>
+            </div>
+          ) : null}
+        </div>
         <Table
           columns={columns}
           dataSource={filteredEnterprises}
           rowKey="id"
           loading={loading}
           rowSelection={{
+            columnWidth: 48,
             selectedRowKeys,
             onChange: (keys) => setSelectedRowKeys(keys),
           }}
@@ -1036,145 +1286,25 @@ function EnterpriseList() {
             current: page,
             total: _total,
             pageSize: pageSize,
-            onChange: (current, size) => {
-              const nextPageSize = size || pageSize;
-              const nextPage = nextPageSize !== pageSize ? 1 : current;
-              setPage(nextPage);
-              setPageSize(nextPageSize);
-              fetchEnterprises(nextPage, nextPageSize);
-            },
-            onShowSizeChange: (_, size) => {
-              setPage(1);
-              setPageSize(size);
-              fetchEnterprises(1, size);
+            onChange: (current) => {
+              setPage(current);
+              void fetchEnterprises(current, pageSize);
             },
             showTotal: (total) => (
               <span style={{ color: '#666' }}>
-                共 <span style={{ color: '#667eea', fontWeight: 600 }}>{total}</span> 条记录
+                共 <span style={{ color: '#396AFF', fontWeight: 600 }}>{total}</span> 条记录
               </span>
             ),
-            showSizeChanger: true,
+            showSizeChanger: false,
             style: { padding: '16px 24px' }
           }}
-          style={{ 
-            borderRadius: 12
+          className="enterprise-list-table"
+          style={{
+            borderRadius: 12,
           }}
           rowClassName={() => 'custom-table-row'}
         />
       </Card>
-
-      {/* 数据分析区域 */}
-      <div style={{ marginTop: 24 }}>
-        <div style={{ marginBottom: 16 }}>
-          <Title level={5} style={{ margin: 0, fontWeight: 600 }}>数据分析</Title>
-          <Text type="secondary" style={{ fontSize: 13 }}>基于当前筛选条件的企业数据统计分析</Text>
-        </div>
-        <Row gutter={[16, 16]}>
-          {/* 第一行：阶段分布 + 关键指标 */}
-          <Col xs={24} lg={14}>
-            <Card 
-              title="阶段分布" 
-              style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', height: '100%' }}
-            >
-              <ReactECharts option={funnelOption} style={{ height: 240 }} />
-            </Card>
-          </Col>
-          <Col xs={24} lg={10}>
-            <Card 
-              title="关键指标" 
-              style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', height: '100%' }}
-              styles={{ body: { display: 'flex', flexDirection: 'column', justifyContent: 'center', height: 'calc(100% - 57px)' } }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                <div style={{ textAlign: 'center', padding: '20px 0', background: 'linear-gradient(135deg, #e6f7ff 0%, #bae7ff 100%)', borderRadius: 12 }}>
-                  <div style={{ fontSize: 13, color: '#1890ff', marginBottom: 8, fontWeight: 500 }}>筛选企业数</div>
-                  <div style={{ fontSize: 36, fontWeight: 700, color: '#1890ff' }}>{totalFilteredEnterprises}<span style={{ fontSize: 16, fontWeight: 500 }}>家</span></div>
-                </div>
-                <Row gutter={12}>
-                  <Col span={12}>
-                    <div style={{ textAlign: 'center', padding: '16px 0', background: 'linear-gradient(135deg, #f6ffed 0%, #d9f7be 100%)', borderRadius: 12 }}>
-                      <div style={{ fontSize: 12, color: '#52c41a', marginBottom: 6, fontWeight: 500 }}><RiseOutlined /> 整体转化</div>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: '#52c41a' }}>{overallConversionRate}%</div>
-                    </div>
-                  </Col>
-                  <Col span={12}>
-                    <div style={{ textAlign: 'center', padding: '16px 0', background: 'linear-gradient(135deg, #f9f0ff 0%, #efdbff 100%)', borderRadius: 12 }}>
-                      <div style={{ fontSize: 12, color: '#722ed1', marginBottom: 6, fontWeight: 500 }}>入驻转化</div>
-                      <div style={{ fontSize: 24, fontWeight: 700, color: '#722ed1' }}>{settlementRate}%</div>
-                    </div>
-                  </Col>
-                </Row>
-              </div>
-            </Card>
-          </Col>
-          {/* 第二行：平台分布 + 市场分布 */}
-          <Col xs={24} lg={12}>
-            <Card 
-              title="平台分布" 
-              style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
-            >
-              <ReactECharts option={platformPieOption} style={{ height: 260 }} />
-            </Card>
-          </Col>
-          <Col xs={24} lg={12}>
-            <Card 
-              title="市场分布" 
-              style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
-            >
-              <ReactECharts option={targetMarketPieOption} style={{ height: 260 }} />
-            </Card>
-          </Col>
-        </Row>
-        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-          <Col span={24}>
-            <Card 
-              title="阶段转化率" 
-              style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
-            >
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                {(() => {
-                  const conversionPaths = [
-                    { from: 'POTENTIAL', to: 'NO_DEMAND' },
-                    { from: 'POTENTIAL', to: 'HAS_DEMAND' },
-                    { from: 'NO_DEMAND', to: 'NO_INTENTION', isNegative: true },
-                    { from: 'NO_DEMAND', to: 'HAS_DEMAND' },
-                    { from: 'HAS_DEMAND', to: 'SIGNED' },
-                    { from: 'SIGNED', to: 'SETTLED' },
-                    { from: 'SETTLED', to: 'INCUBATING' },
-                  ];
-                  return conversionPaths.map((path) => {
-                    const fromStage = filteredStageStats.find(s => s.code === path.from);
-                    const toStage = filteredStageStats.find(s => s.code === path.to);
-                    if (!fromStage || !toStage) return null;
-                    const rate = fromStage.count > 0 ? (toStage.count / fromStage.count) * 100 : 0;
-                    return (
-                      <div key={`${path.from}-${path.to}`} style={{ 
-                        flex: '1 1 calc(50% - 6px)', minWidth: 280,
-                        display: 'flex', alignItems: 'center', gap: 10,
-                        padding: '8px 12px', borderRadius: 8,
-                        background: path.isNegative 
-                          ? 'linear-gradient(135deg, rgba(239,68,68,0.05) 0%, rgba(0,0,0,0) 100%)'
-                          : 'linear-gradient(135deg, rgba(0,0,0,0.02) 0%, rgba(0,0,0,0) 100%)',
-                      }}>
-                        <div style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: fromStage.color }} />
-                        <span style={{ width: 70, fontSize: 12, fontWeight: 500 }}>{fromStage.name}</span>
-                        <ArrowRightOutlined style={{ color: path.isNegative ? '#ef4444' : '#bbb', fontSize: 10 }} />
-                        <span style={{ width: 80, fontSize: 12, color: path.isNegative ? '#ef4444' : '#666' }}>{toStage.name}</span>
-                        <div style={{ flex: 1, minWidth: 60 }}>
-                          <Progress percent={Math.min(Number(rate.toFixed(1)), 100)} size="small" 
-                            strokeColor={path.isNegative ? '#ef4444' : { '0%': fromStage.color, '100%': toStage.color }}
-                            trailColor="#f0f0f0" style={{ margin: 0 }} />
-                        </div>
-                        <span style={{ width: 50, textAlign: 'right', fontWeight: 600, color: path.isNegative ? '#ef4444' : '#333', fontSize: 12 }}>{rate.toFixed(1)}%</span>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
-            </Card>
-          </Col>
-        </Row>
-      </div>
 
       <Modal
         title="新增企业"
@@ -1199,7 +1329,7 @@ function EnterpriseList() {
             </Col>
             <Col span={12}>
               <Form.Item name="enterprise_type" label="企业类型" rules={[{ required: true, message: '请选择企业类型' }]}>
-                <Select placeholder="请选择" options={ENTERPRISE_TYPES.map(t => ({ label: t, value: t }))} />
+                <Select placeholder="请选择" options={ENTERPRISE_TYPE_OPTIONS} />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -1283,8 +1413,8 @@ function EnterpriseList() {
               </Form.Item>
             </Col>
             <Col span={8}>
-              <Form.Item name="crossborder_revenue" label="跨境营收(万元)">
-                <Select placeholder="请选择" options={REVENUE_SCALES.map(r => ({ label: r, value: r }))} />
+              <Form.Item name="crossborder_revenue_wan" label="跨境营收(万元)">
+                <InputNumber min={0} placeholder="请输入数字" style={{ width: '100%' }} />
               </Form.Item>
             </Col>
             <Col span={24}>
@@ -1340,7 +1470,8 @@ function EnterpriseList() {
             }
             setIsImportModalOpen(false);
             setImportFile(null);
-            fetchEnterprises();
+            void fetchEnterprises();
+            void fetchOverviewStats();
           } catch (error: any) {
             message.error(error.message || '导入失败');
           } finally {
@@ -1366,7 +1497,7 @@ function EnterpriseList() {
           justifyContent: 'space-between',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FileExcelOutlined style={{ color: '#52c41a', fontSize: 18 }} />
+            <FileExcelOutlined style={{ color: '#16DBCC', fontSize: 18 }} />
             <Text type="secondary">首次导入？请先下载标准模板，按格式填写后上传</Text>
           </div>
           <Button
@@ -1431,8 +1562,6 @@ function EnterpriseList() {
                 funnel_stage: item.stage,
                 contacts: item.contacts || [],
                 has_crossborder: item.hasCrossBorder,
-                main_platforms: normalizeListField(item.crossBorderPlatforms),
-                target_markets: normalizeListField(item.targetMarkets),
                 created_at: item.createdAt,
               }));
               if (list.length === 0) {
@@ -1518,7 +1647,7 @@ function EnterpriseList() {
       <Modal
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <FilterOutlined style={{ color: '#667eea' }} />
+            <FilterOutlined style={{ color: '#396AFF' }} />
             <span>高级筛选条件</span>
           </div>
         }
@@ -1534,8 +1663,9 @@ function EnterpriseList() {
                 type="primary" 
                 onClick={handleApplyFilters}
                 style={{
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  border: 'none'
+                  background: '#396AFF',
+                  border: 'none',
+                  borderRadius: 12,
                 }}
               >
                 应用筛选
@@ -1591,12 +1721,7 @@ function EnterpriseList() {
                         <Select 
                           placeholder="请选择" 
                           allowClear
-                          options={[
-                            { label: '工厂型', value: '工厂型' },
-                            { label: '贸易型', value: '贸易型' },
-                            { label: '工贸一体', value: '工贸一体' },
-                            { label: '初创/SOHO', value: '初创/SOHO' },
-                          ]} 
+                          options={ENTERPRISE_TYPE_OPTIONS} 
                         />
                       </Form.Item>
                     </Col>
@@ -1611,8 +1736,13 @@ function EnterpriseList() {
                       </Form.Item>
                     </Col>
                     <Col span={8}>
-                      <Form.Item name="crossborder_revenue" label="跨境营收(万元)">
-                        <Select placeholder="请选择" allowClear options={crossBorderRevenueOptions} />
+                      <Form.Item name="crossborder_revenue_min_wan" label="跨境营收≥(万元)">
+                        <InputNumber min={0} placeholder="最小" style={{ width: '100%' }} />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="crossborder_revenue_max_wan" label="跨境营收≤(万元)">
+                        <InputNumber min={0} placeholder="最大" style={{ width: '100%' }} />
                       </Form.Item>
                     </Col>
                     <Col span={8}>
@@ -1681,52 +1811,20 @@ function EnterpriseList() {
                     <Col span={8}>
                       <Form.Item name="trade_mode" label="外贸模式">
                         <Select 
-                          mode="multiple"
                           placeholder="请选择" 
                           allowClear 
-                          options={[
-                            { label: '0110', value: '0110' },
-                            { label: '1039', value: '1039' },
-                            { label: '9610', value: '9610' },
-                            { label: '9710', value: '9710' },
-                            { label: '9810', value: '9810' },
-                            { label: '1210', value: '1210' },
-                            { label: '0139', value: '0139' },
-                            { label: '8000', value: '8000' },
-                          ]} 
+                          options={tradeModeOptions} 
                         />
                       </Form.Item>
                     </Col>
                     <Col span={8}>
-                      <Form.Item name="export_qualification" label="进出口资质">
+                      <Form.Item name="export_qualification" label="是否有进出口资质">
                         <Select 
-                          mode="multiple"
                           placeholder="请选择" 
                           allowClear 
                           options={[
-                            { label: '进出口经营权', value: '进出口经营权' },
-                            { label: '海关注册', value: '海关注册' },
-                            { label: 'AEO认证', value: 'AEO认证' },
-                            { label: '出口退税资质', value: '出口退税资质' },
-                            { label: '无资质(代理出口)', value: '无资质' },
-                          ]} 
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item name="export_markets" label="主要出口市场">
-                        <Select 
-                          mode="multiple" 
-                          placeholder="请选择" 
-                          allowClear 
-                          options={[
-                            { label: '北美', value: '北美' },
-                            { label: '欧洲', value: '欧洲' },
-                            { label: '东南亚', value: '东南亚' },
-                            { label: '中东', value: '中东' },
-                            { label: '南美', value: '南美' },
-                            { label: '非洲', value: '非洲' },
-                            { label: '大洋洲', value: '大洋洲' },
+                            { label: '有', value: true },
+                            { label: '无', value: false },
                           ]} 
                         />
                       </Form.Item>
@@ -1736,12 +1834,7 @@ function EnterpriseList() {
                         <Select 
                           placeholder="请选择" 
                           allowClear 
-                          options={[
-                            { label: '自建团队', value: '自建团队' },
-                            { label: '外包/代运营', value: '外包/代运营' },
-                            { label: '混合模式', value: '混合模式' },
-                            { label: '无专职团队', value: '无专职团队' },
-                          ]} 
+                          options={tradeTeamModeOptions} 
                         />
                       </Form.Item>
                     </Col>
@@ -1756,36 +1849,6 @@ function EnterpriseList() {
                             { label: '4-10人', value: '4-10人' },
                             { label: '11-30人', value: '11-30人' },
                             { label: '30人以上', value: '30人以上' },
-                          ]} 
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item name="annual_export_volume" label="年出口额">
-                        <Select 
-                          placeholder="请选择" 
-                          allowClear 
-                          options={[
-                            { label: '100万美元以下', value: '100万美元以下' },
-                            { label: '100-500万美元', value: '100-500万美元' },
-                            { label: '500-1000万美元', value: '500-1000万美元' },
-                            { label: '1000-5000万美元', value: '1000-5000万美元' },
-                            { label: '5000万美元以上', value: '5000万美元以上' },
-                          ]} 
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item name="trade_experience_years" label="外贸经验年限">
-                        <Select 
-                          placeholder="请选择" 
-                          allowClear 
-                          options={[
-                            { label: '无经验', value: '无经验' },
-                            { label: '1-3年', value: '1-3年' },
-                            { label: '3-5年', value: '3-5年' },
-                            { label: '5-10年', value: '5-10年' },
-                            { label: '10年以上', value: '10年以上' },
                           ]} 
                         />
                       </Form.Item>
@@ -1945,14 +2008,14 @@ function EnterpriseList() {
                             fontSize: 13, 
                             marginBottom: 8,
                             padding: '4px 10px',
-                            background: phase === '战略规划与资源准备' ? 'rgba(102,126,234,0.1)' :
-                                       phase === '渠道搭建与商品上线' ? 'rgba(67,233,123,0.1)' :
-                                       phase === '营销推广与规模增长' ? 'rgba(249,115,22,0.1)' :
-                                       'rgba(139,92,246,0.1)',
-                            color: phase === '战略规划与资源准备' ? '#667eea' :
-                                   phase === '渠道搭建与商品上线' ? '#22c55e' :
-                                   phase === '营销推广与规模增长' ? '#f97316' :
-                                   '#8b5cf6',
+                            background: phase === '战略规划与资源准备' ? 'rgba(57,106,255,0.1)' :
+                                       phase === '渠道搭建与商品上线' ? 'rgba(22,219,204,0.1)' :
+                                       phase === '营销推广与规模增长' ? 'rgba(255,107,53,0.1)' :
+                                       'rgba(123,97,255,0.1)',
+                            color: phase === '战略规划与资源准备' ? '#396AFF' :
+                                   phase === '渠道搭建与商品上线' ? '#16DBCC' :
+                                   phase === '营销推广与规模增长' ? '#FF6B35' :
+                                   '#7B61FF',
                             borderRadius: 6,
                             display: 'inline-block'
                           }}>
@@ -2006,7 +2069,7 @@ function EnterpriseList() {
       >
         <div style={{ marginTop: 16 }}>
           <Text style={{ marginBottom: 16, display: 'block' }}>
-            将选中的 <Text strong style={{ color: '#667eea' }}>{selectedRowKeys.length}</Text> 家企业变更至：
+            将选中的 <Text strong style={{ color: '#396AFF' }}>{selectedRowKeys.length}</Text> 家企业变更至：
           </Text>
           <Form layout="vertical">
             <Form.Item label="目标阶段" required>

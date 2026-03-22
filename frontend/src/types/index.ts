@@ -30,11 +30,12 @@ export interface Enterprise {
   id: number;
   enterprise_name: string;
   unified_credit_code?: string;
+  established_date?: string;
+  registered_capital?: string;
   province?: string;
   city?: string;
   district: string;
   detailed_address?: string;
-  established_date?: string;
   enterprise_type: string;
   industry: string;
   employee_scale?: string;
@@ -48,6 +49,10 @@ export interface Enterprise {
   created_at: string;
   updated_at?: string;
   contacts: Contact[];
+  has_import_export_license?: boolean;
+  iso_certifications?: string;
+  aeo_certification?: string;
+  other_certifications?: string;
   has_crossborder?: boolean;
   main_platforms?: string;
   target_markets?: string;
@@ -55,6 +60,10 @@ export interface Enterprise {
   is_cooperating?: boolean;
   last_year_revenue?: number;
   year_before_last_revenue?: number;
+  social_media_accounts?: any;
+  exhibition_history?: string;
+  overseas_distributors?: string;
+  using_crm?: boolean;
 }
 
 export interface FollowUpRecord {
@@ -163,6 +172,8 @@ export interface ProductInfo {
   targetRegionNames?: string[];
   targetCountryIds?: string[];
   annualSales?: string;
+  exportRatio?: string;
+  profitMargin?: string;
   localProcurementRatio?: string;
   automationLevelId?: number;
   automationLevelName?: string;

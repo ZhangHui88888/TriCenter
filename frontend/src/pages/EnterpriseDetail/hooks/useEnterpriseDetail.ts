@@ -59,21 +59,12 @@ export function useEnterpriseDetail() {
   const [tradeChangeType, setTradeChangeType] = useState<'market' | 'mode' | 'category'>('market');
   const [tradeChangeDirection, setTradeChangeDirection] = useState<'up' | 'down'>('up');
   
-  // Trade data
-  const [marketChanges, setMarketChanges] = useState({
-    up: [{ name: '东南亚', rate: '+25%' }, { name: '中东', rate: '+18%' }, { name: '南美', rate: '+12%' }],
-    down: [{ name: '欧洲', rate: '-8%' }, { name: '北美', rate: '-5%' }]
-  });
-  const [modeChanges, setModeChanges] = useState({
-    up: [{ name: '跨境电商B2C', rate: '+35%' }, { name: '海外仓直发', rate: '+22%' }],
-    down: [{ name: '传统B2B', rate: '-10%' }]
-  });
-  const [categoryChanges, setCategoryChanges] = useState({
-    up: [{ name: '园艺工具', rate: '+28%' }, { name: '户外家具', rate: '+20%' }, { name: '智能灌溉', rate: '+45%' }],
-    down: [{ name: '传统手工具', rate: '-15%' }, { name: '塑料花盆', rate: '-8%' }]
-  });
-  const [growthReasons, setGrowthReasons] = useState(['东南亚市场需求旺盛', '跨境电商渠道拓展成功', '新产品线上市表现良好']);
-  const [declineReasons, setDeclineReasons] = useState(['欧美市场竞争加剧', '传统B2B订单减少', '部分品类价格下降']);
+  // Trade data - 从 API 加载后由 useEffect 赋值
+  const [marketChanges, setMarketChanges] = useState<{up: any[]; down: any[]}>({ up: [], down: [] });
+  const [modeChanges, setModeChanges] = useState<{up: any[]; down: any[]}>({ up: [], down: [] });
+  const [categoryChanges, setCategoryChanges] = useState<{up: any[]; down: any[]}>({ up: [], down: [] });
+  const [growthReasons, setGrowthReasons] = useState<string[]>([]);
+  const [declineReasons, setDeclineReasons] = useState<string[]>([]);
 
   // Forms
   const [customRequirementForm] = Form.useForm();

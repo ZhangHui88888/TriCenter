@@ -342,15 +342,27 @@ function buildTradeInfoSheet(wb: ExcelJS.Workbook, data: ExportEnterpriseData) {
 
   ws.addRow([]);
   addSectionTitle(ws, '外贸基本信息', colCount);
+  const regionIds = enterprise.target_region_ids as number[] | undefined;
+  const regionText =
+    regionIds && regionIds.length > 0 ? regionIds.join('、') : '-';
+  const countryText =
+    enterprise.target_country_ids && enterprise.target_country_ids.length > 0
+      ? enterprise.target_country_ids.join('、')
+      : '-';
   addKeyValueRows(ws, [
-    ['主要销售区域', '欧洲、东南亚'],
-    ['主要销售国家', '美国、德国'],
-    ['外贸模式', '直接出口'],
-    ['是否有进出口资质', '是'],
-    ['报关申报主体模式', '自营'],
-    ['外贸业务团队模式', '自建'],
-    ['外贸团队人数', '8人'],
-    ['是否有国内电商经验', '是'],
+    ['主要销售区域', regionText],
+    ['主要销售国家', countryText],
+    ['外贸模式', enterprise.trade_mode || '-'],
+    ['是否有进出口资质', enterprise.has_import_export_license ? '是' : '否'],
+    ['报关申报主体模式', enterprise.customs_declaration_mode || '-'],
+    ['外贸业务团队模式', enterprise.trade_team_mode || '-'],
+    [
+      '外贸团队人数',
+      enterprise.trade_team_size != null && enterprise.trade_team_size !== ''
+        ? `${enterprise.trade_team_size}人`
+        : '-',
+    ],
+    ['是否有国内电商经验', enterprise.has_domestic_ecommerce ? '是' : '否'],
   ], colCount);
 
   ws.addRow([]);
@@ -358,16 +370,34 @@ function buildTradeInfoSheet(wb: ExcelJS.Workbook, data: ExportEnterpriseData) {
   const currentYear = new Date().getFullYear();
   const lastYear = currentYear - 1;
   const yearBeforeLast = currentYear - 2;
-  const lastYearRevenue = enterprise.last_year_revenue || 1500;
-  const yearBeforeLastRevenue = enterprise.year_before_last_revenue || 1280;
-  const growthRate = yearBeforeLastRevenue > 0
+  const parseWan = (v: unknown): number | null => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const lastYearRevenue = parseWan(enterprise.last_year_revenue);
+  const yearBeforeLastRevenue = parseWan(enterprise.year_before_last_revenue);
+  const canComputeGrowth =
+    lastYearRevenue != null &&
+    yearBeforeLastRevenue != null &&
+    yearBeforeLastRevenue > 0;
+  const growthRate = canComputeGrowth
     ? ((lastYearRevenue - yearBeforeLastRevenue) / yearBeforeLastRevenue * 100).toFixed(1)
-    : '0';
+    : null;
 
   addKeyValueRows(ws, [
-    [`${yearBeforeLast}年外贸营业额`, `${yearBeforeLastRevenue}万元`],
-    [`${lastYear}年外贸营业额`, `${lastYearRevenue}万元`],
-    ['同比增长率', `${Number(growthRate) >= 0 ? '+' : ''}${growthRate}%`],
+    [
+      `${yearBeforeLast}年外贸营业额`,
+      yearBeforeLastRevenue != null ? `${yearBeforeLastRevenue}万元` : '-',
+    ],
+    [
+      `${lastYear}年外贸营业额`,
+      lastYearRevenue != null ? `${lastYearRevenue}万元` : '-',
+    ],
+    [
+      '同比增长率',
+      growthRate != null ? `${Number(growthRate) >= 0 ? '+' : ''}${growthRate}%` : '-',
+    ],
   ], colCount);
 
   ws.addRow([]);
@@ -466,7 +496,19 @@ function buildRequirementsSheet(wb: ExcelJS.Workbook, data: ExportEnterpriseData
     ecommerceExp: '电商经验',
   };
   const dimValueLabels: Record<string, Record<string, string>> = {
-    enterpriseType: { factory: '工厂型', trading: '贸易型', factoryTrading: '工贸一体', startup: '初创/SOHO' },
+    enterpriseType: {
+      production: '生产型',
+      trading: '贸易型',
+      factoryTrading: '工贸一体',
+      crossBorderSeller: '跨境卖家型',
+      brandOperator: '品牌运营型',
+      supplyChainService: '供应链服务型',
+      technicalService: '技术服务型',
+      comprehensiveService: '综合服务型',
+      undefined: '未定义',
+      factory: '生产型',
+      startup: '未定义',
+    },
     targetMode: { b2b: 'B2B平台', b2c: 'B2C平台', independent: '独立站', offline: '线下渠道' },
     currentStage: { observation: '观望期', startup: '启动期', growth: '增长期', bottleneck: '瓶颈期', mature: '成熟期' },
     brandStatus: { hasBrand: '有品牌', noBrand: '无品牌' },

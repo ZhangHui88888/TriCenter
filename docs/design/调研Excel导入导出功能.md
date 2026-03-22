@@ -34,11 +34,11 @@
 | 所属区域 | 如：武进区、新北区 | enterprises.district |
 | 详细地址 | | enterprises.address |
 | 所属行业 | 按名称匹配industry_categories | enterprises.industry_id |
-| 企业类型 | 生产型/贸易型/工贸一体 | enterprises.enterprise_type |
+| 企业类型 | 生产型/贸易型/工贸一体/跨境卖家型/品牌运营型/供应链服务型/技术服务型/综合服务型/未定义 | enterprises.enterprise_type |
 | 人员规模 | 按label匹配system_options | enterprises.staff_size_id |
 | 官网 | | enterprises.website |
 | 国内营收 | 按label匹配system_options | enterprises.domestic_revenue_id |
-| 跨境营收 | 按label匹配system_options | enterprises.cross_border_revenue_id |
+| 跨境营收 | 优先填数字（万元）；无法解析时按 label 匹配 system_options 档位 | enterprises.cross_border_revenue_wan 或 cross_border_revenue_id |
 | 企业来源 | 按label匹配system_options | enterprises.source_id |
 | 是否有自主品牌 | 是/否 | enterprises.has_own_brand |
 | 品牌名称 | | enterprises.brand_names |

@@ -33,6 +33,10 @@ import { dictionaryData, dictionaryCategories, type DictionaryItem, type Diction
 
 const { Text } = Typography;
 
+// BankDash 色系
+const C = { blue: '#396AFF', teal: '#16DBCC', pink: '#FE5C73', yellow: '#FFBB38', purple: '#7B61FF', textDark: '#343C6A', textMuted: '#718EBF' };
+const cardStyle = { borderRadius: 25, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' };
+
 // 多级分类数据类型
 interface CategoryTreeItem {
   id: number;
@@ -459,7 +463,7 @@ function DataDictionary() {
     return (
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', paddingRight: 8 }}>
         <Space>
-          <span style={{ color: item.is_enabled ? undefined : '#999' }}>{item.name}</span>
+          <span style={{ color: item.is_enabled ? C.textDark : C.textMuted }}>{item.name}</span>
           {!item.is_enabled && <Tag color="default" style={{ fontSize: 10 }}>禁用</Tag>}
           <Text type="secondary" style={{ fontSize: 12 }}>({item.level}级)</Text>
         </Space>
@@ -514,14 +518,16 @@ function DataDictionary() {
   }, [selectedCategory, industryCategories, productCategories, requirementCategories]);
 
   return (
-    <div>
+    <div style={{ background: '#F5F7FA', minHeight: '100%', padding: 24, fontFamily: 'Inter, sans-serif' }}>
       <Card
         title={
           <Space>
-            <BookOutlined />
-            <span>数据字典管理</span>
+            <BookOutlined style={{ color: C.blue }} />
+            <span style={{ fontWeight: 600, color: C.textDark }}>数据字典管理</span>
           </Space>
         }
+        style={cardStyle}
+        styles={{ body: { padding: '20px 24px' } }}
       >
         {/* 搜索区域 */}
         <div style={{ marginBottom: 24 }}>
@@ -532,6 +538,7 @@ function DataDictionary() {
               allowClear
               style={{ width: 350 }}
               placeholder="请搜索或选择数据字典分类"
+              styles={{ root: { borderRadius: 12, backgroundColor: '#F5F7FA' } }}
               value={selectedCategory}
               onChange={setSelectedCategory}
               options={categoryOptions}
@@ -544,7 +551,7 @@ function DataDictionary() {
               optionRender={(option) => (
                 <div>
                   <Space>
-                    {option.data.isTree && <ApartmentOutlined style={{ color: '#667eea' }} />}
+                    {option.data.isTree && <ApartmentOutlined style={{ color: C.purple }} />}
                     <span>{option.data.label}</span>
                   </Space>
                   <div><Text type="secondary" style={{ fontSize: 12 }}>{option.data.desc}</Text></div>
@@ -552,17 +559,17 @@ function DataDictionary() {
               )}
             />
             {selectedCategory && !isTreeCategory && (
-              <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>新增选项</Button>
+              <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} style={{ background: C.blue, borderColor: C.blue, borderRadius: 12 }}>新增选项</Button>
             )}
           </Space>
         </div>
 
         {/* 分类信息 */}
         {currentCategory && (
-          <div style={{ marginBottom: 16, padding: '12px 16px', background: '#f6f8fa', borderRadius: 8 }}>
+          <div style={{ marginBottom: 16, padding: '12px 16px', background: '#F5F7FA', borderRadius: 12 }}>
             <Space direction="vertical" size={4}>
               <Space>
-                {isTreeCategory && <ApartmentOutlined style={{ color: '#667eea' }} />}
+                {isTreeCategory && <ApartmentOutlined style={{ color: C.purple }} />}
                 <Text strong style={{ fontSize: 15 }}>{currentCategory.name}</Text>
                 {isTreeCategory && <Tag color="purple">多级分类</Tag>}
               </Space>
@@ -579,7 +586,7 @@ function DataDictionary() {
               treeData={treeDataWithActions}
               defaultExpandAll
               blockNode
-              style={{ background: '#fafafa', padding: 16, borderRadius: 8 }}
+              style={{ background: '#F5F7FA', padding: 16, borderRadius: 12 }}
             />
           ) : (
             <Table columns={columns} dataSource={currentData} rowKey="id" pagination={false} size="middle" />
@@ -590,7 +597,7 @@ function DataDictionary() {
       </Card>
 
       {/* 选项编辑弹窗 */}
-      <Modal title={editingItem ? '编辑选项' : '新增选项'} open={modalVisible} onOk={handleSave} onCancel={() => setModalVisible(false)} width={500}>
+      <Modal title={editingItem ? '编辑选项' : '新增选项'} open={modalVisible} onOk={handleSave} onCancel={() => setModalVisible(false)} width={500} okButtonProps={{ style: { background: C.blue, borderColor: C.blue } }}>
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="category" hidden><Input /></Form.Item>
           <Form.Item name="value" label="选项值" rules={[{ required: true, message: '请输入选项值' }]} tooltip="用于程序内部标识，建议使用英文">
@@ -612,7 +619,7 @@ function DataDictionary() {
       </Modal>
 
       {/* 多级分类编辑弹窗 */}
-      <Modal title={editingTreeItem ? '编辑分类' : '新增子分类'} open={treeModalVisible} onOk={handleSaveTreeItem} onCancel={() => setTreeModalVisible(false)} width={500}>
+      <Modal title={editingTreeItem ? '编辑分类' : '新增子分类'} open={treeModalVisible} onOk={handleSaveTreeItem} onCancel={() => setTreeModalVisible(false)} width={500} okButtonProps={{ style: { background: C.blue, borderColor: C.blue } }}>
         <Form form={treeForm} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="parent_id" label="上级分类">
             <TreeSelect

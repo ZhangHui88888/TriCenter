@@ -2,6 +2,8 @@ package com.tricenter.dto.request;
 
 import lombok.Data;
 
+import java.math.BigDecimal;
+
 /**
  * 企业查询请求
  */
@@ -37,6 +39,12 @@ public class EnterpriseQueryRequest {
 
     /** 跨境营收ID */
     private Integer crossBorderRevenueId;
+
+    /** 跨境营收(万元) 下限（含） */
+    private BigDecimal crossBorderRevenueMinWan;
+
+    /** 跨境营收(万元) 上限（含） */
+    private BigDecimal crossBorderRevenueMaxWan;
     
     /** 企业来源ID */
     private Integer sourceId;
@@ -70,7 +78,31 @@ public class EnterpriseQueryRequest {
 
     /** 目标市场关键词，多个逗号分隔 */
     private String targetMarkets;
-    
+
+    /** 是否开展外贸（1=是，0=否） */
+    private Integer hasForeignTrade;
+
+    /** 外贸模式ID */
+    private Integer tradeModeId;
+
+    /** 是否有进出口资质（1=是，0=否） */
+    private Integer hasExportQualification;
+
+    /** 外贸业务团队模式ID */
+    private Integer tradeTeamModeId;
+
+    /** 外贸团队人数范围（如 "1-3人"） */
+    private String tradeTeamSize;
+
+    /** 跨境团队规模范围（如 "1-3人"） */
+    private String crossBorderTeamSize;
+
+    /** 跨境物流模式，多个逗号分隔 */
+    private String logisticsMode;
+
+    /** 支付结算方式，多个逗号分隔 */
+    private String paymentMethod;
+
     /** 页码 */
     private Integer page = 1;
     

@@ -40,6 +40,12 @@ public class EnterpriseProduct {
     /** 年销售额 */
     private String annualSales;
     
+    /** 出口占比 */
+    private String exportRatio;
+    
+    /** 利润率 */
+    private String profitMargin;
+    
     /** 原材料本地采购比例 */
     private String localProcurementRatio;
     

@@ -1,7 +1,8 @@
 // @ts-nocheck
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import dayjs from 'dayjs';
 import { useParams, useNavigate } from 'react-router-dom';
+import { ENTERPRISE_TYPE_OPTIONS } from '@/utils/constants';
 import {
   Card,
   Tabs,
@@ -20,6 +21,7 @@ import {
   Collapse,
   Cascader,
   Spin,
+  AutoComplete,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -44,10 +46,10 @@ import {
   DownloadOutlined,
 } from '@ant-design/icons';
 import { Rate, Switch, Slider } from 'antd';
-import { Form, Input, DatePicker } from 'antd';
+import { Form, Input, DatePicker, InputNumber } from 'antd';
 import { FOLLOW_UP_TYPES } from '@/utils/constants';
 import { dimensions, calculateRequirements, groupRequirementsByPhase, dimensionRequirementMapping, type RequirementItem } from '@/data/requirementsData';
-import { enterpriseApi, contactApi, optionsApi, surveyExcelApi, serviceRecordApi } from '@/services/api';
+import { enterpriseApi, contactApi, optionsApi, dictionaryApi, surveyExcelApi, serviceRecordApi } from '@/services/api';
 
 // 漏斗阶段配置
 const FUNNEL_STAGES = [
@@ -70,6 +72,11 @@ const stageOrder: Record<string, number> = {
   '已签约': 4,
   '已落地': 5,
 };
+
+/** 新增字典项时生成唯一 value（后端按 category+value 唯一） */
+function makeCustomDictionaryValue(): string {
+  return `custom_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function EnterpriseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -96,17 +103,13 @@ function EnterpriseDetail() {
   const [isBrandModalOpen, setIsBrandModalOpen] = useState(false);
   const [isPatentModalOpen, setIsPatentModalOpen] = useState(false);
   const [editingPatent, setEditingPatent] = useState<any>(null);
+  const [isProductOverviewModalOpen, setIsProductOverviewModalOpen] = useState(false);
   const [isTradeModalOpen, setIsTradeModalOpen] = useState(false);
   const [isCrossborderPlatformModalOpen, setIsCrossborderPlatformModalOpen] = useState(false);
   const [isCrossborderBasicModalOpen, setIsCrossborderBasicModalOpen] = useState(false);
   const [isMarketModalOpen, setIsMarketModalOpen] = useState(false);
   // 目标市场数据状态
-  const [targetMarkets, setTargetMarkets] = useState<{market: string; percentage: number}[]>([
-    { market: '北美', percentage: 40 },
-    { market: '欧洲', percentage: 30 },
-    { market: '东南亚', percentage: 20 },
-    { market: '大洋洲', percentage: 10 },
-  ]);
+  const [targetMarkets, setTargetMarkets] = useState<{ market: string; percentage: number }[]>([]);
   const [marketForm] = Form.useForm();
   const [isCrossborderNeedsModalOpen, setIsCrossborderNeedsModalOpen] = useState(false);
   const [isTriCenterCoopModalOpen, setIsTriCenterCoopModalOpen] = useState(false);
@@ -119,14 +122,14 @@ function EnterpriseDetail() {
   const [isCompetitorModalOpen, setIsCompetitorModalOpen] = useState(false);
   const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
   const [competitionPosition, setCompetitionPosition] = useState('medium'); // 行业竞争地位: leader/medium/startup
-  const [competitionDesc, setCompetitionDesc] = useState('在常州园艺制品行业处于中等偏上水平，具有一定的市场份额和品牌知名度');
+  const [competitionDesc, setCompetitionDesc] = useState('');
   const [editingFollowUp, setEditingFollowUp] = useState<any>(null);
   const [isCooperating, setIsCooperating] = useState(true);
   const [serviceSummary, setServiceSummary] = useState<{ total: number; completed: number; inProgress: number; lastDate: string | null }>({ total: 0, completed: 0, inProgress: 0, lastDate: null });
-  const [hasForeignTrade, setHasForeignTrade] = useState(true);
-  const [hasCrossborderEcommerce, setHasCrossborderEcommerce] = useState(true);
+  const [hasForeignTrade, setHasForeignTrade] = useState(false);
+  const [hasCrossborderEcommerce, setHasCrossborderEcommerce] = useState(false);
   const [isSurveyed, setIsSurveyed] = useState(false);
-  const [selectedCrossborderPlatforms, setSelectedCrossborderPlatforms] = useState<string[]>(['亚马逊 (Amazon)', '阿里国际站 (Alibaba.com)']);
+  const [selectedCrossborderPlatforms, setSelectedCrossborderPlatforms] = useState<string[]>([]);
   const [selectedStage, setSelectedStage] = useState('');
   const [removedRequirements, setRemovedRequirements] = useState<string[]>([]);
   const [customRequirements, setCustomRequirements] = useState<{id: string; name: string; description: string; phase: string; category: string}[]>([]);
@@ -141,25 +144,42 @@ function EnterpriseDetail() {
   const [isTradePerformanceModalOpen, setIsTradePerformanceModalOpen] = useState(false);
   const [tradePerformanceForm] = Form.useForm();
   
-  // 外贸业绩变化数据 - type: region(区域) / country(国家)
-  const [marketChanges, setMarketChanges] = useState({
-    up: [{ type: 'region', name: '东南亚', rate: '+25%' }, { type: 'region', name: '中东', rate: '+18%' }, { type: 'region', name: '南美', rate: '+12%' }],
-    down: [{ type: 'region', name: '欧洲', rate: '-8%' }, { type: 'region', name: '北美', rate: '-5%' }]
-  });
-  const [modeChanges, setModeChanges] = useState({
-    up: [{ name: '跨境电商B2C', rate: '+35%' }, { name: '海外仓直发', rate: '+22%' }],
-    down: [{ name: '传统B2B', rate: '-10%' }]
-  });
-  const [categoryChanges, setCategoryChanges] = useState({
-    up: [{ name: '园艺工具', rate: '+28%' }, { name: '户外家具', rate: '+20%' }, { name: '智能灌溉', rate: '+45%' }],
-    down: [{ name: '传统手工具', rate: '-15%' }, { name: '塑料花盆', rate: '-8%' }]
-  });
-  const [growthReasons, setGrowthReasons] = useState(['东南亚市场需求旺盛', '跨境电商渠道拓展成功', '新产品线上市表现良好']);
-  const [declineReasons, setDeclineReasons] = useState(['欧美市场竞争加剧', '传统B2B订单减少', '部分品类价格下降']);
+  // 外贸业绩变化数据 - 从 API 加载后由 useEffect 赋值
+  const [marketChanges, setMarketChanges] = useState<{up: any[]; down: any[]}>({ up: [], down: [] });
+  const [modeChanges, setModeChanges] = useState<{up: any[]; down: any[]}>({ up: [], down: [] });
+  const [categoryChanges, setCategoryChanges] = useState<{up: any[]; down: any[]}>({ up: [], down: [] });
+  const [growthReasons, setGrowthReasons] = useState<string[]>([]);
+  const [declineReasons, setDeclineReasons] = useState<string[]>([]);
   const [isReasonModalOpen, setIsReasonModalOpen] = useState(false);
   const [reasonType, setReasonType] = useState<'growth' | 'decline'>('growth');
   const [editingReason, setEditingReason] = useState<{index: number; value: string} | null>(null);
   const [reasonForm] = Form.useForm();
+  const [growthReasonSuggest, setGrowthReasonSuggest] = useState<{ value: string; label: string }[]>([]);
+  const [declineReasonSuggest, setDeclineReasonSuggest] = useState<{ value: string; label: string }[]>([]);
+  const [reasonModalSaving, setReasonModalSaving] = useState(false);
+
+  const loadTradeReasonOptions = useCallback(async () => {
+    try {
+      const [g, d] = await Promise.all([
+        optionsApi.getOptions('growth_reason'),
+        optionsApi.getOptions('decline_reason'),
+      ]);
+      const mapList = (res: any) => {
+        const list = res?.data ?? [];
+        return Array.isArray(list)
+          ? list.map((o: any) => ({ value: o.label, label: o.label }))
+          : [];
+      };
+      setGrowthReasonSuggest(mapList(g));
+      setDeclineReasonSuggest(mapList(d));
+    } catch (e) {
+      console.error('加载外贸原因字典失败', e);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadTradeReasonOptions();
+  }, [loadTradeReasonOptions]);
 
   const [customRequirementForm] = Form.useForm();
   const [followUpForm] = Form.useForm();
@@ -167,6 +187,7 @@ function EnterpriseDetail() {
   const [productForm] = Form.useForm();
   const [brandForm] = Form.useForm();
   const [patentForm] = Form.useForm();
+  const [productOverviewForm] = Form.useForm();
   const [tradeForm] = Form.useForm();
   const [crossborderForm] = Form.useForm();
   const [needsForm] = Form.useForm();
@@ -188,7 +209,6 @@ function EnterpriseDetail() {
   // 选项数据状态
   const [staffSizeOptions, setStaffSizeOptions] = useState<any[]>([]);
   const [domesticRevenueOptions, setDomesticRevenueOptions] = useState<any[]>([]);
-  const [crossBorderRevenueOptions, setCrossBorderRevenueOptions] = useState<any[]>([]);
   const [sourceOptions, setSourceOptions] = useState<any[]>([]);
   const [regionOptions, setRegionOptions] = useState<any[]>([]);
   const [tradeModeOptions, setTradeModeOptions] = useState<any[]>([]);
@@ -221,10 +241,9 @@ function EnterpriseDetail() {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const [staffSize, domesticRevenue, crossBorderRevenue, source, region, tradeMode, tradeTeamMode] = await Promise.all([
+        const [staffSize, domesticRevenue, source, region, tradeMode, tradeTeamMode] = await Promise.all([
           optionsApi.getOptions('staff_size'),
           optionsApi.getOptions('domestic_revenue'),
-          optionsApi.getOptions('cross_border_revenue'),
           optionsApi.getOptions('source'),
           optionsApi.getOptions('region'),
           optionsApi.getOptions('trade_mode'),
@@ -232,7 +251,6 @@ function EnterpriseDetail() {
         ]);
         if (staffSize.data) setStaffSizeOptions(staffSize.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (domesticRevenue.data) setDomesticRevenueOptions(domesticRevenue.data.map((o: any) => ({ label: o.label, value: o.id })));
-        if (crossBorderRevenue.data) setCrossBorderRevenueOptions(crossBorderRevenue.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (source.data) setSourceOptions(source.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (region.data) setRegionOptions(region.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (tradeMode.data) setTradeModeOptions(tradeMode.data.map((o: any) => ({ label: o.label, value: o.id })));
@@ -258,6 +276,8 @@ function EnterpriseDetail() {
             id: data.id,
             enterprise_name: data.name,
             unified_credit_code: data.creditCode,
+            established_date: data.establishedDate,
+            registered_capital: data.registeredCapital,
             province: data.province,
             city: data.city,
             district: data.district,
@@ -271,6 +291,7 @@ function EnterpriseDetail() {
             domestic_revenue: data.domesticRevenueLabel,
             domestic_revenue_id: data.domesticRevenueId,
             crossborder_revenue: data.crossBorderRevenueLabel,
+            crossborder_revenue_wan: data.crossBorderRevenueWan != null ? Number(data.crossBorderRevenueWan) : undefined,
             crossborder_revenue_id: data.crossBorderRevenueId,
             source: data.sourceLabel,
             source_id: data.sourceId,
@@ -285,6 +306,9 @@ function EnterpriseDetail() {
             trade_mode_id: data.tradeModeId,
             trade_mode: data.tradeModeLabel,
             has_import_export_license: data.hasImportExportLicense,
+            iso_certifications: data.isoCertifications,
+            aeo_certification: data.aeoCertification,
+            other_certifications: data.otherCertifications,
             customs_declaration_mode: data.customsDeclarationMode,
             trade_team_mode_id: data.tradeTeamModeId,
             trade_team_mode: data.tradeTeamModeLabel,
@@ -303,6 +327,10 @@ function EnterpriseDetail() {
             payment_settlement: data.paymentSettlement,
             cross_border_team_size: data.crossBorderTeamSize,
             using_erp: data.usingErp,
+            social_media_accounts: data.socialMediaAccounts,
+            exhibition_history: data.exhibitionHistory,
+            overseas_distributors: data.overseasDistributors,
+            using_crm: data.usingCrm,
             transformation_willingness: data.transformationWillingness,
             investment_willingness: data.investmentWillingness,
             cross_border_platforms: data.crossBorderPlatforms,
@@ -341,18 +369,11 @@ function EnterpriseDetail() {
     fetchEnterprise();
   }, [id]);
 
-  useEffect(() => {
-    if (!id) return;
-    serviceRecordApi.getList(Number(id)).then(res => {
-      const list = Array.isArray(res.data) ? res.data : res.data?.list || [];
-      const completed = list.filter((r: any) => r.status === 'completed').length;
-      const inProgress = list.filter((r: any) => r.status === 'in_progress').length;
-      const lastDate = list.length > 0
-        ? list.reduce((latest: string, r: any) => (r.serviceDate > latest ? r.serviceDate : latest), list[0].serviceDate)
-        : null;
-      setServiceSummary({ total: list.length, completed, inProgress, lastDate });
-    }).catch(() => {});
-  }, [id]);
+  // 合作服务接口暂未实现，跳过请求
+  // useEffect(() => {
+  //   if (!id) return;
+  //   serviceRecordApi.getList(Number(id)).then(res => { ... }).catch(() => {});
+  // }, [id]);
 
   // 从API数据初始化本地状态
   useEffect(() => {
@@ -375,27 +396,43 @@ function EnterpriseDetail() {
     // 竞争力调研开关
     setIsSurveyed(!!enterprise.competition_position);
     if (enterprise.competition_position) setCompetitionPosition(enterprise.competition_position);
-    if (enterprise.competition_description) setCompetitionDesc(enterprise.competition_description);
+    setCompetitionDesc(enterprise.competition_description || '');
 
-    // 外贸业绩变化数据
-    if (enterprise.market_changes) setMarketChanges(enterprise.market_changes);
-    if (enterprise.mode_changes) setModeChanges(enterprise.mode_changes);
-    if (enterprise.category_changes) setCategoryChanges(enterprise.category_changes);
-    if (enterprise.growth_reasons && Array.isArray(enterprise.growth_reasons) && enterprise.growth_reasons.length > 0) {
-      setGrowthReasons(enterprise.growth_reasons);
+    // 外贸业绩变化数据（无数据时清空，避免沿用上一企业或初始假数据）
+    if (enterprise.market_changes && typeof enterprise.market_changes === 'object') {
+      setMarketChanges(enterprise.market_changes);
+    } else {
+      setMarketChanges({ up: [], down: [] });
     }
-    if (enterprise.decline_reasons && Array.isArray(enterprise.decline_reasons) && enterprise.decline_reasons.length > 0) {
-      setDeclineReasons(enterprise.decline_reasons);
+    if (enterprise.mode_changes && typeof enterprise.mode_changes === 'object') {
+      setModeChanges(enterprise.mode_changes);
+    } else {
+      setModeChanges({ up: [], down: [] });
     }
+    if (enterprise.category_changes && typeof enterprise.category_changes === 'object') {
+      setCategoryChanges(enterprise.category_changes);
+    } else {
+      setCategoryChanges({ up: [], down: [] });
+    }
+    setGrowthReasons(
+      Array.isArray(enterprise.growth_reasons) ? enterprise.growth_reasons : []
+    );
+    setDeclineReasons(
+      Array.isArray(enterprise.decline_reasons) ? enterprise.decline_reasons : []
+    );
 
     // 跨境平台
     if (enterprise.cross_border_platforms && Array.isArray(enterprise.cross_border_platforms) && enterprise.cross_border_platforms.length > 0) {
       setSelectedCrossborderPlatforms(enterprise.cross_border_platforms.map((p: any) => String(p)));
+    } else {
+      setSelectedCrossborderPlatforms([]);
     }
 
     // 目标市场
     if (enterprise.target_markets && Array.isArray(enterprise.target_markets) && enterprise.target_markets.length > 0) {
       setTargetMarkets(enterprise.target_markets);
+    } else {
+      setTargetMarkets([]);
     }
 
     // 需求分析
@@ -505,6 +542,8 @@ function EnterpriseDetail() {
       const updateData = {
         name: values.enterprise_name,
         creditCode: values.unified_credit_code,
+        establishedDate: values.established_date ? dayjs(values.established_date).format('YYYY-MM-DD') : undefined,
+        registeredCapital: values.registered_capital != null ? `${values.registered_capital}万元` : undefined,
         province: values.province,
         city: values.city,
         district: values.district,
@@ -514,7 +553,8 @@ function EnterpriseDetail() {
         staffSizeId: values.staff_size_id,
         website: values.website,
         domesticRevenueId: values.domestic_revenue_id,
-        crossBorderRevenueId: values.crossborder_revenue_id,
+        crossBorderRevenueWanTouched: true,
+        crossBorderRevenueWan: values.crossborder_revenue_wan != null && values.crossborder_revenue_wan !== '' ? values.crossborder_revenue_wan : null,
         sourceId: values.source_id,
       };
       await enterpriseApi.update(enterprise.id, updateData);
@@ -526,6 +566,8 @@ function EnterpriseDetail() {
           ...enterprise,
           enterprise_name: data.name,
           unified_credit_code: data.creditCode,
+          established_date: data.establishedDate,
+          registered_capital: data.registeredCapital,
           province: data.province,
           city: data.city,
           district: data.district,
@@ -539,6 +581,7 @@ function EnterpriseDetail() {
           domestic_revenue: data.domesticRevenueLabel,
           domestic_revenue_id: data.domesticRevenueId,
           crossborder_revenue: data.crossBorderRevenueLabel,
+          crossborder_revenue_wan: data.crossBorderRevenueWan != null ? Number(data.crossBorderRevenueWan) : undefined,
           crossborder_revenue_id: data.crossBorderRevenueId,
           source: data.sourceLabel,
           source_id: data.sourceId,
@@ -678,6 +721,8 @@ function EnterpriseDetail() {
       editForm.setFieldsValue({
         enterprise_name: enterprise.enterprise_name,
         unified_credit_code: enterprise.unified_credit_code,
+        established_date: enterprise.established_date ? dayjs(enterprise.established_date) : undefined,
+        registered_capital: enterprise.registered_capital ? parseFloat(String(enterprise.registered_capital).replace(/[^\d.]/g, '')) || undefined : undefined,
         province: enterprise.province,
         city: enterprise.city,
         district: enterprise.district,
@@ -686,7 +731,7 @@ function EnterpriseDetail() {
         staff_size_id: enterprise.staff_size_id,
         detailed_address: enterprise.detailed_address,
         domestic_revenue_id: enterprise.domestic_revenue_id,
-        crossborder_revenue_id: enterprise.crossborder_revenue_id,
+        crossborder_revenue_wan: enterprise.crossborder_revenue_wan ?? undefined,
         source_id: enterprise.source_id,
         website: enterprise.website,
       });
@@ -877,6 +922,8 @@ function EnterpriseDetail() {
               <Descriptions.Item label="统一社会信用代码">
                 <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{enterprise.unified_credit_code || '-'}</span>
               </Descriptions.Item>
+              <Descriptions.Item label="成立日期">{enterprise.established_date || '-'}</Descriptions.Item>
+              <Descriptions.Item label="注册资本">{enterprise.registered_capital || '-'}</Descriptions.Item>
               <Descriptions.Item label="所属行业">
                 <span style={{ 
                   padding: '2px 8px', 
@@ -912,6 +959,14 @@ function EnterpriseDetail() {
                   </a>
                 ) : '-'}
               </Descriptions.Item>
+              <Descriptions.Item label="进出口经营权">
+                {enterprise.has_import_export_license ? (
+                  <span style={{ color: '#10b981', fontWeight: 500 }}>有</span>
+                ) : <span style={{ color: '#999' }}>无</span>}
+              </Descriptions.Item>
+              <Descriptions.Item label="ISO认证">{enterprise.iso_certifications || '-'}</Descriptions.Item>
+              <Descriptions.Item label="AEO认证等级">{enterprise.aeo_certification || '-'}</Descriptions.Item>
+              <Descriptions.Item label="其他资质证书">{enterprise.other_certifications || '-'}</Descriptions.Item>
             </Descriptions>
           </Card>
           <Card 
@@ -992,7 +1047,72 @@ function EnterpriseDetail() {
       label: '产品信息',
       children: (
         <div style={{ padding: 16 }}>
-          {/* 产品列表区域 */}
+          {/* 产品总体信息 */}
+          {(() => {
+            const products = (enterprise.products || []) as any[];
+            const allCategories = [...new Set(products.map((p: any) => p.categoryName).filter(Boolean))];
+            const allCerts = [...new Set(products.flatMap((p: any) => p.certificationNames || []))];
+            const allLogistics = [...new Set(products.flatMap((p: any) => p.logisticsPartnerNames || []))];
+            const totalSales = products.reduce((s: number, p: any) => {
+              const v = parseFloat(String(p.annualSales || '0').replace(/[^\d.]/g, ''));
+              return s + (isNaN(v) ? 0 : v);
+            }, 0);
+            // 企业级字段：用 regionOptions 解析 ID 为名称
+            const regionIds: number[] = enterprise.target_region_ids || (enterprise as any).targetRegionIds || [];
+            const regionNames = regionIds.map((id: number) => regionOptions.find((o: any) => o.value === id)?.label).filter(Boolean);
+            const countryNames: string[] = enterprise.target_country_ids || (enterprise as any).targetCountryIds || [];
+            const hasLicense = enterprise.has_import_export_license;
+            return (
+              <Card
+                size="small"
+                title={<span style={{ fontWeight: 600, fontSize: 15 }}>产品总体概览</span>}
+                style={{ marginBottom: 16, borderRadius: 8, border: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+                headStyle={{ borderBottom: '1px solid #f0f0f0' }}
+                extra={<Button type="link" size="small" icon={<EditOutlined />} style={{ fontWeight: 500 }} onClick={() => setIsProductOverviewModalOpen(true)}>编辑</Button>}
+              >
+                <Row gutter={[24, 20]}>
+                  <Col span={6}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售区域</Text>
+                    <div style={{ fontWeight: 500 }}>{regionNames.length > 0 ? regionNames.join('、') : '-'}</div>
+                  </Col>
+                  <Col span={6}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售国家</Text>
+                    <div style={{ fontWeight: 500 }}>{countryNames.length > 0 ? countryNames.join('、') : '-'}</div>
+                  </Col>
+                  <Col span={6}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否有进出口资质</Text>
+                    {hasLicense ? (
+                      <span style={{ padding: '3px 10px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: 20, color: '#fff', fontWeight: 500, fontSize: 12 }}>是</span>
+                    ) : (
+                      <span style={{ color: '#999' }}>{hasLicense === false || hasLicense === 0 ? '否' : '-'}</span>
+                    )}
+                  </Col>
+                  <Col span={6}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>产品数量</Text>
+                    <div style={{ fontWeight: 600 }}>{products.length} 个</div>
+                  </Col>
+                  <Col span={6}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>产品品类</Text>
+                    <div style={{ fontWeight: 500 }}>{allCategories.length > 0 ? allCategories.join('、') : '-'}</div>
+                  </Col>
+                  <Col span={6}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>年销售额合计</Text>
+                    <div style={{ fontWeight: 700, color: '#667eea', fontSize: 16 }}>{totalSales > 0 ? `${totalSales}万元` : '-'}</div>
+                  </Col>
+                  <Col span={6}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>产品认证</Text>
+                    <div style={{ fontWeight: 500 }}>{allCerts.length > 0 ? allCerts.join('、') : '-'}</div>
+                  </Col>
+                  <Col span={6}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>物流合作方</Text>
+                    <div style={{ fontWeight: 500 }}>{allLogistics.length > 0 ? allLogistics.join('、') : '-'}</div>
+                  </Col>
+                </Row>
+              </Card>
+            );
+          })()}
+
+          {/* 产品列表 */}
           <Card
             title={<span style={{ fontWeight: 600, fontSize: 15 }}>产品列表</span>}
             size="small"
@@ -1020,88 +1140,30 @@ function EnterpriseDetail() {
               </Button>
             }
           >
-          {/* 产品卡片列表 */}
           {enterprise.products && enterprise.products.length > 0 ? (
-            enterprise.products.map((product: any) => (
-              <div key={product.id} style={{ 
-                marginBottom: 16, 
-                borderRadius: 8, 
-                borderLeft: '4px solid #667eea',
-                boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-                background: '#fff',
-                padding: 16
-              }}>
-              <Card 
-                size="small" 
-                style={{ border: 'none', boxShadow: 'none', background: 'transparent' }} 
-                extra={
-                  <Space size={4}>
-                    <Button type="link" size="small" icon={<EditOutlined />} style={{ fontWeight: 500 }}
-                      onClick={() => handleEditProduct(product)}>编辑</Button>
-                    <Button type="link" size="small" danger icon={<DeleteOutlined />} style={{ fontWeight: 500 }}
-                      onClick={() => handleDeleteProduct(product.name)}>删除</Button>
-                  </Space>
-                }
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #f5f5f5' }}>
-                  <div>
-                    <Text strong style={{ fontSize: 16, fontWeight: 600 }}>{product.name}</Text>
-                    {product.categoryName && <div style={{ color: '#888', fontSize: 13, marginTop: 6 }}>产品品类：{product.categoryName}</div>}
-                  </div>
-                  <Space size={8}>
+            <Space direction="vertical" style={{ width: '100%' }} size={8}>
+              {enterprise.products.map((product: any) => (
+                <div key={product.id} style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  padding: '12px 16px', borderRadius: 8, background: '#fafbfc',
+                  border: '1px solid #f0f0f0',
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+                    <Text strong style={{ fontSize: 14 }}>{product.name}</Text>
+                    {product.categoryName && (
+                      <span style={{ padding: '2px 8px', background: 'rgba(102,126,234,0.1)', borderRadius: 4, color: '#667eea', fontSize: 12 }}>{product.categoryName}</span>
+                    )}
                     {product.certificationNames?.map((cert: string, idx: number) => (
-                      <span key={idx} style={{ padding: '4px 12px', background: idx % 2 === 0 ? 'linear-gradient(135deg, rgba(67,233,123,0.15) 0%, rgba(56,249,215,0.1) 100%)' : 'linear-gradient(135deg, rgba(102,126,234,0.15) 0%, rgba(118,75,162,0.1) 100%)', borderRadius: 6, color: idx % 2 === 0 ? '#389e0d' : '#667eea', fontSize: 12, fontWeight: 500 }}>{cert}</span>
+                      <span key={idx} style={{ padding: '2px 8px', background: 'rgba(67,233,123,0.1)', borderRadius: 4, color: '#389e0d', fontSize: 12 }}>{cert}</span>
                     ))}
+                  </div>
+                  <Space size={4}>
+                    <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEditProduct(product)}>编辑</Button>
+                    <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeleteProduct(product.name)}>删除</Button>
                   </Space>
                 </div>
-                <Row gutter={24} style={{ marginBottom: 20 }}>
-                  <Col span={8}>
-                    <div style={{ padding: '14px 16px', background: '#fafbfc', borderRadius: 10 }}>
-                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售区域</Text>
-                      <div style={{ fontWeight: 600, color: '#333' }}>{product.targetRegionNames?.join('、') || '-'}</div>
-                    </div>
-                  </Col>
-                  <Col span={8}>
-                    <div style={{ padding: '14px 16px', background: '#fafbfc', borderRadius: 10 }}>
-                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售国家</Text>
-                      <div style={{ fontWeight: 600, color: '#333' }}>{product.targetCountryIds?.join('、') || '-'}</div>
-                    </div>
-                  </Col>
-                  <Col span={8}>
-                    <div style={{ padding: '14px 16px', background: 'linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.05) 100%)', borderRadius: 10 }}>
-                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>年销售额</Text>
-                      <div style={{ fontWeight: 700, color: '#667eea', fontSize: 16 }}>{product.annualSales || '-'}</div>
-                    </div>
-                  </Col>
-                </Row>
-                <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
-                  <Text strong style={{ fontSize: 14, marginBottom: 14, display: 'block', color: '#333' }}>供应链与产能</Text>
-                  <Row gutter={24}>
-                    <Col span={6}>
-                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>原材料本地采购</Text>
-                      <div style={{ fontWeight: 600, color: '#43e97b', fontSize: 15 }}>{product.localProcurementRatio || '-'}</div>
-                    </Col>
-                    <Col span={6}>
-                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>设备自动化程度</Text>
-                      <div style={{ fontWeight: 600, color: '#333' }}>{product.automationLevelName || '-'}</div>
-                    </Col>
-                    <Col span={6}>
-                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>年产能</Text>
-                      <div style={{ fontWeight: 600, color: '#333' }}>{product.annualCapacity || '-'}</div>
-                    </Col>
-                    <Col span={6}>
-                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 4 }}>物流合作方</Text>
-                      <Space size={6} wrap>
-                        {product.logisticsPartnerNames?.map((p: string, i: number) => (
-                          <span key={i} style={{ padding: '2px 8px', background: '#fff', border: '1px solid #e0e0e0', borderRadius: 4, fontSize: 12 }}>{p}</span>
-                        )) || '-'}
-                      </Space>
-                    </Col>
-                  </Row>
-                </div>
-              </Card>
-              </div>
-            ))
+              ))}
+            </Space>
           ) : (
             <div style={{ textAlign: 'center', padding: '40px 0', color: '#999' }}>暂无产品信息，点击"添加产品"按钮添加</div>
           )}
@@ -1235,50 +1297,34 @@ function EnterpriseDetail() {
               <Row gutter={[20, 20]}>
                 <Col span={8}>
                   <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售区域</Text>
-                    <div style={{ fontWeight: 600, color: '#333' }}>欧洲、东南亚</div>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售国家</Text>
-                    <div style={{ fontWeight: 600, color: '#333' }}>美国、德国</div>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>外贸模式</Text>
-                    <span style={{ padding: '4px 12px', background: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.08) 100%)', borderRadius: 6, color: '#667eea', fontWeight: 600, fontSize: 13 }}>直接出口</span>
-                  </div>
-                </Col>
-                <Col span={8}>
-                  <div style={{ padding: '16px', background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.05) 100%)', borderRadius: 10 }}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否有进出口资质</Text>
-                    <span style={{ padding: '4px 12px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: 20, color: '#fff', fontWeight: 500, fontSize: 12 }}>是</span>
+                    <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.trade_mode || '-'}</div>
                   </div>
                 </Col>
                 <Col span={8}>
                   <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>报关申报主体模式</Text>
-                    <div style={{ fontWeight: 600, color: '#333' }}>自营</div>
+                    <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.customs_declaration_mode || '-'}</div>
                   </div>
                 </Col>
                 <Col span={8}>
                   <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>外贸业务团队模式</Text>
-                    <div style={{ fontWeight: 600, color: '#333' }}>自建</div>
+                    <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.trade_team_mode || '-'}</div>
                   </div>
                 </Col>
                 <Col span={8}>
                   <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>外贸团队人数</Text>
-                    <div style={{ fontWeight: 700, color: '#667eea', fontSize: 18 }}>8<span style={{ fontSize: 13, fontWeight: 500, color: '#888' }}> 人</span></div>
+                    <div style={{ fontWeight: 700, color: '#667eea', fontSize: 18 }}>{enterprise.trade_team_size || '-'}{enterprise.trade_team_size ? <span style={{ fontSize: 13, fontWeight: 500, color: '#888' }}> 人</span> : ''}</div>
                   </div>
                 </Col>
                 <Col span={8}>
                   <div style={{ padding: '16px', background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.05) 100%)', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否有国内电商经验</Text>
-                    <span style={{ padding: '4px 12px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: 20, color: '#fff', fontWeight: 500, fontSize: 12 }}>是</span>
+                    {enterprise.has_domestic_ecommerce ? (
+                      <span style={{ padding: '4px 12px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: 20, color: '#fff', fontWeight: 500, fontSize: 12 }}>是</span>
+                    ) : <span style={{ color: '#999' }}>否</span>}
                   </div>
                 </Col>
               </Row>
@@ -1290,20 +1336,54 @@ function EnterpriseDetail() {
               title={<span style={{ fontWeight: 600, fontSize: 15 }}>外贸业绩分析</span>}
               style={{ marginTop: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
               headStyle={{ borderBottom: '1px solid #f0f0f0' }}
-              extra={<Button type="link" icon={<EditOutlined />} style={{ fontWeight: 500 }} onClick={() => setIsTradePerformanceModalOpen(true)}>编辑</Button>}
+              extra={(
+                <Button
+                  type="link"
+                  icon={<EditOutlined />}
+                  style={{ fontWeight: 500 }}
+                  onClick={() => {
+                    tradePerformanceForm.setFieldsValue({
+                      yearBeforeLastRevenue: enterprise.year_before_last_revenue ?? undefined,
+                      lastYearRevenue: enterprise.last_year_revenue ?? undefined,
+                      remark: undefined,
+                    });
+                    setIsTradePerformanceModalOpen(true);
+                  }}
+                >
+                  编辑
+                </Button>
+              )}
             >
-              {/* 核心指标 - 年份动态计算 */}
+              {/* 核心指标 - 年份动态计算（无后端数据时显示占位，不使用演示数字） */}
               {(() => {
                 const currentYear = new Date().getFullYear();
                 const lastYear = currentYear - 1;
                 const yearBeforeLast = currentYear - 2;
-                const lastYearRevenue = enterprise.last_year_revenue || 1500;
-                const yearBeforeLastRevenue = enterprise.year_before_last_revenue || 1280;
-                const growthRate = yearBeforeLastRevenue > 0 
+                const parseWan = (v: unknown): number | null => {
+                  if (v === null || v === undefined || v === '') return null;
+                  const n = Number(v);
+                  return Number.isFinite(n) ? n : null;
+                };
+                const lastYearRevenue = parseWan(enterprise.last_year_revenue);
+                const yearBeforeLastRevenue = parseWan(enterprise.year_before_last_revenue);
+                const canComputeGrowth =
+                  lastYearRevenue != null &&
+                  yearBeforeLastRevenue != null &&
+                  yearBeforeLastRevenue > 0;
+                const growthRate = canComputeGrowth
                   ? ((lastYearRevenue - yearBeforeLastRevenue) / yearBeforeLastRevenue * 100).toFixed(1)
-                  : 0;
-                const isPositive = Number(growthRate) >= 0;
-                
+                  : null;
+                const isPositive = growthRate != null && Number(growthRate) >= 0;
+                const wanCell = (v: number | null) =>
+                  v != null ? (
+                    <>
+                      {v}
+                      <span style={{ fontSize: 14, fontWeight: 500, color: '#888' }}> 万元</span>
+                    </>
+                  ) : (
+                    <span style={{ fontSize: 22, fontWeight: 600, color: '#bfbfbf' }}>—</span>
+                  );
+
                 return (
                   <Row gutter={16} style={{ marginBottom: 20 }}>
                     <Col span={8}>
@@ -1314,7 +1394,7 @@ function EnterpriseDetail() {
                         textAlign: 'center'
                       }}>
                         <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>{yearBeforeLast}年外贸营业额</Text>
-                        <div style={{ fontWeight: 700, color: '#667eea', fontSize: 28 }}>{yearBeforeLastRevenue}<span style={{ fontSize: 14, fontWeight: 500, color: '#888' }}> 万元</span></div>
+                        <div style={{ fontWeight: 700, color: '#667eea', fontSize: 28 }}>{wanCell(yearBeforeLastRevenue)}</div>
                       </div>
                     </Col>
                     <Col span={8}>
@@ -1325,18 +1405,28 @@ function EnterpriseDetail() {
                         textAlign: 'center'
                       }}>
                         <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>{lastYear}年外贸营业额</Text>
-                        <div style={{ fontWeight: 700, color: '#faad14', fontSize: 28 }}>{lastYearRevenue}<span style={{ fontSize: 14, fontWeight: 500, color: '#888' }}> 万元</span></div>
+                        <div style={{ fontWeight: 700, color: '#faad14', fontSize: 28 }}>{wanCell(lastYearRevenue)}</div>
                       </div>
                     </Col>
                     <Col span={8}>
                       <div style={{ 
                         padding: '20px', 
-                        background: `linear-gradient(135deg, ${isPositive ? 'rgba(67,233,123,0.1)' : 'rgba(239,68,68,0.1)'} 0%, ${isPositive ? 'rgba(56,249,215,0.05)' : 'rgba(239,68,68,0.05)'} 100%)`, 
+                        background: `linear-gradient(135deg, ${growthRate != null && isPositive ? 'rgba(67,233,123,0.1)' : 'rgba(239,68,68,0.1)'} 0%, ${growthRate != null && isPositive ? 'rgba(56,249,215,0.05)' : 'rgba(239,68,68,0.05)'} 100%)`, 
                         borderRadius: 12,
                         textAlign: 'center'
                       }}>
                         <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>同比增长率</Text>
-                        <div style={{ fontWeight: 700, color: isPositive ? '#43e97b' : '#ef4444', fontSize: 28 }}>{isPositive ? '+' : ''}{growthRate}<span style={{ fontSize: 14, fontWeight: 500 }}>%</span></div>
+                        <div style={{ fontWeight: 700, color: growthRate == null ? '#bfbfbf' : isPositive ? '#43e97b' : '#ef4444', fontSize: 28 }}>
+                          {growthRate != null ? (
+                            <>
+                              {isPositive ? '+' : ''}
+                              {growthRate}
+                              <span style={{ fontSize: 14, fontWeight: 500 }}>%</span>
+                            </>
+                          ) : (
+                            <span style={{ fontSize: 22, fontWeight: 600 }}>—</span>
+                          )}
+                        </div>
                       </div>
                     </Col>
                   </Row>
@@ -1619,7 +1709,7 @@ function EnterpriseDetail() {
     },
     {
       key: 'crossborder',
-      label: '跨境电商',
+      label: '线上跨境电商',
       children: (
         <div style={{ padding: 16 }}>
           {/* 是否开展跨境电商 */}
@@ -1765,31 +1855,31 @@ function EnterpriseDetail() {
               <Col span={6}>
                 <div style={{ padding: '14px', background: 'linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.05) 100%)', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>跨境业务占比</Text>
-                  <div style={{ fontWeight: 700, color: '#667eea', fontSize: 18 }}>25%</div>
+                  <div style={{ fontWeight: 700, color: '#667eea', fontSize: 18 }}>{enterprise.cross_border_ratio ? `${enterprise.cross_border_ratio}%` : '-'}</div>
                 </div>
               </Col>
               <Col span={6}>
                 <div style={{ padding: '14px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>跨境物流模式</Text>
-                  <div style={{ fontWeight: 600, color: '#333' }}>海运、FBA</div>
+                  <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.cross_border_logistics || '-'}</div>
                 </div>
               </Col>
               <Col span={6}>
                 <div style={{ padding: '14px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>支付结算方式</Text>
-                  <div style={{ fontWeight: 600, color: '#333' }}>FOB</div>
+                  <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.payment_settlement || '-'}</div>
                 </div>
               </Col>
               <Col span={6}>
                 <div style={{ padding: '14px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>跨境电商团队规模</Text>
-                  <div style={{ fontWeight: 700, color: '#667eea', fontSize: 16 }}>5<span style={{ fontSize: 12, fontWeight: 500, color: '#888' }}> 人</span></div>
+                  <div style={{ fontWeight: 700, color: '#667eea', fontSize: 16 }}>{enterprise.cross_border_team_size != null ? <>{enterprise.cross_border_team_size}<span style={{ fontSize: 12, fontWeight: 500, color: '#888' }}> 人</span></> : '-'}</div>
                 </div>
               </Col>
               <Col span={6}>
                 <div style={{ padding: '14px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否在用ERP</Text>
-                  <div style={{ fontWeight: 600, color: '#333' }}>是（用友U8）</div>
+                  <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.using_erp != null ? (enterprise.using_erp ? '是' : '否') : '-'}</div>
                 </div>
               </Col>
               <Col span={6}>
@@ -1801,7 +1891,7 @@ function EnterpriseDetail() {
               <Col span={6}>
                 <div style={{ padding: '14px', background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.05) 100%)', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>愿意投入转型程度</Text>
-                  <div style={{ fontWeight: 600, color: '#43e97b' }}>高</div>
+                  <div style={{ fontWeight: 600, color: '#43e97b' }}>{enterprise.investment_willingness || '-'}</div>
                 </div>
               </Col>
             </Row>
@@ -1905,10 +1995,13 @@ function EnterpriseDetail() {
           {/* 需求清单展示区域 */}
           {(() => {
             const result = calculateRequirements(dimensionSelections);
-            const filteredAll = result.all.filter(req => !removedRequirements.includes(req.id));
+            const isNotRemoved = (req: RequirementItem) => !removedRequirements.includes(req.id);
+            const filteredUniversal = result.universal.filter(isNotRemoved);
+            const filteredEnhanced = result.enhanced.filter(isNotRemoved);
+            const filteredAll = result.all.filter(isNotRemoved);
             const hasSelection = Object.values(dimensionSelections).some(arr => arr && arr.length > 0);
-            // 合并通用需求和差异化需求，按阶段分组
-            const allRequirements = [...result.universal, ...result.enhanced, ...filteredAll];
+            // 合并通用/增强/维度需求；须对三组都应用 removed，否则「通用必选」「增强版」卡片删不掉
+            const allRequirements = [...filteredUniversal, ...filteredEnhanced, ...filteredAll];
             const uniqueRequirements = allRequirements.filter((req, index, self) => 
               self.findIndex(r => r.id === req.id) === index
             );
@@ -1917,7 +2010,19 @@ function EnterpriseDetail() {
             
             // 维度标签映射
             const dimensionLabels: Record<string, Record<string, string>> = {
-              enterpriseType: { factory: '工厂型', trading: '贸易型', factoryTrading: '工贸一体', startup: '初创/SOHO' },
+              enterpriseType: {
+                production: '生产型',
+                trading: '贸易型',
+                factoryTrading: '工贸一体',
+                crossBorderSeller: '跨境卖家型',
+                brandOperator: '品牌运营型',
+                supplyChainService: '供应链服务型',
+                technicalService: '技术服务型',
+                comprehensiveService: '综合服务型',
+                undefined: '未定义',
+                factory: '生产型',
+                startup: '未定义',
+              },
               targetMode: { b2b: 'B2B平台', b2c: 'B2C平台', independent: '独立站', offline: '线下渠道' },
               currentStage: { observation: '观望期', startup: '启动期', growth: '增长期', bottleneck: '瓶颈期', mature: '成熟期' },
               brandStatus: { hasBrand: '有品牌', noBrand: '无品牌' },
@@ -2024,7 +2129,7 @@ function EnterpriseDetail() {
                         textAlign: 'center'
                       }}>
                         <div style={{ fontSize: 28, fontWeight: 700, color: '#43e97b' }}>
-                          {result.universal.length}
+                          {filteredUniversal.length}
                         </div>
                         <Text type="secondary" style={{ fontSize: 12 }}>通用必选需求</Text>
                       </div>
@@ -2037,7 +2142,7 @@ function EnterpriseDetail() {
                         textAlign: 'center'
                       }}>
                         <div style={{ fontSize: 28, fontWeight: 700, color: '#f97316' }}>
-                          {result.enhanced.length}
+                          {filteredEnhanced.length}
                         </div>
                         <Text type="secondary" style={{ fontSize: 12 }}>增强项需求</Text>
                       </div>
@@ -2050,7 +2155,7 @@ function EnterpriseDetail() {
                         textAlign: 'center'
                       }}>
                         <div style={{ fontSize: 28, fontWeight: 700, color: '#8b5cf6' }}>
-                          {hasSelection ? result.dimensional.length : 0}
+                          {hasSelection ? result.dimensional.filter(isNotRemoved).length : 0}
                         </div>
                         <Text type="secondary" style={{ fontSize: 12 }}>差异化需求</Text>
                       </div>
@@ -3401,6 +3506,16 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
+              <Form.Item name="established_date" label="成立日期">
+                <DatePicker style={{ width: '100%' }} placeholder="请选择成立日期" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="registered_capital" label="注册资本">
+                <InputNumber style={{ width: '100%' }} min={0} placeholder="请输入注册资本" addonAfter="万元" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
               <Form.Item name="industry_id" label="所属行业">
                 <Cascader 
                   options={industryCategories} 
@@ -3417,12 +3532,7 @@ function EnterpriseDetail() {
             </Col>
             <Col span={12}>
               <Form.Item name="enterprise_type" label="企业类型">
-                <Select options={[
-                  { label: '工厂型', value: '工厂型' },
-                  { label: '贸易型', value: '贸易型' },
-                  { label: '工贸一体', value: '工贸一体' },
-                  { label: '初创/SOHO', value: '初创/SOHO' },
-                ]} />
+                <Select options={ENTERPRISE_TYPE_OPTIONS} />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -3483,8 +3593,8 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="crossborder_revenue_id" label="跨境营收(万元)">
-                <Select placeholder="请选择" options={crossBorderRevenueOptions} allowClear />
+              <Form.Item name="crossborder_revenue_wan" label="跨境营收(万元)">
+                <InputNumber min={0} style={{ width: '100%' }} placeholder="请输入数字" />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -3495,6 +3605,28 @@ function EnterpriseDetail() {
             <Col span={12}>
               <Form.Item name="website" label="官网">
                 <Input placeholder="请输入官网地址" />
+              </Form.Item>
+            </Col>
+            <Col span={24} style={{ marginTop: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#1a56db', marginBottom: 8, borderBottom: '1px solid #e8eefb', paddingBottom: 4 }}>企业资质认证</div>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="iso_certifications" label="ISO认证">
+                <Input placeholder="如 ISO9001:2015, ISO14001" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="aeo_certification" label="AEO认证等级">
+                <Select placeholder="请选择" allowClear options={[
+                  { label: '高级认证', value: '高级认证' },
+                  { label: '一般认证', value: '一般认证' },
+                  { label: '无', value: '无' },
+                ]} />
+              </Form.Item>
+            </Col>
+            <Col span={24}>
+              <Form.Item name="other_certifications" label="其他资质证书">
+                <Input placeholder="如 CE、FDA、高新技术企业等" />
               </Form.Item>
             </Col>
           </Row>
@@ -3742,6 +3874,16 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
+              <Form.Item name="export_ratio" label="出口占比">
+                <Input placeholder="如 60%" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="profit_margin" label="利润率">
+                <Input placeholder="如 15-20%" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
               <Form.Item name="target_regions" label="主要销售区域">
                 <Select
                   mode="multiple"
@@ -3899,6 +4041,66 @@ function EnterpriseDetail() {
         </Form>
       </Modal>
 
+      {/* 产品信息编辑模态框（销售区域+国家+进出口资质） */}
+      <Modal
+        title="编辑产品信息"
+        open={isProductOverviewModalOpen}
+        afterOpenChange={(open) => {
+          if (open && enterprise) {
+            productOverviewForm.setFieldsValue({
+              targetRegionIds: enterprise.target_region_ids || [],
+              targetCountryIds: enterprise.target_country_ids || [],
+              hasImportExportLicense: enterprise.has_import_export_license === 1 || enterprise.has_import_export_license === true,
+            });
+          }
+        }}
+        onOk={async () => {
+          const values = productOverviewForm.getFieldsValue();
+          const ok = await saveEnterpriseFields({
+            targetRegionIds: values.targetRegionIds,
+            targetCountryIds: values.targetCountryIds,
+            hasImportExportLicense: values.hasImportExportLicense ? 1 : 0,
+          }, '产品信息更新成功');
+          if (ok) setIsProductOverviewModalOpen(false);
+        }}
+        onCancel={() => setIsProductOverviewModalOpen(false)}
+        okText="保存"
+        cancelText="取消"
+        width={600}
+      >
+        <Form form={productOverviewForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="targetRegionIds" label="主要销售区域">
+                <Select mode="multiple" placeholder="请选择销售区域" options={regionOptions} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="targetCountryIds" label="主要销售国家">
+                <Select
+                  mode="multiple"
+                  placeholder="请选择销售国家"
+                  options={[
+                    { label: '美国', value: '美国' }, { label: '加拿大', value: '加拿大' },
+                    { label: '英国', value: '英国' }, { label: '德国', value: '德国' },
+                    { label: '法国', value: '法国' }, { label: '日本', value: '日本' },
+                    { label: '韩国', value: '韩国' }, { label: '澳大利亚', value: '澳大利亚' },
+                    { label: '新加坡', value: '新加坡' }, { label: '马来西亚', value: '马来西亚' },
+                    { label: '泰国', value: '泰国' }, { label: '越南', value: '越南' },
+                    { label: '印度', value: '印度' }, { label: '阿联酋', value: '阿联酋' },
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="hasImportExportLicense" label="是否有进出口资质">
+                <Select options={[{ label: '是', value: true }, { label: '否', value: false }]} />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+
       {/* 外贸信息编辑模态框 */}
       <Modal
         title="编辑外贸信息"
@@ -3906,10 +4108,7 @@ function EnterpriseDetail() {
         afterOpenChange={(open) => {
           if (open && enterprise) {
             tradeForm.setFieldsValue({
-              targetRegionIds: enterprise.target_region_ids || [],
-              targetCountryIds: enterprise.target_country_ids || [],
               tradeModeId: enterprise.trade_mode_id,
-              hasImportExportLicense: enterprise.has_import_export_license === 1,
               customsDeclarationMode: enterprise.customs_declaration_mode,
               tradeTeamModeId: enterprise.trade_team_mode_id,
               tradeTeamSize: enterprise.trade_team_size,
@@ -3920,10 +4119,7 @@ function EnterpriseDetail() {
         onOk={async () => {
           const values = tradeForm.getFieldsValue();
           const ok = await saveEnterpriseFields({
-            targetRegionIds: values.targetRegionIds,
-            targetCountryIds: values.targetCountryIds,
             tradeModeId: values.tradeModeId,
-            hasImportExportLicense: values.hasImportExportLicense ? 1 : 0,
             customsDeclarationMode: values.customsDeclarationMode,
             tradeTeamModeId: values.tradeTeamModeId,
             tradeTeamSize: values.tradeTeamSize ? Number(values.tradeTeamSize) : null,
@@ -3944,46 +4140,8 @@ function EnterpriseDetail() {
         <Form form={tradeForm} layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={16}>
             <Col span={12}>
-              <Form.Item name="targetRegionIds" label="主要销售区域">
-                <Select
-                  mode="multiple"
-                  placeholder="请选择销售区域"
-                  options={regionOptions}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="targetCountryIds" label="主要销售国家">
-                <Select
-                  mode="multiple"
-                  placeholder="请选择销售国家"
-                  options={[
-                    { label: '美国', value: '美国' },
-                    { label: '加拿大', value: '加拿大' },
-                    { label: '英国', value: '英国' },
-                    { label: '德国', value: '德国' },
-                    { label: '法国', value: '法国' },
-                    { label: '日本', value: '日本' },
-                    { label: '韩国', value: '韩国' },
-                    { label: '澳大利亚', value: '澳大利亚' },
-                    { label: '新加坡', value: '新加坡' },
-                    { label: '马来西亚', value: '马来西亚' },
-                    { label: '泰国', value: '泰国' },
-                    { label: '越南', value: '越南' },
-                    { label: '印度', value: '印度' },
-                    { label: '阿联酋', value: '阿联酋' },
-                  ]}
-                />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
               <Form.Item name="tradeModeId" label="外贸模式">
                 <Select placeholder="请选择外贸模式" options={tradeModeOptions} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="hasImportExportLicense" label="是否有进出口资质">
-                <Select options={[{ label: '是', value: true }, { label: '否', value: false }]} />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -4010,71 +4168,109 @@ function EnterpriseDetail() {
         </Form>
       </Modal>
 
-      {/* 原因编辑模态框 */}
+      {/* 原因编辑模态框：可从字典选或手输；新手输文案会写入 system_options（growth_reason / decline_reason） */}
       <Modal
         title={editingReason ? '编辑原因' : '添加原因'}
         open={isReasonModalOpen}
-        onOk={() => {
-          reasonForm.validateFields().then(values => {
+        confirmLoading={reasonModalSaving}
+        afterOpenChange={(open) => {
+          if (open) loadTradeReasonOptions();
+        }}
+        onOk={async () => {
+          try {
+            await reasonForm.validateFields();
+          } catch {
+            return;
+          }
+          const raw = reasonForm.getFieldValue('reason');
+          const text = String(raw ?? '').trim();
+          if (!text) {
+            message.warning('请输入原因');
+            return;
+          }
+          if (!editingReason && reasonType === 'growth' && growthReasons.includes(text)) {
+            message.warning('该增长原因已在列表中');
+            return;
+          }
+          if (!editingReason && reasonType === 'decline' && declineReasons.includes(text)) {
+            message.warning('该下降原因已在列表中');
+            return;
+          }
+
+          setReasonModalSaving(true);
+          try {
+            const category = reasonType === 'growth' ? 'growth_reason' : 'decline_reason';
+            const suggestList = reasonType === 'growth' ? growthReasonSuggest : declineReasonSuggest;
+            const labelSet = new Set(suggestList.map((o) => o.label));
+            let addedToDictionary = false;
+            if (!labelSet.has(text)) {
+              await dictionaryApi.addOption(category, {
+                value: makeCustomDictionaryValue(),
+                label: text,
+                sortOrder: 9000 + suggestList.length,
+              });
+              addedToDictionary = true;
+              await loadTradeReasonOptions();
+            }
+
+            let nextGrowth = [...growthReasons];
+            let nextDecline = [...declineReasons];
             if (reasonType === 'growth') {
               if (editingReason) {
-                setGrowthReasons(prev => prev.map((r, i) => i === editingReason.index ? values.reason : r));
+                nextGrowth = nextGrowth.map((r, i) => (i === editingReason.index ? text : r));
               } else {
-                setGrowthReasons(prev => [...prev, values.reason]);
+                nextGrowth.push(text);
               }
+            } else if (editingReason) {
+              nextDecline = nextDecline.map((r, i) => (i === editingReason.index ? text : r));
             } else {
-              if (editingReason) {
-                setDeclineReasons(prev => prev.map((r, i) => i === editingReason.index ? values.reason : r));
-              } else {
-                setDeclineReasons(prev => [...prev, values.reason]);
-              }
+              nextDecline.push(text);
             }
-            message.success(editingReason ? '修改成功' : '添加成功');
-            setIsReasonModalOpen(false);
-            reasonForm.resetFields();
-          });
+
+            setGrowthReasons(nextGrowth);
+            setDeclineReasons(nextDecline);
+
+            const successMsg = editingReason
+              ? '原因已更新'
+              : addedToDictionary
+                ? '原因已保存，并已同步到数据字典'
+                : '原因已保存';
+
+            const ok = await saveEnterpriseFields(
+              { growthReasons: nextGrowth, declineReasons: nextDecline },
+              successMsg,
+            );
+            if (ok) {
+              setIsReasonModalOpen(false);
+              reasonForm.resetFields();
+            }
+          } catch (e: any) {
+            message.error(e?.message || '保存失败');
+          } finally {
+            setReasonModalSaving(false);
+          }
         }}
         onCancel={() => { setIsReasonModalOpen(false); reasonForm.resetFields(); }}
         okText="保存"
         cancelText="取消"
-        width={400}
+        width={440}
       >
         <Form form={reasonForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="reason" label={reasonType === 'growth' ? '增长原因' : '下降原因'} rules={[{ required: true, message: '请选择原因' }]}>
-            <Select
-              placeholder="请选择原因"
-              options={reasonType === 'growth' ? [
-                { label: '东南亚市场需求旺盛', value: '东南亚市场需求旺盛' },
-                { label: '跨境电商渠道拓展成功', value: '跨境电商渠道拓展成功' },
-                { label: '新产品线上市表现良好', value: '新产品线上市表现良好' },
-                { label: '品牌升级带动销量', value: '品牌升级带动销量' },
-                { label: '价格优势明显', value: '价格优势明显' },
-                { label: '产品质量提升', value: '产品质量提升' },
-                { label: '大客户开发成功', value: '大客户开发成功' },
-                { label: '平台流量扶持', value: '平台流量扶持' },
-                { label: '政策红利', value: '政策红利' },
-                { label: '供应链优化降本增效', value: '供应链优化降本增效' },
-                { label: '营销推广效果显著', value: '营销推广效果显著' },
-                { label: '季节性旺季', value: '季节性旺季' },
-                { label: '其他', value: '其他' },
-              ] : [
-                { label: '欧美市场竞争加剧', value: '欧美市场竞争加剧' },
-                { label: '传统B2B订单减少', value: '传统B2B订单减少' },
-                { label: '部分品类价格下降', value: '部分品类价格下降' },
-                { label: '原材料成本上涨', value: '原材料成本上涨' },
-                { label: '汇率波动影响', value: '汇率波动影响' },
-                { label: '物流成本上升', value: '物流成本上升' },
-                { label: '目标国政策变化', value: '目标国政策变化' },
-                { label: '产品质量问题', value: '产品质量问题' },
-                { label: '主要客户流失', value: '主要客户流失' },
-                { label: '平台规则调整', value: '平台规则调整' },
-                { label: '季节性淡季', value: '季节性淡季' },
-                { label: '供应链问题', value: '供应链问题' },
-                { label: '其他', value: '其他' },
-              ]}
-              showSearch
-              filterOption={(input, option) =>
-                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+          <Form.Item
+            name="reason"
+            label={reasonType === 'growth' ? '增长原因' : '下降原因'}
+            rules={[{ required: true, message: '请输入或选择原因' }]}
+            extra="可从下拉选择字典项，或直接输入新原因；保存时新文案会自动加入数据字典对应分类。"
+          >
+            <AutoComplete
+              options={reasonType === 'growth' ? growthReasonSuggest : declineReasonSuggest}
+              placeholder="选择或输入原因"
+              allowClear
+              style={{ width: '100%' }}
+              filterOption={(inputValue, option) =>
+                String(option?.label ?? '')
+                  .toLowerCase()
+                  .includes(String(inputValue).toLowerCase())
               }
             />
           </Form.Item>
@@ -4381,7 +4577,6 @@ function EnterpriseDetail() {
               <Form.Item 
                 label={`${new Date().getFullYear() - 2}年外贸营业额(万元)`}
                 name="yearBeforeLastRevenue"
-                initialValue={1280}
                 rules={[{ required: true, message: '请输入营业额' }]}
               >
                 <Input type="number" placeholder="请输入营业额" />
@@ -4391,7 +4586,6 @@ function EnterpriseDetail() {
               <Form.Item 
                 label={`${new Date().getFullYear() - 1}年外贸营业额(万元)`}
                 name="lastYearRevenue"
-                initialValue={1500}
                 rules={[{ required: true, message: '请输入营业额' }]}
               >
                 <Input type="number" placeholder="请输入营业额" />

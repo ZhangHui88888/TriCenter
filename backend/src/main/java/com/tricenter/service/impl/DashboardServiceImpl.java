@@ -1,14 +1,18 @@
 package com.tricenter.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tricenter.dto.response.*;
 import com.tricenter.entity.Enterprise;
 import com.tricenter.entity.FollowUpRecord;
 import com.tricenter.mapper.EnterpriseMapper;
 import com.tricenter.mapper.FollowUpRecordMapper;
-import com.tricenter.mapper.IndustryCategoryMapper;
 import com.tricenter.service.DashboardService;
+import com.tricenter.service.DictionaryCacheService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -16,18 +20,25 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
  * 看板统计服务实现
  */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class DashboardServiceImpl implements DashboardService {
     
     private final EnterpriseMapper enterpriseMapper;
     private final FollowUpRecordMapper followUpRecordMapper;
-    private final IndustryCategoryMapper industryCategoryMapper;
+    private final DictionaryCacheService dictionaryCache;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final ObjectMapper objectMapper;
+
+    private static final String CACHE_PREFIX = "dashboard:";
+    private static final long CACHE_TTL_MINUTES = 10;
     
     // 漏斗阶段配置
     private static final Map<String, String> STAGE_NAMES = new LinkedHashMap<>();
@@ -53,6 +64,18 @@ public class DashboardServiceImpl implements DashboardService {
     
     @Override
     public DashboardOverviewResponse getOverview() {
+        String cacheKey = CACHE_PREFIX + "overview";
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return objectMapper.convertValue(cached, DashboardOverviewResponse.class);
+        }
+
+        DashboardOverviewResponse response = doGetOverview();
+        redisTemplate.opsForValue().set(cacheKey, response, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        return response;
+    }
+
+    private DashboardOverviewResponse doGetOverview() {
         DashboardOverviewResponse response = new DashboardOverviewResponse();
         
         // 查询各阶段企业数量
@@ -111,6 +134,18 @@ public class DashboardServiceImpl implements DashboardService {
     
     @Override
     public List<FunnelStageResponse> getFunnelStats() {
+        String cacheKey = CACHE_PREFIX + "funnel";
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return objectMapper.convertValue(cached, new TypeReference<List<FunnelStageResponse>>() {});
+        }
+
+        List<FunnelStageResponse> result = doGetFunnelStats();
+        redisTemplate.opsForValue().set(cacheKey, result, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        return result;
+    }
+
+    private List<FunnelStageResponse> doGetFunnelStats() {
         List<Map<String, Object>> stageCounts = enterpriseMapper.countByStage();
         Map<String, Integer> stageMap = new HashMap<>();
         for (Map<String, Object> item : stageCounts) {
@@ -136,6 +171,18 @@ public class DashboardServiceImpl implements DashboardService {
     
     @Override
     public List<DistrictStatsResponse> getDistrictStats() {
+        String cacheKey = CACHE_PREFIX + "districts";
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return objectMapper.convertValue(cached, new TypeReference<List<DistrictStatsResponse>>() {});
+        }
+
+        List<DistrictStatsResponse> result = doGetDistrictStats();
+        redisTemplate.opsForValue().set(cacheKey, result, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        return result;
+    }
+
+    private List<DistrictStatsResponse> doGetDistrictStats() {
         List<Map<String, Object>> districtCounts = enterpriseMapper.countByDistrict();
         return districtCounts.stream()
             .filter(item -> item.get("district") != null)
@@ -148,25 +195,78 @@ public class DashboardServiceImpl implements DashboardService {
     
     @Override
     public List<IndustryStatsResponse> getIndustryStats() {
+        String cacheKey = CACHE_PREFIX + "industries:l1-full";
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return objectMapper.convertValue(cached, new TypeReference<List<IndustryStatsResponse>>() {});
+        }
+
+        List<IndustryStatsResponse> result = doGetIndustryStats();
+        redisTemplate.opsForValue().set(cacheKey, result, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        return result;
+    }
+
+    private List<IndustryStatsResponse> doGetIndustryStats() {
         List<Map<String, Object>> industryCounts = enterpriseMapper.countByIndustry();
-        
-        // 计算总数
-        int total = industryCounts.stream()
-            .mapToInt(item -> ((Long) item.get("count")).intValue())
-            .sum();
-        
-        return industryCounts.stream()
-            .map(item -> {
-                String name = (String) item.get("name");
-                int count = ((Long) item.get("count")).intValue();
-                double percentage = total > 0 ? Math.round(count * 1000.0 / total) / 10.0 : 0;
-                return new IndustryStatsResponse(name != null ? name : "未分类", count, percentage);
-            })
-            .collect(Collectors.toList());
+        Map<String, Integer> l1Counts = new LinkedHashMap<>();
+        for (Map<String, Object> item : industryCounts) {
+            Object rawId = item.get("industryId");
+            if (rawId == null) {
+                rawId = item.get("industry_id");
+            }
+            Integer industryId = rawId == null ? null : ((Number) rawId).intValue();
+            int count = ((Number) item.get("count")).intValue();
+            String l1 = dictionaryCache.resolveLevel1IndustryName(industryId);
+            l1Counts.merge(l1, count, Integer::sum);
+        }
+        List<IndustryStatsResponse> ordered = buildIndustryStatsWithFullAxis(l1Counts);
+        int total = ordered.stream().mapToInt(IndustryStatsResponse::getCount).sum();
+        for (IndustryStatsResponse r : ordered) {
+            r.setPercentage(total > 0 ? Math.round(r.getCount() * 1000.0 / total) / 10.0 : 0);
+        }
+        return ordered;
+    }
+
+    /**
+     * 与数据分析页一致：未分类 + 字典一级行业（零值占位）+ 其余名称
+     */
+    private List<IndustryStatsResponse> buildIndustryStatsWithFullAxis(Map<String, Integer> industryMap) {
+        List<String> level1Ordered = dictionaryCache.getLevel1IndustryNamesInOrder();
+        List<IndustryStatsResponse> result = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        result.add(new IndustryStatsResponse("未分类", industryMap.getOrDefault("未分类", 0), 0));
+        seen.add("未分类");
+        for (String name : level1Ordered) {
+            if (name == null || name.isBlank() || "未分类".equals(name)) {
+                continue;
+            }
+            result.add(new IndustryStatsResponse(name, industryMap.getOrDefault(name, 0), 0));
+            seen.add(name);
+        }
+        List<Map.Entry<String, Integer>> extras = industryMap.entrySet().stream()
+                .filter(e -> !seen.contains(e.getKey()))
+                .sorted((a, b) -> b.getValue() - a.getValue())
+                .collect(Collectors.toList());
+        for (Map.Entry<String, Integer> e : extras) {
+            result.add(new IndustryStatsResponse(e.getKey(), e.getValue(), 0));
+        }
+        return result;
     }
     
     @Override
     public PendingFollowUpsResponse getPendingFollowUps() {
+        String cacheKey = CACHE_PREFIX + "pending-follow-ups";
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return objectMapper.convertValue(cached, PendingFollowUpsResponse.class);
+        }
+
+        PendingFollowUpsResponse result = doGetPendingFollowUps();
+        redisTemplate.opsForValue().set(cacheKey, result, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        return result;
+    }
+
+    private PendingFollowUpsResponse doGetPendingFollowUps() {
         PendingFollowUpsResponse response = new PendingFollowUpsResponse();
         LocalDate today = LocalDate.now();
         LocalDate thirtyDaysAgo = today.minusDays(30);
@@ -200,7 +300,7 @@ public class DashboardServiceImpl implements DashboardService {
         // 按天数降序排序，取前10条
         overdueList.sort((a, b) -> b.getDays() - a.getDays());
         if (overdueList.size() > 10) {
-            overdueList = overdueList.subList(0, 10);
+            overdueList = new ArrayList<>(overdueList.subList(0, 10));
         }
         
         response.setOverdue30Days(overdueList.size());
@@ -247,5 +347,55 @@ public class DashboardServiceImpl implements DashboardService {
         response.setWeeklyList(weeklyList);
         
         return response;
+    }
+
+    @Override
+    public List<MonthlyTrendResponse> getMonthlyTrend() {
+        String cacheKey = CACHE_PREFIX + "monthly-trend";
+        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        if (cached != null) {
+            return objectMapper.convertValue(cached, new TypeReference<List<MonthlyTrendResponse>>() {});
+        }
+
+        List<MonthlyTrendResponse> result = doGetMonthlyTrend();
+        redisTemplate.opsForValue().set(cacheKey, result, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        return result;
+    }
+
+    private List<MonthlyTrendResponse> doGetMonthlyTrend() {
+        LocalDateTime startDate = LocalDate.now().minusMonths(11).withDayOfMonth(1).atStartOfDay();
+        List<Map<String, Object>> rawData = enterpriseMapper.countMonthlyTrend(startDate);
+
+        Map<String, Map<String, Object>> dataMap = new LinkedHashMap<>();
+        for (Map<String, Object> item : rawData) {
+            dataMap.put((String) item.get("month"), item);
+        }
+
+        List<MonthlyTrendResponse> result = new ArrayList<>();
+        LocalDate cursor = LocalDate.now().minusMonths(11).withDayOfMonth(1);
+        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM");
+        for (int i = 0; i < 12; i++) {
+            String monthKey = cursor.format(fmt);
+            Map<String, Object> row = dataMap.get(monthKey);
+            int total = 0;
+            int signed = 0;
+            if (row != null) {
+                total = ((Number) row.get("total")).intValue();
+                signed = ((Number) row.get("signed_count")).intValue();
+            }
+            String label = cursor.getMonthValue() + "月";
+            result.add(new MonthlyTrendResponse(label, total, signed));
+            cursor = cursor.plusMonths(1);
+        }
+        return result;
+    }
+
+    @Override
+    public void evictAllCache() {
+        Set<String> keys = redisTemplate.keys(CACHE_PREFIX + "*");
+        if (keys != null && !keys.isEmpty()) {
+            redisTemplate.delete(keys);
+            log.info("已清除看板缓存，共{}个key", keys.size());
+        }
     }
 }

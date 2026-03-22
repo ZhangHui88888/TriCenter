@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Card,
   Table,
@@ -12,8 +12,6 @@ import {
   DatePicker,
   Row,
   Col,
-  Typography,
-  Statistic,
   message,
   Spin,
 } from 'antd';
@@ -24,7 +22,6 @@ import {
   VideoCameraOutlined,
   TeamOutlined,
   FileTextOutlined,
-  ArrowRightOutlined,
   RiseOutlined,
   FallOutlined,
 } from '@ant-design/icons';
@@ -33,15 +30,15 @@ import { followUpApi, enterpriseApi, dashboardApi } from '@/services/api';
 import { FOLLOW_UP_TYPES } from '@/utils/constants';
 import type { FollowUpRecord } from '@/types';
 
-// 漏斗阶段配置
+// 漏斗阶段配置（BankDash 色系）
 const FUNNEL_STAGES = [
-  { code: 'POTENTIAL', name: '潜在企业', color: '#94a3b8' },
-  { code: 'NO_DEMAND', name: '无明确需求', color: '#fbbf24' },
-  { code: 'NO_INTENTION', name: '没有合作意向', color: '#ef4444' },
-  { code: 'HAS_DEMAND', name: '有明确需求', color: '#3b82f6' },
-  { code: 'SIGNED', name: '已签约', color: '#8b5cf6' },
-  { code: 'SETTLED', name: '已入驻', color: '#10b981' },
-  { code: 'INCUBATING', name: '重点孵化', color: '#f97316' },
+  { code: 'POTENTIAL', name: '潜在企业', color: '#718EBF' },
+  { code: 'NO_DEMAND', name: '无明确需求', color: '#FFBB38' },
+  { code: 'NO_INTENTION', name: '没有合作意向', color: '#FE5C73' },
+  { code: 'HAS_DEMAND', name: '有明确需求', color: '#396AFF' },
+  { code: 'SIGNED', name: '已签约', color: '#7B61FF' },
+  { code: 'SETTLED', name: '已入驻', color: '#16DBCC' },
+  { code: 'INCUBATING', name: '重点孵化', color: '#FE5C73' },
 ];
 
 // 阶段顺序映射
@@ -55,7 +52,6 @@ const stageOrder: Record<string, number> = {
   'INCUBATING': 7,
 };
 
-const { Title, Text } = Typography;
 const { TextArea } = Input;
 
 function FollowUpRecords() {
@@ -154,7 +150,7 @@ function FollowUpRecords() {
 
   const getStageInfo = (code: string) => {
     const stage = FUNNEL_STAGES.find(s => s.code === code);
-    return stage || { name: code, color: '#94a3b8' };
+    return stage || { name: code, color: '#718EBF' };
   };
 
   // 前端搜索过滤
@@ -220,7 +216,7 @@ function FollowUpRecords() {
           const beforeOrder = stageOrder[record.stage_before] || 0;
           const afterOrder = stageOrder[record.stage_after] || 0;
           const isUpgrade = afterOrder > beforeOrder;
-          const themeColor = isUpgrade ? '#52c41a' : '#faad14';
+          const themeColor = isUpgrade ? '#16DBCC' : '#FFBB38';
 
           return (
             <div
@@ -229,91 +225,25 @@ function FollowUpRecords() {
                 alignItems: 'center',
                 gap: 8,
                 padding: '6px 12px',
-                borderRadius: 20,
-                background: isUpgrade 
-                  ? 'linear-gradient(135deg, rgba(82,196,26,0.08) 0%, rgba(255,255,255,0.95) 100%)'
-                  : 'linear-gradient(135deg, rgba(250,173,20,0.08) 0%, rgba(255,255,255,0.95) 100%)',
-                border: `1px solid ${isUpgrade ? 'rgba(82,196,26,0.2)' : 'rgba(250,173,20,0.2)'}`,
+                borderRadius: 12,
+                background: '#F5F7FA',
               }}
             >
-              {/* 起始阶段 */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '4px 10px',
-                  borderRadius: 12,
-                  background: `${stageBefore.color}12`,
-                  border: `1px solid ${stageBefore.color}30`,
-                  fontSize: 12,
-                  fontWeight: 500,
-                  color: stageBefore.color,
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: stageBefore.color,
-                    opacity: 0.6,
-                  }}
-                />
+              <Tag style={{ margin: 0, border: 'none', background: `${stageBefore.color}20`, color: stageBefore.color }}>
                 {stageBefore.name}
-              </div>
-
-              {/* 箭头指示器 */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 2,
-                  padding: '4px 8px',
-                  borderRadius: 10,
-                  background: `${themeColor}15`,
-                }}
-              >
-                {isUpgrade ? (
-                  <RiseOutlined style={{ fontSize: 14, color: themeColor }} />
-                ) : (
-                  <FallOutlined style={{ fontSize: 14, color: themeColor }} />
-                )}
-                <ArrowRightOutlined style={{ fontSize: 12, color: themeColor }} />
-              </div>
-
-              {/* 目标阶段 */}
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 4,
-                  padding: '4px 10px',
-                  borderRadius: 12,
-                  background: `${stageAfter.color}20`,
-                  border: `1px solid ${stageAfter.color}50`,
-                  fontSize: 12,
-                  fontWeight: 600,
-                  color: stageAfter.color,
-                  whiteSpace: 'nowrap',
-                  boxShadow: `0 2px 8px ${stageAfter.color}20`,
-                }}
-              >
-                <span
-                  style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: stageAfter.color,
-                  }}
-                />
+              </Tag>
+              {isUpgrade ? (
+                <RiseOutlined style={{ fontSize: 14, color: themeColor }} />
+              ) : (
+                <FallOutlined style={{ fontSize: 14, color: themeColor }} />
+              )}
+              <Tag style={{ margin: 0, border: 'none', background: `${stageAfter.color}20`, color: stageAfter.color }}>
                 {stageAfter.name}
-              </div>
+              </Tag>
             </div>
           );
         }
-        return <span style={{ color: '#bfbfbf', fontSize: 13 }}>—</span>;
+        return <span style={{ color: '#718EBF', fontSize: 13 }}>—</span>;
       },
     },
   ];
@@ -344,60 +274,83 @@ function FollowUpRecords() {
   };
 
   const statsDisplay = [
-    { title: '本月跟进', value: stats.monthCount, icon: <FileTextOutlined style={{ color: '#1890ff' }} /> },
-    { title: '本周跟进', value: stats.weekCount, icon: <PhoneOutlined style={{ color: '#52c41a' }} /> },
-    { title: '今日跟进', value: stats.todayCount, icon: <TeamOutlined style={{ color: '#722ed1' }} /> },
-    { title: '待跟进企业', value: stats.pendingCount, icon: <VideoCameraOutlined style={{ color: '#faad14' }} /> },
+    { title: '本月跟进', value: stats.monthCount, icon: <FileTextOutlined />, iconBg: '#E7EDFF', iconColor: '#396AFF' },
+    { title: '本周跟进', value: stats.weekCount, icon: <PhoneOutlined />, iconBg: '#E0F7F4', iconColor: '#16DBCC' },
+    { title: '今日跟进', value: stats.todayCount, icon: <TeamOutlined />, iconBg: '#F3E8FF', iconColor: '#7B61FF' },
+    { title: '待跟进企业', value: stats.pendingCount, icon: <VideoCameraOutlined />, iconBg: '#FFF4E6', iconColor: '#FFBB38' },
   ];
 
-  return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-        <div>
-          <Title level={4} style={{ margin: 0 }}>跟进记录</Title>
-          <Text type="secondary">管理所有企业跟进记录</Text>
-        </div>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalOpen(true)}>
-          新增跟进
-        </Button>
-      </div>
+  const cardStyle = { borderRadius: 25, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' };
 
+  return (
+    <div style={{ background: '#F5F7FA', minHeight: '100%', padding: 24, fontFamily: 'Inter, sans-serif' }}>
       <Row gutter={16} style={{ marginBottom: 16 }}>
         {statsDisplay.map((stat, index) => (
           <Col xs={12} sm={6} key={index}>
-            <Card>
-              <Statistic
-                title={stat.title}
-                value={stat.value}
-                prefix={stat.icon}
-              />
+            <Card style={{ ...cardStyle, background: '#FFFFFF' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                <div style={{ width: 50, height: 50, borderRadius: '50%', background: stat.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {React.cloneElement(stat.icon as React.ReactElement, { style: { fontSize: 22, color: stat.iconColor } })}
+                </div>
+                <div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: '#343C6A' }}>{stat.value}</div>
+                  <div style={{ fontSize: 12, color: '#718EBF' }}>{stat.title}</div>
+                </div>
+              </div>
             </Card>
           </Col>
         ))}
       </Row>
 
-      <Card style={{ marginBottom: 16 }}>
-        <Space wrap>
-          <Input
-            placeholder="搜索企业名称或跟进内容..."
-            prefix={<SearchOutlined />}
-            style={{ width: 300 }}
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            allowClear
-          />
-          <Select
-            placeholder="全部类型"
-            style={{ width: 120 }}
-            allowClear
-            value={typeFilter || undefined}
-            onChange={(value) => setTypeFilter(value || '')}
-            options={FOLLOW_UP_TYPES.map(t => ({ label: t, value: t }))}
-          />
-        </Space>
+      <Card style={{ marginBottom: 16, ...cardStyle, background: '#FFFFFF' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 16,
+            justifyContent: 'space-between',
+          }}
+        >
+          <Space wrap size={16} style={{ flex: '1 1 auto', minWidth: 0 }}>
+            <Input
+              placeholder="搜索企业名称或跟进内容..."
+              prefix={<SearchOutlined style={{ color: '#718EBF' }} />}
+              style={{ width: 300, borderRadius: 40, background: '#F5F7FA', border: 'none' }}
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              allowClear
+            />
+            <Select
+              placeholder="全部类型"
+              style={{ width: 120, borderRadius: 12, background: '#F5F7FA' }}
+              allowClear
+              value={typeFilter || undefined}
+              onChange={(value) => setTypeFilter(value || '')}
+              options={FOLLOW_UP_TYPES.map(t => ({ label: t, value: t }))}
+              popupMatchSelectWidth={false}
+            />
+          </Space>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setIsModalOpen(true)}
+            style={{
+              flexShrink: 0,
+              marginLeft: 'auto',
+              background: '#396AFF',
+              borderRadius: 12,
+              borderColor: '#396AFF',
+              height: 40,
+              fontWeight: 500,
+            }}
+          >
+            新增跟进
+          </Button>
+        </div>
       </Card>
 
-      <Card>
+      <Card style={cardStyle}>
         <Spin spinning={loading}>
           <Table
             columns={columns}
@@ -426,6 +379,7 @@ function FollowUpRecords() {
         width={600}
         okText="保存"
         cancelText="取消"
+        okButtonProps={{ style: { background: '#396AFF', borderRadius: 12, borderColor: '#396AFF' } }}
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Row gutter={16}>

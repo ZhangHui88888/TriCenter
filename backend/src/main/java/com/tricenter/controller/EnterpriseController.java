@@ -6,6 +6,7 @@ import com.tricenter.annotation.OpLog;
 import com.tricenter.dto.request.*;
 import com.tricenter.dto.response.EnterpriseDetailResponse;
 import com.tricenter.dto.response.EnterpriseListResponse;
+import com.tricenter.dto.response.EnterpriseOverviewStatsResponse;
 import com.tricenter.dto.response.ImportResultResponse;
 import com.tricenter.entity.Enterprise;
 import com.tricenter.entity.EnterpriseContact;
@@ -39,6 +40,12 @@ public class EnterpriseController {
     public Result<PageResult<EnterpriseListResponse>> getEnterpriseList(EnterpriseQueryRequest request) {
         PageResult<EnterpriseListResponse> result = enterpriseService.getEnterpriseList(request);
         return Result.success(result);
+    }
+
+    @Operation(summary = "企业概览统计", description = "与列表相同的筛选条件，统计匹配全量企业的数量与上年外贸营业额（万元）；出口额按是否开展跨境电商拆分")
+    @GetMapping("/overview-stats")
+    public Result<EnterpriseOverviewStatsResponse> getOverviewStats(EnterpriseQueryRequest request) {
+        return Result.success(enterpriseService.getOverviewStats(request));
     }
 
     @Operation(summary = "企业详情", description = "获取单个企业的完整信息")

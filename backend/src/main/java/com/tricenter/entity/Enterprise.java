@@ -23,6 +23,12 @@ public class Enterprise {
     /** 统一社会信用代码 */
     private String creditCode;
     
+    /** 成立日期 */
+    private java.time.LocalDate establishedDate;
+    
+    /** 注册资本（如"500万元"） */
+    private String registeredCapital;
+    
     /** 省 */
     private String province;
     
@@ -52,6 +58,9 @@ public class Enterprise {
     
     /** 跨境营收ID */
     private Integer crossBorderRevenueId;
+
+    /** 跨境营收(万元)，精确数值；与 crossBorderRevenueId 二选一优先使用本字段 */
+    private BigDecimal crossBorderRevenueWan;
     
     /** 企业来源ID */
     private Integer sourceId;
@@ -80,6 +89,15 @@ public class Enterprise {
     
     /** 是否有进出口资质 */
     private Integer hasImportExportLicense;
+    
+    /** ISO认证情况 */
+    private String isoCertifications;
+    
+    /** 海关AEO认证等级 */
+    private String aeoCertification;
+    
+    /** 其他资质证书 */
+    private String otherCertifications;
     
     /** 报关申报主体模式 */
     private String customsDeclarationMode;
@@ -138,6 +156,19 @@ public class Enterprise {
     
     /** 是否在用ERP */
     private Integer usingErp;
+    
+    /** 社交媒体账号 */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Object socialMediaAccounts;
+    
+    /** 国际展会参展情况 */
+    private String exhibitionHistory;
+    
+    /** 海外代理商/分销商 */
+    private String overseasDistributors;
+    
+    /** 是否使用CRM系统 */
+    private Integer usingCrm;
     
     /** 跨境转型意愿 */
     private String transformationWillingness;

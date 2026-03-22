@@ -13,6 +13,7 @@ import com.tricenter.mapper.IndustryCategoryMapper;
 import com.tricenter.mapper.ProductCategoryMapper;
 import com.tricenter.mapper.SystemOptionMapper;
 import com.tricenter.mapper.UserMapper;
+import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.service.OptionsService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -34,6 +35,7 @@ public class OptionsServiceImpl implements OptionsService {
     private final IndustryCategoryMapper industryCategoryMapper;
     private final ProductCategoryMapper productCategoryMapper;
     private final UserMapper userMapper;
+    private final DictionaryCacheService dictionaryCache;
 
     /**
      * 分类名称映射
@@ -160,6 +162,7 @@ public class OptionsServiceImpl implements OptionsService {
         option.setIsEnabled(request.getIsEnabled() != null ? request.getIsEnabled() : 1);
         
         systemOptionMapper.insert(option);
+        dictionaryCache.refresh();
         log.info("新增字典选项: category={}, value={}", category, request.getValue());
         
         return toOptionResponse(option);
@@ -189,6 +192,7 @@ public class OptionsServiceImpl implements OptionsService {
         }
         
         systemOptionMapper.updateById(option);
+        dictionaryCache.refresh();
         log.info("更新字典选项: id={}, category={}", id, category);
         
         return toOptionResponse(option);
@@ -207,6 +211,7 @@ public class OptionsServiceImpl implements OptionsService {
         // 这里暂时直接删除，后续可以添加引用检查逻辑
         
         systemOptionMapper.deleteById(id);
+        dictionaryCache.refresh();
         log.info("删除字典选项: id={}, category={}", id, category);
     }
 

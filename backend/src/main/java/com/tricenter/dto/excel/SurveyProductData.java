@@ -42,6 +42,14 @@ public class SurveyProductData {
     @ColumnWidth(15)
     private String annualSales;
 
+    @ExcelProperty("出口占比")
+    @ColumnWidth(12)
+    private String exportRatio;
+
+    @ExcelProperty("利润率")
+    @ColumnWidth(12)
+    private String profitMargin;
+
     @ExcelProperty("原材料本地采购比例")
     @ColumnWidth(22)
     private String localProcurementRatio;

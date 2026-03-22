@@ -134,7 +134,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             basicHint.setStaffSize("可选：" + String.join("/", optionLabels.getOrDefault("staff_size", List.of())));
             basicHint.setWebsite("自由填写");
             basicHint.setDomesticRevenue("可选：" + String.join("/", optionLabels.getOrDefault("domestic_revenue", List.of())));
-            basicHint.setCrossBorderRevenue("可选：" + String.join("/", optionLabels.getOrDefault("cross_border_revenue", List.of())));
+            basicHint.setCrossBorderRevenue("填数字，单位万元（如 350）；或沿用旧版档位：" + String.join("/", optionLabels.getOrDefault("cross_border_revenue", List.of())));
             basicHint.setSource("可选：" + String.join("/", optionLabels.getOrDefault("source", List.of())));
             basicHint.setHasOwnBrand("填：是/否");
             basicHint.setBrandNames("自由填写，多个用逗号分隔");
@@ -151,7 +151,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             basicExample.setStaffSize("50-200人");
             basicExample.setWebsite("https://www.example.com");
             basicExample.setDomesticRevenue("1000-5000");
-            basicExample.setCrossBorderRevenue("200-500");
+            basicExample.setCrossBorderRevenue("350");
             basicExample.setSource("调研");
             basicExample.setHasOwnBrand("是");
             basicExample.setBrandNames("品牌A,品牌B");
@@ -499,7 +499,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         data.add(Arrays.asList("企业类型", "企业基本信息", "单选", String.join("、", optionLabels.getOrDefault("enterprise_type", List.of()))));
         data.add(Arrays.asList("人员规模", "企业基本信息", "单选", String.join("、", optionLabels.getOrDefault("staff_size", List.of()))));
         data.add(Arrays.asList("国内营收", "企业基本信息", "单选", String.join("、", optionLabels.getOrDefault("domestic_revenue", List.of()))));
-        data.add(Arrays.asList("跨境营收", "企业基本信息", "单选", String.join("、", optionLabels.getOrDefault("cross_border_revenue", List.of()))));
+        data.add(Arrays.asList("跨境营收", "企业基本信息", "数字(万元)或旧档位", "数值示例：350；档位：" + String.join("、", optionLabels.getOrDefault("cross_border_revenue", List.of()))));
         data.add(Arrays.asList("企业来源", "企业基本信息", "单选", String.join("、", optionLabels.getOrDefault("source", List.of()))));
         data.add(Arrays.asList("是否有自主品牌", "企业基本信息", "单选", "是、否"));
 
@@ -566,6 +566,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             data.setEnterpriseId(e.getId());
             data.setName(e.getName());
             data.setCreditCode(e.getCreditCode());
+            data.setEstablishedDate(e.getEstablishedDate() != null ? e.getEstablishedDate().toString() : null);
+            data.setRegisteredCapital(e.getRegisteredCapital());
             data.setDistrict(e.getDistrict());
             data.setAddress(e.getAddress());
             data.setEnterpriseType(e.getEnterpriseType());
@@ -590,7 +592,9 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             }
 
             // 跨境营收
-            if (e.getCrossBorderRevenueId() != null) {
+            if (e.getCrossBorderRevenueWan() != null) {
+                data.setCrossBorderRevenue(e.getCrossBorderRevenueWan().stripTrailingZeros().toPlainString());
+            } else if (e.getCrossBorderRevenueId() != null) {
                 SystemOption opt = systemOptionMapper.selectById(e.getCrossBorderRevenueId());
                 if (opt != null) data.setCrossBorderRevenue(opt.getLabel());
             }
@@ -608,6 +612,11 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             // 漏斗阶段
             SystemOption stageOpt = getOptionByValue("stage", e.getStage());
             if (stageOpt != null) data.setStageName(stageOpt.getLabel());
+
+            // 资质认证
+            data.setIsoCertifications(e.getIsoCertifications());
+            data.setAeoCertification(e.getAeoCertification());
+            data.setOtherCertifications(e.getOtherCertifications());
 
             return data;
         }).collect(Collectors.toList());
@@ -655,6 +664,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                     data.setEnterpriseName(e.getName());
                     data.setName(p.getName());
                     data.setAnnualSales(p.getAnnualSales());
+                    data.setExportRatio(p.getExportRatio());
+                    data.setProfitMargin(p.getProfitMargin());
                     data.setLocalProcurementRatio(p.getLocalProcurementRatio());
                     data.setAnnualCapacity(p.getAnnualCapacity());
 
@@ -782,6 +793,15 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
             data.setCrossBorderTeamSize(e.getCrossBorderTeamSize() != null ? String.valueOf(e.getCrossBorderTeamSize()) : "");
             data.setUsingErp(e.getUsingErp() != null && e.getUsingErp() == 1 ? "是" : "否");
+
+            // 社交媒体
+            if (e.getSocialMediaAccounts() != null) {
+                data.setSocialMediaAccounts(e.getSocialMediaAccounts().toString());
+            }
+            data.setExhibitionHistory(e.getExhibitionHistory());
+            data.setOverseasDistributors(e.getOverseasDistributors());
+            data.setUsingCrm(e.getUsingCrm() != null && e.getUsingCrm() == 1 ? "是" : "否");
+
             data.setTransformationWillingness(e.getTransformationWillingness());
             data.setInvestmentWillingness(e.getInvestmentWillingness());
 
@@ -865,17 +885,16 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                         continue;
                     }
 
-                    Enterprise enterprise = null;
-                    if (data.getEnterpriseId() != null) {
-                        enterprise = enterpriseMapper.selectById(data.getEnterpriseId());
-                    }
+                    Enterprise enterprise = resolveEnterpriseForImport(data);
 
                     if (enterprise != null && enterprise.getIsDeleted() != 1) {
                         // 已有企业，更新
                         updateBasicInfo(enterprise, data);
                         enterpriseMapper.updateById(enterprise);
+                        nameToIdMap.put(enterprise.getName(), enterprise.getId());
                     } else {
-                        // 企业不存在或ID为空，新建企业
+                        // 企业不存在，按新企业创建；创建前校验数据库必填字段
+                        validateBasicInfoForInsert(data);
                         enterprise = new Enterprise();
                         enterprise.setName(StringUtils.hasText(data.getName()) ? data.getName().trim() : "未命名企业");
                         enterprise.setStage("potential"); // 默认漏斗阶段：潜在企业
@@ -889,53 +908,78 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 } catch (Exception e) {
                     failCount++;
                     errors.add(ImportResultResponse.ErrorDetail.builder()
-                            .row(rowNum).message("[基本信息] " + e.getMessage()).build());
+                            .row(rowNum).message("[基本信息] " + buildFriendlyImportMessage(data, e.getMessage())).build());
                 }
             }
 
             // 读取Sheet2: 联系人信息
             try {
+                int errorCountBefore = errors.size();
                 List<SurveyContactData> contactList = EasyExcel.read(file.getInputStream())
                         .head(SurveyContactData.class).sheet("联系人信息").doReadSync();
                 importContacts(contactList, errors, nameToIdMap);
+                failCount += errors.size() - errorCountBefore;
             } catch (Exception e) {
                 log.warn("读取联系人Sheet失败: {}", e.getMessage());
+                failCount++;
+                errors.add(ImportResultResponse.ErrorDetail.builder()
+                        .row(0).message("[联系人] Sheet读取失败: " + e.getMessage()).build());
             }
 
             // 读取Sheet3: 产品信息
             try {
+                int errorCountBefore = errors.size();
                 List<SurveyProductData> productList = EasyExcel.read(file.getInputStream())
                         .head(SurveyProductData.class).sheet("产品信息").doReadSync();
                 importProducts(productList, errors, nameToIdMap);
+                failCount += errors.size() - errorCountBefore;
             } catch (Exception e) {
                 log.warn("读取产品Sheet失败: {}", e.getMessage());
+                failCount++;
+                errors.add(ImportResultResponse.ErrorDetail.builder()
+                        .row(0).message("[产品] Sheet读取失败: " + e.getMessage()).build());
             }
 
             // 读取Sheet4: 外贸信息
             try {
+                int errorCountBefore = errors.size();
                 List<SurveyTradeData> tradeList = EasyExcel.read(file.getInputStream())
                         .head(SurveyTradeData.class).sheet("外贸信息").doReadSync();
                 importTradeInfo(tradeList, errors, nameToIdMap);
+                failCount += errors.size() - errorCountBefore;
             } catch (Exception e) {
                 log.warn("读取外贸信息Sheet失败: {}", e.getMessage());
+                failCount++;
+                errors.add(ImportResultResponse.ErrorDetail.builder()
+                        .row(0).message("[外贸] Sheet读取失败: " + e.getMessage()).build());
             }
 
             // 读取Sheet5: 跨境电商信息
             try {
+                int errorCountBefore = errors.size();
                 List<SurveyCrossBorderData> cbList = EasyExcel.read(file.getInputStream())
                         .head(SurveyCrossBorderData.class).sheet("跨境电商信息").doReadSync();
                 importCrossBorderInfo(cbList, errors, nameToIdMap);
+                failCount += errors.size() - errorCountBefore;
             } catch (Exception e) {
                 log.warn("读取跨境电商Sheet失败: {}", e.getMessage());
+                failCount++;
+                errors.add(ImportResultResponse.ErrorDetail.builder()
+                        .row(0).message("[跨境电商] Sheet读取失败: " + e.getMessage()).build());
             }
 
             // 读取Sheet6: 合作与政策信息
             try {
+                int errorCountBefore = errors.size();
                 List<SurveyCooperationData> coopList = EasyExcel.read(file.getInputStream())
                         .head(SurveyCooperationData.class).sheet("合作与政策信息").doReadSync();
                 importCooperationInfo(coopList, errors, nameToIdMap);
+                failCount += errors.size() - errorCountBefore;
             } catch (Exception e) {
                 log.warn("读取合作与政策Sheet失败: {}", e.getMessage());
+                failCount++;
+                errors.add(ImportResultResponse.ErrorDetail.builder()
+                        .row(0).message("[合作与政策] Sheet读取失败: " + e.getMessage()).build());
             }
 
         } catch (Exception e) {
@@ -953,16 +997,18 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     private void updateBasicInfo(Enterprise enterprise, SurveyBasicInfoData data) {
         if (StringUtils.hasText(data.getName())) enterprise.setName(data.getName());
         if (StringUtils.hasText(data.getCreditCode())) enterprise.setCreditCode(data.getCreditCode());
+        if (StringUtils.hasText(data.getEstablishedDate())) {
+            try { enterprise.setEstablishedDate(java.time.LocalDate.parse(data.getEstablishedDate().trim())); } catch (Exception ignored) {}
+        }
+        if (StringUtils.hasText(data.getRegisteredCapital())) enterprise.setRegisteredCapital(data.getRegisteredCapital().trim());
         if (StringUtils.hasText(data.getDistrict())) enterprise.setDistrict(data.getDistrict());
         if (StringUtils.hasText(data.getAddress())) enterprise.setAddress(data.getAddress());
         if (StringUtils.hasText(data.getEnterpriseType())) enterprise.setEnterpriseType(data.getEnterpriseType());
         if (StringUtils.hasText(data.getWebsite())) enterprise.setWebsite(data.getWebsite());
 
-        // 行业 - 按名称查找ID
+        // 行业 - 按名称查找ID（支持别名映射和模糊匹配）
         if (StringUtils.hasText(data.getIndustryName())) {
-            LambdaQueryWrapper<IndustryCategory> w = new LambdaQueryWrapper<>();
-            w.eq(IndustryCategory::getName, data.getIndustryName().trim());
-            IndustryCategory industry = industryCategoryMapper.selectOne(w);
+            IndustryCategory industry = resolveIndustryByName(data.getIndustryName());
             if (industry != null) enterprise.setIndustryId(industry.getId());
         }
 
@@ -978,10 +1024,20 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             if (opt != null) enterprise.setDomesticRevenueId(opt.getId());
         }
 
-        // 跨境营收
+        // 跨境营收：优先按万元数值解析，否则按旧版档位文案匹配
         if (StringUtils.hasText(data.getCrossBorderRevenue())) {
-            SystemOption opt = getOptionByLabel("cross_border_revenue", data.getCrossBorderRevenue().trim());
-            if (opt != null) enterprise.setCrossBorderRevenueId(opt.getId());
+            String raw = data.getCrossBorderRevenue().trim();
+            BigDecimal wan = tryParseCrossBorderRevenueWan(raw);
+            if (wan != null) {
+                enterprise.setCrossBorderRevenueWan(wan);
+                enterprise.setCrossBorderRevenueId(null);
+            } else {
+                SystemOption opt = getOptionByLabel("cross_border_revenue", raw);
+                if (opt != null) {
+                    enterprise.setCrossBorderRevenueId(opt.getId());
+                    enterprise.setCrossBorderRevenueWan(null);
+                }
+            }
         }
 
         // 企业来源
@@ -997,6 +1053,81 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         if (StringUtils.hasText(data.getBrandNames())) {
             enterprise.setBrandNames(data.getBrandNames().trim());
         }
+
+        // 资质认证
+        if (StringUtils.hasText(data.getIsoCertifications())) enterprise.setIsoCertifications(data.getIsoCertifications().trim());
+        if (StringUtils.hasText(data.getAeoCertification())) enterprise.setAeoCertification(data.getAeoCertification().trim());
+        if (StringUtils.hasText(data.getOtherCertifications())) enterprise.setOtherCertifications(data.getOtherCertifications().trim());
+    }
+
+    private Enterprise resolveEnterpriseForImport(SurveyBasicInfoData data) {
+        if (data.getEnterpriseId() != null) {
+            Enterprise byId = enterpriseMapper.selectById(data.getEnterpriseId());
+            if (byId != null && byId.getIsDeleted() != 1) {
+                return byId;
+            }
+        }
+
+        if (StringUtils.hasText(data.getCreditCode())) {
+            LambdaQueryWrapper<Enterprise> creditWrapper = new LambdaQueryWrapper<>();
+            creditWrapper.eq(Enterprise::getCreditCode, data.getCreditCode().trim())
+                    .eq(Enterprise::getIsDeleted, 0)
+                    .last("LIMIT 1");
+            Enterprise byCreditCode = enterpriseMapper.selectOne(creditWrapper);
+            if (byCreditCode != null) {
+                return byCreditCode;
+            }
+        }
+
+        if (StringUtils.hasText(data.getName())) {
+            LambdaQueryWrapper<Enterprise> nameWrapper = new LambdaQueryWrapper<>();
+            nameWrapper.eq(Enterprise::getName, data.getName().trim())
+                    .eq(Enterprise::getIsDeleted, 0)
+                    .last("LIMIT 1");
+            return enterpriseMapper.selectOne(nameWrapper);
+        }
+
+        return null;
+    }
+
+    private void validateBasicInfoForInsert(SurveyBasicInfoData data) {
+        List<String> missingFields = new ArrayList<>();
+        if (!StringUtils.hasText(data.getName())) {
+            missingFields.add("企业名称");
+        }
+        if (!StringUtils.hasText(data.getDistrict())) {
+            missingFields.add("所属区域");
+        }
+        if (!StringUtils.hasText(data.getEnterpriseType())) {
+            missingFields.add("企业类型");
+        }
+
+        if (!missingFields.isEmpty()) {
+            throw new BusinessException("无法新建企业，缺少必填字段: " + String.join("、", missingFields)
+                    + "。建议补充企业ID，或补齐基础信息后重试。");
+        }
+    }
+
+    private String buildFriendlyImportMessage(SurveyBasicInfoData data, String originalMessage) {
+        String enterpriseHint = StringUtils.hasText(data.getName()) ? "企业「" + data.getName().trim() + "」" : "当前行";
+
+        if (originalMessage != null && originalMessage.contains("cannot be null")) {
+            List<String> missingFields = new ArrayList<>();
+            if (!StringUtils.hasText(data.getDistrict())) {
+                missingFields.add("所属区域");
+            }
+            if (!StringUtils.hasText(data.getEnterpriseType())) {
+                missingFields.add("企业类型");
+            }
+            if (!StringUtils.hasText(data.getName())) {
+                missingFields.add("企业名称");
+            }
+            if (!missingFields.isEmpty()) {
+                return enterpriseHint + " 导入失败，缺少数据库必填字段: " + String.join("、", missingFields);
+            }
+        }
+
+        return enterpriseHint + " 导入失败: " + originalMessage;
     }
 
     private void importContacts(List<SurveyContactData> contactList, List<ImportResultResponse.ErrorDetail> errors, Map<String, Integer> nameToIdMap) {
@@ -1085,6 +1216,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                     product.setEnterpriseId(enterpriseId);
                     product.setName(p.getName());
                     product.setAnnualSales(p.getAnnualSales());
+                    if (StringUtils.hasText(p.getExportRatio())) product.setExportRatio(p.getExportRatio().trim());
+                    if (StringUtils.hasText(p.getProfitMargin())) product.setProfitMargin(p.getProfitMargin().trim());
                     product.setLocalProcurementRatio(p.getLocalProcurementRatio());
                     product.setAnnualCapacity(p.getAnnualCapacity());
 
@@ -1227,6 +1360,18 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 if (StringUtils.hasText(data.getUsingErp())) {
                     enterprise.setUsingErp("是".equals(data.getUsingErp().trim()) ? 1 : 0);
                 }
+                if (StringUtils.hasText(data.getSocialMediaAccounts())) {
+                    enterprise.setSocialMediaAccounts(data.getSocialMediaAccounts().trim());
+                }
+                if (StringUtils.hasText(data.getExhibitionHistory())) {
+                    enterprise.setExhibitionHistory(data.getExhibitionHistory().trim());
+                }
+                if (StringUtils.hasText(data.getOverseasDistributors())) {
+                    enterprise.setOverseasDistributors(data.getOverseasDistributors().trim());
+                }
+                if (StringUtils.hasText(data.getUsingCrm())) {
+                    enterprise.setUsingCrm("是".equals(data.getUsingCrm().trim()) ? 1 : 0);
+                }
                 if (StringUtils.hasText(data.getTransformationWillingness())) {
                     enterprise.setTransformationWillingness(data.getTransformationWillingness().trim());
                 }
@@ -1299,7 +1444,177 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         }
     }
 
+    // ==================== 行业别名映射 ====================
+
+    private static final Map<String, String> INDUSTRY_ALIAS_MAP = new HashMap<>();
+    static {
+        // 汽车零部件
+        for (String alias : new String[]{"汽配", "汽车配件", "汽车部件", "汽车配套工具", "汽车制造"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "汽车零部件");
+        }
+        // 纺织服装
+        for (String alias : new String[]{"纺织", "纺织品", "纺织业", "纺织服装类", "纺织科技", "纺机",
+                "针纺织品", "纺织服装", "服装", "服装制造", "服装贸易进出口", "服装贸易", "织品", "纺织服装类"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "纺织服装");
+        }
+        // 医疗器械
+        for (String alias : new String[]{"医疗", "医疗行业", "制药装备"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "医疗器械");
+        }
+        // 机械设备
+        for (String alias : new String[]{"机械", "机械设备制造", "干燥设备", "干燥业", "通用设备",
+                "35专用设备制造业", "通信设备"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "机械设备");
+        }
+        // 电子产品
+        for (String alias : new String[]{"电子", "电子电工", "电子机械", "电机行业",
+                "3c", "3c电子", "电子产品"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "电子产品");
+        }
+        // 五金建材
+        for (String alias : new String[]{"五金", "五金工具", "五金工具制造", "建材", "建筑", "建筑工程",
+                "建筑材料", "装饰材料", "钣金制造", "高压配电", "齿轮"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "五金建材");
+        }
+        // 照明灯具
+        for (String alias : new String[]{"灯具", "灯具照明", "照明"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "照明灯具");
+        }
+        // 家居用品
+        for (String alias : new String[]{"家居", "家具", "家居园艺", "智能家居", "厨具",
+                "日用百货", "办公用品", "家居用品"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "家居用品");
+        }
+        // 化工材料
+        for (String alias : new String[]{"化工", "塑料包装", "新材料"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "化工材料");
+        }
+        // 新能源
+        for (String alias : new String[]{"光伏", "光伏行业"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "新能源");
+        }
+        // 电动工具
+        INDUSTRY_ALIAS_MAP.put("扳机", "电动工具");
+        // 箱包皮具
+        INDUSTRY_ALIAS_MAP.put("箱包", "箱包皮具");
+        // 综合贸易
+        for (String alias : new String[]{"贸易", "工贸一体", "卖家", "批发外贸", "批发商"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "综合贸易");
+        }
+        // 批发零售
+        for (String alias : new String[]{"批发", "批发业", "批发和零售业", "批发零售业", "多品类"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "批发零售");
+        }
+        // 电商运营
+        for (String alias : new String[]{"电商", "跨境卖家", "跨境电商", "互联网销售"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "电商运营");
+        }
+        // 进出口代理
+        for (String alias : new String[]{"进出口", "艺术品进出口", "技术进出口"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "进出口代理");
+        }
+        // 信息技术
+        for (String alias : new String[]{"软件", "信息工程", "信息传输软件业", "技术服务",
+                "人工智能", "智能机器人", "高新技术业", "互联网信息"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "信息技术");
+        }
+        // 物流仓储
+        INDUSTRY_ALIAS_MAP.put("海路运输", "物流仓储");
+        // 金融服务
+        INDUSTRY_ALIAS_MAP.put("金融", "金融服务");
+        // 营销推广
+        for (String alias : new String[]{"广告", "展示器材"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "营销推广");
+        }
+        // 其他制造
+        for (String alias : new String[]{"制造", "制造业", "工业制造", "工业品", "生产制造",
+                "生产加工", "印刷", "服务业", "文化", "轻工业", "成人用品"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "其他制造");
+        }
+        // 补充：复合名称和剩余映射
+        INDUSTRY_ALIAS_MAP.put("刀具", "五金建材");
+        INDUSTRY_ALIAS_MAP.put("机电行业", "机械设备");
+        INDUSTRY_ALIAS_MAP.put("汽车零部件，机械零部件，轴承", "汽车零部件");
+        INDUSTRY_ALIAS_MAP.put("新能源航空动力系统 / 电机制造", "新能源");
+        INDUSTRY_ALIAS_MAP.put("环保设备 / 净化科技", "机械设备");
+        INDUSTRY_ALIAS_MAP.put("计算机信息技术服务 / 系统集成", "信息技术");
+        INDUSTRY_ALIAS_MAP.put("建筑材料 / 化工产品 / 合成材料", "五金建材");
+        INDUSTRY_ALIAS_MAP.put("互联网 / 电子商务", "电商运营");
+        INDUSTRY_ALIAS_MAP.put("先进制造 / 电机及控制器制造", "机械设备");
+        INDUSTRY_ALIAS_MAP.put("建筑材料", "五金建材");
+        INDUSTRY_ALIAS_MAP.put("服装贸易", "纺织服装");
+    }
+
+    /**
+     * 解析行业名称：先精确匹配数据库，再走别名映射
+     */
+    private IndustryCategory resolveIndustryByName(String rawName) {
+        if (!StringUtils.hasText(rawName)) return null;
+        String name = rawName.trim();
+
+        // 1) 精确匹配
+        LambdaQueryWrapper<IndustryCategory> w = new LambdaQueryWrapper<>();
+        w.eq(IndustryCategory::getName, name);
+        IndustryCategory result = industryCategoryMapper.selectOne(w);
+        if (result != null) return result;
+
+        // 2) 别名映射
+        String mapped = INDUSTRY_ALIAS_MAP.get(name);
+        if (mapped != null) {
+            LambdaQueryWrapper<IndustryCategory> w2 = new LambdaQueryWrapper<>();
+            w2.eq(IndustryCategory::getName, mapped);
+            result = industryCategoryMapper.selectOne(w2);
+            if (result != null) return result;
+        }
+
+        // 3) 处理含斜杠/空格的复合名称：取第一个关键词匹配
+        String first = name.split("[/，、\\s]")[0].trim();
+        if (!first.equals(name) && first.length() >= 2) {
+            mapped = INDUSTRY_ALIAS_MAP.get(first);
+            if (mapped != null) {
+                LambdaQueryWrapper<IndustryCategory> w3 = new LambdaQueryWrapper<>();
+                w3.eq(IndustryCategory::getName, mapped);
+                result = industryCategoryMapper.selectOne(w3);
+                if (result != null) return result;
+            }
+        }
+
+        // 4) LIKE 模糊匹配（最后手段）
+        LambdaQueryWrapper<IndustryCategory> wLike = new LambdaQueryWrapper<>();
+        wLike.like(IndustryCategory::getName, name).last("LIMIT 1");
+        result = industryCategoryMapper.selectOne(wLike);
+        if (result != null) return result;
+
+        log.warn("行业匹配失败: '{}'，无精确匹配、别名映射或模糊匹配", name);
+        return null;
+    }
+
     // ==================== 工具方法 ====================
+
+    /**
+     * 跨境营收单元格：纯数字或带「万」「元」的数值，单位万元；无法解析则返回 null（可走档位文案）
+     */
+    private BigDecimal tryParseCrossBorderRevenueWan(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String s = raw.trim()
+                .replace("万元", "")
+                .replace("万", "")
+                .replace("元", "")
+                .replace(",", "")
+                .replace("，", "")
+                .trim();
+        if (!StringUtils.hasText(s)) {
+            return null;
+        }
+        try {
+            BigDecimal v = new BigDecimal(s);
+            return v.signum() >= 0 ? v : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
 
     private SystemOption getOptionByValue(String category, String value) {
         if (value == null) return null;

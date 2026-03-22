@@ -202,7 +202,7 @@ NODE_ENV=production npm start
 | 路径 | `POST /api/dictionary/:category` |
 | 请求 | `{ value: string, label: string, color?: string, sort_order?: number }` |
 | 响应 | `{ id, value, label, ... }` |
-| 说明 | 在指定分类下新增选项（管理员功能） |
+| 说明 | 在指定分类下新增选项；数据字典管理页与**企业详情 → 外贸信息 → 原因分析**共用。录入企业时若原因文案不在字典中，前端可在保存原因时调用本接口向 `growth_reason` / `decline_reason` 追加选项（需已登录），服务端会刷新字典缓存。 |
 
 ### 2.7 更新字典选项
 | 项 | 值 |
@@ -223,15 +223,15 @@ NODE_ENV=production npm start
 
 ---
 
-## 模块3: 企业管理 (12个API)
+## 模块3: 企业管理 (13个API)
 
 ### 3.1 企业列表
 | 项 | 值 |
 |-----|-----|
 | 路径 | `GET /api/enterprises` |
-| 参数 | `?keyword=&stage=&district=&industryId=&province=&city=&enterpriseType=&staffSizeId=&domesticRevenueId=&crossBorderRevenueId=&sourceId=&hasCrossBorder=&usingErp=&transformationWillingness=&automationLevelId=&localProcurementRatio=&logisticsPartnerIds=&lastFollowupDays=&requirementIds=&mainPlatforms=&targetMarkets=&page=1&pageSize=10` |
+| 参数 | `?keyword=&stage=&district=&industryId=&province=&city=&enterpriseType=&staffSizeId=&domesticRevenueId=&crossBorderRevenueId=&crossBorderRevenueMinWan=&crossBorderRevenueMaxWan=&sourceId=&hasCrossBorder=&usingErp=&transformationWillingness=&automationLevelId=&localProcurementRatio=&logisticsPartnerIds=&lastFollowupDays=&requirementIds=&mainPlatforms=&targetMarkets=&page=1&pageSize=10` |
 | 响应 | `{ list: Enterprise[], total: number, page: number, pageSize: number }` |
-| 说明 | 支持搜索、多条件筛选、分页 |
+| 说明 | 支持搜索、多条件筛选、分页；每条 `contacts` 已按主要联系人优先（`is_primary` 降序、`id` 升序）批量返回，含 `email` 供列表在电话为空时展示 |
 
 **筛选参数说明:**
 | 参数 | 类型 | 说明 |
@@ -245,7 +245,9 @@ NODE_ENV=production npm start
 | enterpriseType | string | 企业类型 |
 | staffSizeId | number | 人员规模ID |
 | domesticRevenueId | number | 国内营收档位ID |
-| crossBorderRevenueId | number | 跨境营收档位ID |
+| crossBorderRevenueId | number | 跨境营收档位ID（兼容旧数据筛选） |
+| crossBorderRevenueMinWan | number | 跨境营收下限（万元，含），按 `cross_border_revenue_wan` 字段筛选 |
+| crossBorderRevenueMaxWan | number | 跨境营收上限（万元，含） |
 | sourceId | number | 企业来源ID |
 | hasCrossBorder | number | 是否开展跨境电商，`1/0` |
 | usingErp | number | 是否在用ERP，`1/0` |
@@ -267,13 +269,31 @@ interface EnterpriseListItem {
   industry: string;
   enterprise_type: string;
   funnel_stage: string;
-  contacts: { name: string; phone: string; is_primary: boolean }[];
+  contacts: { name: string; phone: string; email?: string; isPrimary: boolean }[];
   has_crossborder: boolean;
   main_platforms: string;
   target_markets: string;
   created_at: string;
 }
 ```
+
+### 3.1a 企业概览统计（列表筛选全量聚合）
+| 项 | 值 |
+|-----|-----|
+| 路径 | `GET /api/enterprises/overview-stats` |
+| 参数 | 与 `GET /api/enterprises` 的筛选参数一致（**不含** `page`、`pageSize` 亦可）；统计**当前筛选条件下全部匹配企业**，不受列表分页影响 |
+| 响应 | 见下表 |
+| 说明 | 企业数量：`totalCount` 为匹配总数；`hasDemandCount` 为阶段 `HAS_DEMAND`（有明确需求）；`signedCount` 为阶段 `SIGNED`（已签约）。出口额：对 `last_year_revenue`（上年外贸营业额，万元）非空记录求和；`offlineExportRevenueWan` 为未开展跨境电商（`has_cross_border` ≠ 1）之和；`onlineCrossBorderExportRevenueWan` 为开展跨境电商（`has_cross_border` = 1）之和 |
+
+**响应字段（JSON，`data` 内）：**
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| totalCount | long | 筛选条件下企业总数 |
+| hasDemandCount | long | 有明确需求企业数 |
+| signedCount | long | 已签约企业数 |
+| totalExportRevenueWan | decimal | 出口总贸易额合计（万元） |
+| offlineExportRevenueWan | decimal | 线下出口贸易额合计（万元） |
+| onlineCrossBorderExportRevenueWan | decimal | 线上跨境电商出口贸易额合计（万元） |
 
 ### 3.2 企业详情
 | 项 | 值 |
@@ -300,6 +320,7 @@ interface EnterpriseDetail {
   website: string;
   domestic_revenue_id: number;
   cross_border_revenue_id: number;
+  crossBorderRevenueWan?: number; // 跨境营收（万元），精确数值
   source_id: number;
   funnel_stage: string;
   
@@ -396,7 +417,8 @@ interface CreateEnterpriseRequest {
   enterpriseType?: string;          // 企业类型
   staffSizeId?: number;             // 人员规模ID
   domesticRevenueId?: number;       // 国内营收ID
-  crossBorderRevenueId?: number;    // 跨境营收ID
+  crossBorderRevenueId?: number;    // 跨境营收档位ID（与 crossBorderRevenueWan 二选一，优先万元数值）
+  crossBorderRevenueWan?: number;   // 跨境营收（万元），精确数值
   sourceId?: number;                // 来源ID
   website?: string;                 // 官网
   // 主要联系人（可选，需同时提供姓名和电话才会创建）
@@ -416,7 +438,7 @@ interface CreateEnterpriseRequest {
 | 路径 | `PUT /api/enterprises/:id` |
 | 请求 | 企业信息对象（部分或全部字段） |
 | 响应 | `{ id, ...updatedData }` |
-| 说明 | 更新企业信息 |
+| 说明 | 更新企业信息。跨境营收（万元）：传 `crossBorderRevenueWanTouched: true` 且 `crossBorderRevenueWan`（可为 `null` 表示清空）时写入 `cross_border_revenue_wan` 并清除档位 ID；仅传 `crossBorderRevenueId` 时走旧档位并清空万元字段 |
 
 ### 3.5 删除企业
 | 项 | 值 |
@@ -894,6 +916,7 @@ interface PendingFollowUps {
 ```typescript
 // 企业管理 API
 enterpriseApi.getList(params)      // GET /api/enterprises
+enterpriseApi.getOverviewStats(params) // GET /api/enterprises/overview-stats
 enterpriseApi.getDetail(id)        // GET /api/enterprises/:id
 enterpriseApi.create(data)         // POST /api/enterprises
 enterpriseApi.update(id, data)     // PUT /api/enterprises/:id

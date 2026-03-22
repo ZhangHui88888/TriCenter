@@ -2,6 +2,7 @@ package com.tricenter.dto.response;
 
 import lombok.Data;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -15,6 +16,8 @@ public class EnterpriseDetailResponse {
     private Integer id;
     private String name;
     private String creditCode;
+    private LocalDate establishedDate;
+    private String registeredCapital;
     private String province;
     private String city;
     private String district;
@@ -28,6 +31,10 @@ public class EnterpriseDetailResponse {
     private Integer domesticRevenueId;
     private String domesticRevenueLabel;
     private Integer crossBorderRevenueId;
+
+    /** 跨境营收(万元)，精确数值 */
+    private BigDecimal crossBorderRevenueWan;
+
     private String crossBorderRevenueLabel;
     private Integer sourceId;
     private String sourceLabel;
@@ -48,6 +55,9 @@ public class EnterpriseDetailResponse {
     private Integer tradeModeId;
     private String tradeModeLabel;
     private Boolean hasImportExportLicense;
+    private String isoCertifications;
+    private String aeoCertification;
+    private String otherCertifications;
     private String customsDeclarationMode;
     private Integer tradeTeamModeId;
     private String tradeTeamModeLabel;
@@ -70,6 +80,10 @@ public class EnterpriseDetailResponse {
     private String paymentSettlement;
     private Integer crossBorderTeamSize;
     private Boolean usingErp;
+    private Object socialMediaAccounts;
+    private String exhibitionHistory;
+    private String overseasDistributors;
+    private Boolean usingCrm;
     private String transformationWillingness;
     private String investmentWillingness;
     private Object crossBorderPlatforms;
@@ -127,6 +141,8 @@ public class EnterpriseDetailResponse {
         private List<String> targetRegionNames;
         private List<String> targetCountryIds;
         private String annualSales;
+        private String exportRatio;
+        private String profitMargin;
         private String localProcurementRatio;
         private Integer automationLevelId;
         private String automationLevelName;

@@ -17,6 +17,9 @@ public class EnterpriseUpdateRequest {
     @Size(max = 18, message = "统一社会信用代码不能超过18个字符")
     private String creditCode;
     
+    private String establishedDate;
+    private String registeredCapital;
+    
     private String province;
     private String city;
     private String district;
@@ -27,6 +30,13 @@ public class EnterpriseUpdateRequest {
     private String website;
     private Integer domesticRevenueId;
     private Integer crossBorderRevenueId;
+
+    /** 跨境营收(万元) */
+    private BigDecimal crossBorderRevenueWan;
+
+    /** 为 true 时按 crossBorderRevenueWan 更新（可为 null 表示清空），避免与「未传字段」混淆 */
+    private Boolean crossBorderRevenueWanTouched;
+
     private Integer sourceId;
     
     // 品牌信息
@@ -38,6 +48,9 @@ public class EnterpriseUpdateRequest {
     private List<String> targetCountryIds;
     private Integer tradeModeId;
     private Integer hasImportExportLicense;
+    private String isoCertifications;
+    private String aeoCertification;
+    private String otherCertifications;
     private String customsDeclarationMode;
     private Integer tradeTeamModeId;
     private Integer tradeTeamSize;
@@ -59,6 +72,10 @@ public class EnterpriseUpdateRequest {
     private String paymentSettlement;
     private Integer crossBorderTeamSize;
     private Integer usingErp;
+    private Object socialMediaAccounts;
+    private String exhibitionHistory;
+    private String overseasDistributors;
+    private Integer usingCrm;
     private String transformationWillingness;
     private String investmentWillingness;
     private Object crossBorderPlatforms;

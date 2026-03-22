@@ -1,39 +1,28 @@
 package com.tricenter.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.Data;
 import java.time.LocalDateTime;
 
-/**
- * 市场调研报告实体
- */
 @Data
-@TableName("market_reports")
+@TableName(value = "market_reports", autoResultMap = true)
 public class MarketReport {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    /** 关联企业ID */
-    private Long enterpriseId;
+    private Integer enterpriseId;
 
-    /** 报告编号 */
-    private String reportNo;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Object basicReportData;
 
-    /** 版本号 */
-    private String version;
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Object deepReportData;
 
-    /** 报告状态: draft/generating/completed/reviewed */
-    private String status;
+    private LocalDateTime basicGeneratedAt;
 
-    /** 报告全部内容（JSON格式，按章节存储） */
-    private String reportData;
-
-    /** AI已生成的章节列表，逗号分隔 */
-    private String aiGeneratedSections;
-
-    /** 创建人ID */
-    private Long createdBy;
+    private LocalDateTime deepGeneratedAt;
 
     private LocalDateTime createdAt;
 

@@ -21,7 +21,7 @@ export const dictionaryCategories: DictionaryCategory[] = [
   { key: 'stage', name: '漏斗阶段', description: '企业主表.stage' },
   { key: 'district', name: '区域', description: '企业主表.district' },
   { key: 'staff_size', name: '人员规模', description: '企业主表.staff_size_id' },
-  { key: 'revenue', name: '营收规模', description: '企业主表.domestic_revenue_id, cross_border_revenue_id' },
+  { key: 'revenue', name: '营收规模', description: '企业主表.domestic_revenue_id；跨境营收以 cross_border_revenue_wan(万元) 为主，cross_border_revenue_id 为历史档位' },
   { key: 'source', name: '企业来源', description: '企业主表.source_id' },
   { key: 'enterprise_type', name: '企业类型', description: '企业主表.enterprise_type' },
   { key: 'trade_mode', name: '外贸模式', description: '企业主表.trade_mode_id' },
@@ -85,6 +85,12 @@ export const dictionaryData: DictionaryItem[] = [
   { id: 50, category: 'enterprise_type', value: 'production', label: '生产型', sort_order: 1, is_enabled: true, created_at: '2025-01-01' },
   { id: 51, category: 'enterprise_type', value: 'trading', label: '贸易型', sort_order: 2, is_enabled: true, created_at: '2025-01-01' },
   { id: 52, category: 'enterprise_type', value: 'both', label: '工贸一体', sort_order: 3, is_enabled: true, created_at: '2025-01-01' },
+  { id: 53, category: 'enterprise_type', value: 'cross_border_seller', label: '跨境卖家型', sort_order: 4, is_enabled: true, created_at: '2025-01-01' },
+  { id: 54, category: 'enterprise_type', value: 'brand_operator', label: '品牌运营型', sort_order: 5, is_enabled: true, created_at: '2025-01-01' },
+  { id: 55, category: 'enterprise_type', value: 'supply_chain_service', label: '供应链服务型', sort_order: 6, is_enabled: true, created_at: '2025-01-01' },
+  { id: 56, category: 'enterprise_type', value: 'technical_service', label: '技术服务型', sort_order: 7, is_enabled: true, created_at: '2025-01-01' },
+  { id: 57, category: 'enterprise_type', value: 'comprehensive_service', label: '综合服务型', sort_order: 8, is_enabled: true, created_at: '2025-01-01' },
+  { id: 58, category: 'enterprise_type', value: 'undefined', label: '未定义', sort_order: 9, is_enabled: true, created_at: '2025-01-01' },
 
   // 外贸模式（海关监管代码）
   { id: 60, category: 'trade_mode', value: '0110', label: '0110', sort_order: 1, is_enabled: true, created_at: '2025-01-01' },

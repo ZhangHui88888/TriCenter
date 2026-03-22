@@ -18,6 +18,14 @@ public class EnterpriseExcelData {
     @ColumnWidth(25)
     private String creditCode;
     
+    @ExcelProperty("成立日期")
+    @ColumnWidth(15)
+    private String establishedDate;
+    
+    @ExcelProperty("注册资本")
+    @ColumnWidth(15)
+    private String registeredCapital;
+    
     @ExcelProperty("所属区域")
     @ColumnWidth(15)
     private String district;
@@ -61,4 +69,32 @@ public class EnterpriseExcelData {
     @ExcelProperty("是否跨境")
     @ColumnWidth(10)
     private String hasCrossBorder;
+    
+    @ExcelProperty("ISO认证")
+    @ColumnWidth(25)
+    private String isoCertifications;
+    
+    @ExcelProperty("AEO认证等级")
+    @ColumnWidth(15)
+    private String aeoCertification;
+    
+    @ExcelProperty("其他资质")
+    @ColumnWidth(30)
+    private String otherCertifications;
+
+    @ExcelProperty("社交媒体账号")
+    @ColumnWidth(35)
+    private String socialMediaAccounts;
+
+    @ExcelProperty("国际展会参展情况")
+    @ColumnWidth(30)
+    private String exhibitionHistory;
+
+    @ExcelProperty("海外代理商/分销商")
+    @ColumnWidth(30)
+    private String overseasDistributors;
+
+    @ExcelProperty("是否使用CRM")
+    @ColumnWidth(15)
+    private String usingCrm;
 }

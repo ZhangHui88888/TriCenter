@@ -52,7 +52,7 @@ export async function chatWithDeepSeek(
         'Content-Type': 'application/json',
         Authorization: `Bearer ${apiKey}`,
       },
-      timeout: 60000,
+      timeout: 120000,
     }
   );
 

@@ -2,6 +2,10 @@
 -- 常州跨境电商三中心 - 企业信息管理系统
 -- 系统选项配置初始化数据 (system_options)
 -- ============================================================
+--
+-- 部署顺序建议：先执行 tricenter_schema.sql（建表），再执行本文件（字典与种子数据）。
+-- 老库未 DROP 重建、仅缺列时：与 tricenter_schema 中 enterprises 定义对齐，可执行文末「结构补丁」
+-- （列已存在则勿执行，避免 Duplicate column）。
 
 -- 开发阶段：允许重复执行，先清空旧数据
 SET FOREIGN_KEY_CHECKS = 0;
@@ -35,7 +39,13 @@ INSERT INTO system_options (category, value, label, sort_order) VALUES
 INSERT INTO system_options (category, value, label, sort_order) VALUES
 ('enterprise_type', 'production', '生产型', 1),
 ('enterprise_type', 'trading', '贸易型', 2),
-('enterprise_type', 'both', '工贸一体', 3);
+('enterprise_type', 'both', '工贸一体', 3),
+('enterprise_type', 'cross_border_seller', '跨境卖家型', 4),
+('enterprise_type', 'brand_operator', '品牌运营型', 5),
+('enterprise_type', 'supply_chain_service', '供应链服务型', 6),
+('enterprise_type', 'technical_service', '技术服务型', 7),
+('enterprise_type', 'comprehensive_service', '综合服务型', 8),
+('enterprise_type', 'undefined', '未定义', 9);
 
 -- ==================== 人员规模 (staff_size) ====================
 INSERT INTO system_options (category, value, label, sort_order) VALUES
@@ -1344,3 +1354,10 @@ INSERT INTO stage_change_logs (enterprise_id, stage_from, stage_to, reason, oper
 -- 企业测试数据初始化完成
 -- 共10家企业，覆盖7个区域、多个行业、所有漏斗阶段
 -- ============================================================
+
+-- ============================================================
+-- 结构补丁：enterprises.cross_border_revenue_wan（与 tricenter_schema.enterprises 一致）
+-- 适用：已有库、表为旧结构且无本列时。全新库已执行最新 schema 则不要取消注释执行。
+-- ============================================================
+-- ALTER TABLE enterprises
+--     ADD COLUMN cross_border_revenue_wan DECIMAL(18,4) NULL COMMENT '跨境营收(万元)，精确数值' AFTER cross_border_revenue_id;
