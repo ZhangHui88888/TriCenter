@@ -60,10 +60,8 @@ export interface Enterprise {
   is_cooperating?: boolean;
   last_year_revenue?: number;
   year_before_last_revenue?: number;
-  social_media_accounts?: any;
-  exhibition_history?: string;
-  overseas_distributors?: string;
-  using_crm?: boolean;
+  /** 是否有海外分销商 */
+  has_overseas_distributors?: boolean;
 }
 
 export interface FollowUpRecord {
@@ -172,7 +170,9 @@ export interface ProductInfo {
   targetRegionNames?: string[];
   targetCountryIds?: string[];
   annualSales?: string;
+  /** 出口占比（与后端 enterprise_products.export_ratio 一致） */
   exportRatio?: string;
+  /** 利润率（与后端 enterprise_products.profit_margin 一致） */
   profitMargin?: string;
   localProcurementRatio?: string;
   automationLevelId?: number;

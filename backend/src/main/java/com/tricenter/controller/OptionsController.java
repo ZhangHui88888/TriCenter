@@ -3,6 +3,7 @@ package com.tricenter.controller;
 import com.tricenter.common.result.Result;
 import com.tricenter.dto.response.*;
 import com.tricenter.service.OptionsService;
+import com.tricenter.dto.response.RequirementConfigResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -50,5 +51,11 @@ public class OptionsController {
     public Result<List<UserOptionResponse>> getUserOptions() {
         List<UserOptionResponse> users = optionsService.getUserOptions();
         return Result.success(users);
+    }
+
+    @Operation(summary = "获取需求配置（需求列表+标记+维度映射，供企业详情需求分析使用）")
+    @GetMapping("/requirements/config")
+    public Result<RequirementConfigResponse> getRequirementConfig() {
+        return Result.success(optionsService.getRequirementConfig());
     }
 }

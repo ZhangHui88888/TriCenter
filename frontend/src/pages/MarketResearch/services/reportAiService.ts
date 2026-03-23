@@ -58,10 +58,7 @@ function buildEnterpriseContext(e: EnterpriseDetail): string {
     `ISO认证：${e.iso_certifications || a.isoCertifications || '未提供'}`,
     `AEO认证：${e.aeo_certification || a.aeoCertification || '未提供'}`,
     `其他资质：${e.other_certifications || a.otherCertifications || '未提供'}`,
-    `社交媒体：${e.social_media_accounts ? JSON.stringify(e.social_media_accounts) : '未提供'}`,
-    `展会参展：${e.exhibition_history || a.exhibitionHistory || '未提供'}`,
-    `海外分销商：${e.overseas_distributors || a.overseasDistributors || '未提供'}`,
-    `是否使用CRM：${e.using_crm ? '是' : a.usingCrm ? '是' : '未提供'}`,
+    `是否有海外分销商：${e.has_overseas_distributors || a.hasOverseasDistributors ? '是' : e.has_overseas_distributors === false || a.hasOverseasDistributors === false ? '否' : '未提供'}`,
   ];
 
   if (primaryContact) {

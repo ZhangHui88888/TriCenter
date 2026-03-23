@@ -65,6 +65,32 @@ public final class RequirementFilterHelper {
                 "3.1.1", "3.1.5",
                 "3.5.1", "3.5.2",
                 "3.4.4", "3.4.1");
+        // 与前端 requirementsData.ts enterpriseType 一致
+        registerDimensionMapping("enterpriseType", "production",
+                "1.1.1", "1.7.1", "4.3.2", "1.2.1", "1.4.4", "1.4.3",
+                "1.8.1", "1.8.2", "1.8.3", "1.8.4", "2.1.1", "2.1.2", "2.1.3",
+                "2.1.4", "2.1.5", "2.2.1", "2.2.2", "2.2.3", "1.3.1", "1.3.2",
+                "1.3.3", "3.1.1", "3.1.2", "3.4.3", "3.4.6", "3.5.1", "3.5.2",
+                "4.3.1", "4.4.1", "4.4.2", "4.4.3", "4.4.4");
+        registerDimensionMapping("enterpriseType", "crossBorderSeller",
+                "1.4.1", "1.4.3", "1.2.1", "1.4.4", "2.1.1", "2.1.2", "2.1.3",
+                "2.2.1", "2.2.2", "2.2.3", "2.4.1", "2.4.2", "2.4.3", "3.1.1",
+                "3.1.3", "3.1.5", "3.2.1", "3.5.1", "3.5.2", "4.3.1", "4.3.4");
+        registerDimensionMapping("enterpriseType", "brandOperator",
+                "1.1.1", "1.2.1", "1.3.1", "1.3.2", "1.3.3", "1.3.4", "2.2.1",
+                "2.2.2", "2.2.3", "2.4.1", "2.4.2", "3.1.1", "3.1.2", "3.1.3",
+                "3.1.5", "4.3.2", "4.4.1", "4.4.2");
+        registerDimensionMapping("enterpriseType", "supplyChainService",
+                "1.2.1", "1.5.1", "1.5.3", "1.6.1", "1.6.2", "1.6.3", "1.7.4",
+                "1.7.5", "2.1.1", "2.1.4", "3.6.1", "3.6.2", "3.6.3", "4.1.4");
+        registerDimensionMapping("enterpriseType", "technicalService",
+                "1.1.1", "1.2.1", "1.4.4", "1.7.1", "1.7.3", "1.8.1", "1.8.2",
+                "2.1.1", "2.2.1", "2.4.1", "3.1.1", "3.4.3", "4.3.1", "4.4.2");
+        registerDimensionMapping("enterpriseType", "comprehensiveService",
+                "1.2.1", "1.3.1", "1.3.3", "1.5.4", "1.8.2", "2.1.1", "2.1.4",
+                "3.1.1", "3.1.3", "3.1.5", "4.1.4");
+        registerDimensionMapping("enterpriseType", "undefined",
+                "1.2.1", "1.4.4", "1.5.1", "1.8.2", "2.1.1", "2.2.1", "3.1.1");
 
         registerDimensionMapping("targetMode", "b2b",
                 "2.1.1", "2.2.1",
@@ -166,16 +192,36 @@ public final class RequirementFilterHelper {
     private RequirementFilterHelper() {
     }
 
-    public static Set<String> calculateEffectiveRequirementIds(
-            Object dimensionSelections,
-            Object removedRequirements,
-            Object customRequirements
-    ) {
-        Set<String> effectiveIds = new LinkedHashSet<>(UNIVERSAL_REQUIRED_IDS);
-        effectiveIds.addAll(UNIVERSAL_ENHANCED_IDS);
+    public static Set<String> getUniversalRequiredIds() {
+        return Collections.unmodifiableSet(new LinkedHashSet<>(UNIVERSAL_REQUIRED_IDS));
+    }
 
+    public static Set<String> getUniversalEnhancedIds() {
+        return Collections.unmodifiableSet(new LinkedHashSet<>(UNIVERSAL_ENHANCED_IDS));
+    }
+
+    /**
+     * 静态「维度选项 → 需求 ID」映射（与 DB requirement_dimension_mapping 种子一致）
+     */
+    public static Map<String, Map<String, Set<String>>> getStaticDimensionRequirementMapping() {
+        Map<String, Map<String, Set<String>>> copy = new LinkedHashMap<>();
+        DIMENSION_REQUIREMENT_MAPPING.forEach((dk, inner) -> {
+            Map<String, Set<String>> innerCopy = new LinkedHashMap<>();
+            inner.forEach((k, v) -> innerCopy.put(k, new LinkedHashSet<>(v)));
+            copy.put(dk, innerCopy);
+        });
+        return Collections.unmodifiableMap(copy);
+    }
+
+    public static Map<String, List<String>> normalizeSelectionMapPublic(Object dimensionSelections) {
+        return normalizeSelectionMap(dimensionSelections);
+    }
+
+    /**
+     * 仅根据维度选择，用静态映射展开需求 ID（无 DB 时使用）
+     */
+    public static Set<String> calculateStaticDimensionalIds(Map<String, List<String>> selectionMap) {
         Set<String> dimensionalIds = new LinkedHashSet<>();
-        Map<String, List<String>> selectionMap = normalizeSelectionMap(dimensionSelections);
         selectionMap.forEach((dimensionKey, selectedValues) -> {
             Map<String, Set<String>> optionMappings = DIMENSION_REQUIREMENT_MAPPING.get(dimensionKey);
             if (optionMappings == null) {
@@ -188,6 +234,20 @@ public final class RequirementFilterHelper {
                 }
             }
         });
+        return dimensionalIds;
+    }
+
+    public static Set<String> calculateEffectiveRequirementIds(
+            Object dimensionSelections,
+            Object removedRequirements,
+            Object customRequirements
+    ) {
+        Set<String> effectiveIds = new LinkedHashSet<>(UNIVERSAL_REQUIRED_IDS);
+        effectiveIds.addAll(UNIVERSAL_ENHANCED_IDS);
+
+        Set<String> dimensionalIds = new LinkedHashSet<>();
+        Map<String, List<String>> selectionMap = normalizeSelectionMap(dimensionSelections);
+        dimensionalIds.addAll(calculateStaticDimensionalIds(selectionMap));
 
         dimensionalIds.removeAll(normalizeStringSet(removedRequirements));
         effectiveIds.addAll(dimensionalIds);

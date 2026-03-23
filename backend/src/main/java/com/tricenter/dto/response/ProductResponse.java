@@ -44,6 +44,12 @@ public class ProductResponse {
     
     @Schema(description = "年销售额")
     private String annualSales;
+
+    @Schema(description = "出口占比")
+    private String exportRatio;
+
+    @Schema(description = "利润率")
+    private String profitMargin;
     
     @Schema(description = "原材料本地采购比例")
     private String localProcurementRatio;

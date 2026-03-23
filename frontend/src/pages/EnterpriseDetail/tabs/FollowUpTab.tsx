@@ -65,9 +65,6 @@ export default function FollowUpTab({
           onClick={onAddFollowUp}
           style={{
             borderRadius: 8,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            border: 'none',
-            fontWeight: 500
           }}
         >
           添加跟进
@@ -94,7 +91,7 @@ export default function FollowUpTab({
               height: 64, 
               margin: '0 auto 16px',
               borderRadius: 16,
-              background: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)',
+              background: 'rgba(102,126,234,0.1)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'

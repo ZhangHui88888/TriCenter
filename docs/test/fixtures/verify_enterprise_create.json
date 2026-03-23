@@ -1,0 +1,17 @@
+{
+  "name": "DB验收企业_PLACEHOLDER_TS",
+  "creditCode": "VS9000000000000099",
+  "province": "江苏省",
+  "city": "常州市",
+  "district": "钟楼区",
+  "address": "验收路-创建阶段",
+  "industryId": 10102,
+  "enterpriseType": "贸易型",
+  "staffSizeId": 26,
+  "website": "https://verify-create.example.com",
+  "sourceId": 46,
+  "crossBorderRevenueWan": 11.25,
+  "contactName": "创建阶段联系人",
+  "contactPhone": "13900000001",
+  "contactPosition": "主任"
+}

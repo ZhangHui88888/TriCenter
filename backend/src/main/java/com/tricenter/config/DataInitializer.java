@@ -47,10 +47,7 @@ public class DataInitializer implements CommandLineRunner {
             userMapper.insert(admin);
             log.info("初始化管理员用户成功: admin / admin123");
         } else {
-            // 更新密码为正确的BCrypt哈希
-            existingAdmin.setPassword(passwordEncoder.encode("admin123"));
-            userMapper.updateById(existingAdmin);
-            log.info("管理员用户已存在，已更新密码");
+            log.debug("管理员用户已存在，跳过初始化（不覆盖密码）");
         }
     }
 }

@@ -113,6 +113,9 @@ export const followUpApi = {
 
   // 删除跟进记录
   delete: (id: number) => request.delete(`/follow-ups/${id}`),
+
+  /** 本月/本周/今日/待跟进企业统计 */
+  getStats: () => request.get('/follow-ups/stats'),
 };
 
 // 看板统计 API
@@ -267,7 +270,39 @@ export const optionsApi = {
 
   // 获取用户列表（对接人）
   getUsers: () => request.get('/options/users'),
+
+  // 获取需求配置（需求列表+标记+维度映射，企业详情需求分析用）
+  getRequirementConfig: () => request.get<RequirementConfigData>('/options/requirements/config'),
 };
+
+export interface RequirementConfigData {
+  requirements: Array<{ id: string; name: string; description: string; phase: string; category: string }>;
+  universalRequiredIds: string[];
+  universalEnhancedIds: string[];
+  dimensionRequirementMapping: Record<string, Record<string, string[]>>;
+}
+
+/** 树形分类管理（行业 / 产品品类 / 需求分类，写入对应分类表） */
+export const treeCategoryApi = {
+  list: (type: string) => request.get<TreeCategoryItem[]>(`/tree-categories/${type}`),
+  create: (type: string, data: { parentId: number; name: string; sortOrder?: number; isEnabled?: boolean }) =>
+    request.post<TreeCategoryItem>(`/tree-categories/${type}`, data),
+  update: (type: string, id: number, data: { name?: string; sortOrder?: number; isEnabled?: boolean }) =>
+    request.put<TreeCategoryItem>(`/tree-categories/${type}/${id}`, data),
+  delete: (type: string, id: number) => request.delete(`/tree-categories/${type}/${id}`),
+  resetToDefault: (type: string) => request.post<TreeCategoryItem[]>(`/tree-categories/${type}/reset`),
+};
+
+export interface TreeCategoryItem {
+  id: number;
+  parentId: number;
+  name: string;
+  level: number;
+  path: string;
+  sortOrder: number;
+  isEnabled: number;
+  createdAt: string;
+}
 
 /** 数据字典管理（新增选项等，写入 system_options 并刷新服务端缓存） */
 export const dictionaryApi = {
@@ -275,4 +310,21 @@ export const dictionaryApi = {
     category: string,
     body: { value: string; label: string; color?: string; sortOrder?: number; isEnabled?: number }
   ) => request.post(`/dictionary/${category}`, body),
+
+  updateOption: (
+    category: string,
+    id: number,
+    body: { label?: string; color?: string; sortOrder?: number; isEnabled?: number }
+  ) => request.put(`/dictionary/${category}/${id}`, body),
+
+  deleteOption: (category: string, id: number) => request.delete(`/dictionary/${category}/${id}`),
+};
+
+/** 数据字典：标准需求项 + 企业画像五维映射（requirement_dimension_mapping） */
+export const requirementItemAdminApi = {
+  list: () => request.get<unknown[]>('/dictionary/requirement-items'),
+  getDimensions: (id: string) =>
+    request.get<Record<string, string[]>>(`/dictionary/requirement-items/${encodeURIComponent(id)}/dimensions`),
+  putDimensions: (id: string, body: Record<string, string[]>) =>
+    request.put(`/dictionary/requirement-items/${encodeURIComponent(id)}/dimensions`, body),
 };

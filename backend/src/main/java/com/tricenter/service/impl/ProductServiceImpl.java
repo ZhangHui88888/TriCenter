@@ -98,6 +98,12 @@ public class ProductServiceImpl implements ProductService {
         if (request.getAnnualSales() != null) {
             product.setAnnualSales(request.getAnnualSales());
         }
+        if (request.getExportRatio() != null) {
+            product.setExportRatio(request.getExportRatio());
+        }
+        if (request.getProfitMargin() != null) {
+            product.setProfitMargin(request.getProfitMargin());
+        }
         if (request.getLocalProcurementRatio() != null) {
             product.setLocalProcurementRatio(request.getLocalProcurementRatio());
         }

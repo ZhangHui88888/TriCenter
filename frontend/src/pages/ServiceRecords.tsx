@@ -17,6 +17,8 @@ import {
   message,
   Popconfirm,
   Radio,
+  Alert,
+  Tooltip,
 } from 'antd';
 import {
   PlusOutlined,
@@ -96,6 +98,9 @@ const getServiceTypeInfo = (type: string) =>
 const getStatusInfo = (status: string) =>
   SERVICE_STATUSES.find(s => s.value === status) || SERVICE_STATUSES[0];
 
+/** 合作服务后端接口实现后改为 true，否则会请求未实现接口触发全局「系统异常」提示 */
+const COOPERATION_SERVICE_BACKEND_READY = false;
+
 export default function ServiceRecords() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -117,6 +122,11 @@ export default function ServiceRecords() {
 
   const fetchRecords = useCallback(async () => {
     setLoading(true);
+    if (!COOPERATION_SERVICE_BACKEND_READY) {
+      setRecords([]);
+      setLoading(false);
+      return;
+    }
     try {
       if (filterEnterpriseId) {
         const res = await serviceRecordApi.getList(filterEnterpriseId);
@@ -358,6 +368,15 @@ export default function ServiceRecords() {
 
   return (
     <div style={{ background: '#F5F7FA', minHeight: '100%', padding: 24, fontFamily: 'Inter, sans-serif' }}>
+      {!COOPERATION_SERVICE_BACKEND_READY && (
+        <Alert
+          type="info"
+          showIcon
+          message="该模块还没开发完成"
+          description="合作服务相关功能正在开发中，列表与新增等服务暂不可用。"
+          style={{ marginBottom: 16, borderRadius: 12 }}
+        />
+      )}
       {/* 页面标题 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, padding: '0 4px' }}>
         <div>
@@ -379,20 +398,25 @@ export default function ServiceRecords() {
               : '管理所有企业与三中心的合作服务记录'}
           </Text>
         </div>
-        <Button
-          type="primary"
-          icon={<PlusOutlined />}
-          onClick={handleOpenAdd}
-          style={{
-            borderRadius: 12,
-            height: 40,
-            fontWeight: 500,
-            background: '#396AFF',
-            border: 'none',
-          }}
-        >
-          新增服务
-        </Button>
+        <Tooltip title={!COOPERATION_SERVICE_BACKEND_READY ? '该模块还没开发完成' : undefined}>
+          <span>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleOpenAdd}
+              disabled={!COOPERATION_SERVICE_BACKEND_READY}
+              style={{
+                borderRadius: 12,
+                height: 40,
+                fontWeight: 500,
+                background: '#396AFF',
+                border: 'none',
+              }}
+            >
+              新增服务
+            </Button>
+          </span>
+        </Tooltip>
       </div>
 
       {/* 筛选与状态切换栏 */}
@@ -488,11 +512,19 @@ export default function ServiceRecords() {
         ) : (
           <div style={{ textAlign: 'center', padding: 80 }}>
             <CustomerServiceOutlined style={{ fontSize: 48, color: '#718EBF', marginBottom: 16, display: 'block' }} />
-            <Text type="secondary" style={{ fontSize: 15, color: '#718EBF' }}>暂无合作服务记录</Text>
+            <Text type="secondary" style={{ fontSize: 15, color: '#718EBF' }}>
+              {COOPERATION_SERVICE_BACKEND_READY ? '暂无合作服务记录' : '该模块还没开发完成'}
+            </Text>
             <br />
-            <Button type="link" icon={<PlusOutlined />} onClick={handleOpenAdd} style={{ marginTop: 8, color: '#396AFF', fontWeight: 500 }}>
-              添加第一条服务记录
-            </Button>
+            {COOPERATION_SERVICE_BACKEND_READY ? (
+              <Button type="link" icon={<PlusOutlined />} onClick={handleOpenAdd} style={{ marginTop: 8, color: '#396AFF', fontWeight: 500 }}>
+                添加第一条服务记录
+              </Button>
+            ) : (
+              <Button type="link" disabled style={{ marginTop: 8, color: '#bfbfbf', fontWeight: 500, cursor: 'not-allowed' }}>
+                添加第一条服务记录
+              </Button>
+            )}
           </div>
         )}
       </Card>

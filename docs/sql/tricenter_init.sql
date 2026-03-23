@@ -5,7 +5,7 @@
 --
 -- 部署顺序建议：先执行 tricenter_schema.sql（建表），再执行本文件（字典与种子数据）。
 -- 老库未 DROP 重建、仅缺列时：与 tricenter_schema 中 enterprises 定义对齐，可执行文末「结构补丁」
--- （列已存在则勿执行，避免 Duplicate column）。
+-- （含 cross_border_revenue_wan、domestic_revenue_wan；列已存在则勿执行，避免 Duplicate column）。
 
 -- 开发阶段：允许重复执行，先清空旧数据
 SET FOREIGN_KEY_CHECKS = 0;
@@ -1145,9 +1145,9 @@ INSERT INTO requirements (id, name, description, detail_description, phase, cate
 -- 注意: 如需修改密码，请使用BCrypt加密后替换
 
 INSERT INTO users (username, password, name, role, phone, email, status) VALUES
-('admin', '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', '系统管理员', 'admin', '13800000000', 'admin@tricenter.com', 1),
-('manager', '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', '业务主管', 'manager', '13800000001', 'manager@tricenter.com', 1),
-('user', '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', '普通用户', 'user', '13800000002', 'user@tricenter.com', 1)
+('admin', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '系统管理员', 'admin', '13800000000', 'admin@tricenter.com', 1),
+('manager', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '业务主管', 'manager', '13800000001', 'manager@tricenter.com', 1),
+('user', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '普通用户', 'user', '13800000002', 'user@tricenter.com', 1)
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 -- ============================================================
@@ -1361,3 +1361,10 @@ INSERT INTO stage_change_logs (enterprise_id, stage_from, stage_to, reason, oper
 -- ============================================================
 -- ALTER TABLE enterprises
 --     ADD COLUMN cross_border_revenue_wan DECIMAL(18,4) NULL COMMENT '跨境营收(万元)，精确数值' AFTER cross_border_revenue_id;
+
+-- ============================================================
+-- 结构补丁：enterprises.domestic_revenue_wan（与 tricenter_schema.enterprises 一致）
+-- 适用：已有库、表为旧结构且无本列时。全新库已执行最新 schema 则不要取消注释执行。
+-- ============================================================
+-- ALTER TABLE enterprises
+--     ADD COLUMN domestic_revenue_wan DECIMAL(18,4) NULL COMMENT '国内营收(万元)，精确数值' AFTER domestic_revenue_id;

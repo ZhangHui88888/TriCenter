@@ -26,7 +26,7 @@ import {
   FallOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import { followUpApi, enterpriseApi, dashboardApi } from '@/services/api';
+import { followUpApi, enterpriseApi } from '@/services/api';
 import { FOLLOW_UP_TYPES } from '@/utils/constants';
 import type { FollowUpRecord } from '@/types';
 
@@ -88,14 +88,14 @@ function FollowUpRecords() {
           id: item.id,
           enterprise_id: item.enterpriseId,
           enterprise_name: item.enterpriseName,
-          follow_up_date: item.followUpDate,
-          follow_up_person: item.followUpPerson,
-          follow_up_type: item.followUpType,
+          follow_up_date: item.followDate,
+          follow_up_person: item.followerName,
+          follow_up_type: item.followType,
           content: item.content,
-          overall_status: item.overallStatus,
+          overall_status: item.status,
           next_step: item.nextPlan,
-          stage_before: item.stageBefore,
-          stage_after: item.stageAfter,
+          stage_before: item.stageFrom,
+          stage_after: item.stageTo,
         }));
         setFollowUpRecords(list);
         setTotal(response.data.total || 0);
@@ -125,12 +125,12 @@ function FollowUpRecords() {
   // 加载统计数据
   const fetchStats = async () => {
     try {
-      const response = await dashboardApi.getPendingFollowUps();
+      const response = await followUpApi.getStats();
       if (response.data) {
         setStats({
-          monthCount: response.data.monthCount || 0,
-          weekCount: response.data.weekCount || 0,
-          todayCount: response.data.todayCount || 0,
+          monthCount: response.data.monthlyCount || 0,
+          weekCount: response.data.weeklyCount || 0,
+          todayCount: response.data.dailyCount || 0,
           pendingCount: response.data.pendingCount || 0,
         });
       }
@@ -253,13 +253,12 @@ function FollowUpRecords() {
       const values = await form.validateFields();
       const data = {
         enterpriseId: values.enterprise_id,
-        followUpType: values.follow_up_type,
-        followUpDate: values.follow_up_date?.format('YYYY-MM-DD'),
+        followType: values.follow_up_type,
+        followDate: values.follow_up_date?.format('YYYY-MM-DD'),
         content: values.content,
-        overallStatus: values.overall_status,
+        status: values.overall_status,
         nextPlan: values.next_step,
         stageAfter: values.stage_after,
-        serviceProvider: values.service_provider,
       };
       await followUpApi.create(data);
       message.success('跟进记录添加成功');

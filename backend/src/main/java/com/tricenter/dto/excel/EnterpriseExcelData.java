@@ -82,19 +82,7 @@ public class EnterpriseExcelData {
     @ColumnWidth(30)
     private String otherCertifications;
 
-    @ExcelProperty("社交媒体账号")
-    @ColumnWidth(35)
-    private String socialMediaAccounts;
-
-    @ExcelProperty("国际展会参展情况")
-    @ColumnWidth(30)
-    private String exhibitionHistory;
-
-    @ExcelProperty("海外代理商/分销商")
-    @ColumnWidth(30)
-    private String overseasDistributors;
-
-    @ExcelProperty("是否使用CRM")
-    @ColumnWidth(15)
-    private String usingCrm;
+    @ExcelProperty("是否有海外分销商")
+    @ColumnWidth(18)
+    private String hasOverseasDistributors;
 }

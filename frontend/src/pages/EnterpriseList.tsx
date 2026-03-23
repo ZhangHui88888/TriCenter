@@ -910,7 +910,7 @@ function EnterpriseList() {
             </div>
             <div
               style={{
-                fontSize: 12,
+                fontSize: 13,
                 lineHeight: '22px',
                 minHeight: 22,
                 color: '#8c8c8c',

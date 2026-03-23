@@ -44,7 +44,7 @@ const StageChangeIndicator: React.FC<StageChangeIndicatorProps> = ({
         gap: 8,
         padding: '6px 12px',
         borderRadius: 20,
-        background: `linear-gradient(135deg, ${isUpgrade ? 'rgba(82,196,26,0.08)' : 'rgba(250,173,20,0.08)'} 0%, rgba(255,255,255,0.9) 100%)`,
+        background: isUpgrade ? 'rgba(82,196,26,0.05)' : 'rgba(250,173,20,0.05)',
         border: `1px solid ${isUpgrade ? 'rgba(82,196,26,0.2)' : 'rgba(250,173,20,0.2)'}`,
       }}
     >
@@ -56,7 +56,7 @@ const StageChangeIndicator: React.FC<StageChangeIndicatorProps> = ({
           gap: 4,
           padding: '4px 10px',
           borderRadius: 12,
-          background: `linear-gradient(135deg, ${stageBefore.color}15 0%, ${stageBefore.color}08 100%)`,
+          background: `${stageBefore.color}15`,
           border: `1px solid ${stageBefore.color}30`,
           fontSize: 12,
           fontWeight: 500,
@@ -84,7 +84,7 @@ const StageChangeIndicator: React.FC<StageChangeIndicatorProps> = ({
           gap: 2,
           padding: '4px 8px',
           borderRadius: 10,
-          background: `linear-gradient(90deg, ${gradientColors[0]}20, ${gradientColors[1]}30, ${gradientColors[2]}20)`,
+          background: `${gradientColors[0]}20`,
         }}
       >
         {isUpgrade ? (
@@ -119,7 +119,7 @@ const StageChangeIndicator: React.FC<StageChangeIndicatorProps> = ({
           gap: 4,
           padding: '4px 10px',
           borderRadius: 12,
-          background: `linear-gradient(135deg, ${stageAfter.color}25 0%, ${stageAfter.color}15 100%)`,
+          background: `${stageAfter.color}25`,
           border: `1px solid ${stageAfter.color}50`,
           fontSize: 12,
           fontWeight: 600,

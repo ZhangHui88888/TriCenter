@@ -54,12 +54,19 @@ public class Enterprise {
     private String website;
     
     /** 国内营收ID */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Integer domesticRevenueId;
+
+    /** 国内营收(万元)，精确数值；与 domesticRevenueId 二选一优先使用本字段 */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private BigDecimal domesticRevenueWan;
     
     /** 跨境营收ID */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private Integer crossBorderRevenueId;
 
     /** 跨境营收(万元)，精确数值；与 crossBorderRevenueId 二选一优先使用本字段 */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private BigDecimal crossBorderRevenueWan;
     
     /** 企业来源ID */
@@ -157,18 +164,8 @@ public class Enterprise {
     /** 是否在用ERP */
     private Integer usingErp;
     
-    /** 社交媒体账号 */
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private Object socialMediaAccounts;
-    
-    /** 国际展会参展情况 */
-    private String exhibitionHistory;
-    
-    /** 海外代理商/分销商 */
-    private String overseasDistributors;
-    
-    /** 是否使用CRM系统 */
-    private Integer usingCrm;
+    /** 是否有海外分销商 */
+    private Integer hasOverseasDistributors;
     
     /** 跨境转型意愿 */
     private String transformationWillingness;
@@ -217,14 +214,6 @@ public class Enterprise {
     @TableField(typeHandler = JacksonTypeHandler.class)
     private List<String> enjoyedPolicies;
     
-    /** 希望获得的支持 */
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private Object desiredSupport;
-    
-    /** 合作需求 */
-    @TableField(typeHandler = JacksonTypeHandler.class)
-    private Object cooperationDemands;
-    
     // ========== 竞争力信息 ==========
     /** 行业竞争地位 */
     private String competitionPosition;
@@ -234,6 +223,14 @@ public class Enterprise {
     
     /** 跨境业务痛点 */
     private String painPoints;
+
+    /** 当前面临风险（标签列表，JSON 数组） */
+    @TableField(value = "current_risk_tags", typeHandler = JacksonTypeHandler.class)
+    private List<String> currentRiskTags;
+
+    /** 当前面临风险说明 */
+    @TableField("risk_description")
+    private String riskDescription;
     
     // ========== 三中心合作 ==========
     /** 与三中心合作主要需求 */

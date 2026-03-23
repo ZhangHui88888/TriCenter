@@ -5,14 +5,8 @@ import com.tricenter.common.exception.BusinessException;
 import com.tricenter.dto.request.DictionaryRequest;
 import com.tricenter.dto.request.DictionaryUpdateRequest;
 import com.tricenter.dto.response.*;
-import com.tricenter.entity.IndustryCategory;
-import com.tricenter.entity.ProductCategory;
-import com.tricenter.entity.SystemOption;
-import com.tricenter.entity.User;
-import com.tricenter.mapper.IndustryCategoryMapper;
-import com.tricenter.mapper.ProductCategoryMapper;
-import com.tricenter.mapper.SystemOptionMapper;
-import com.tricenter.mapper.UserMapper;
+import com.tricenter.entity.*;
+import com.tricenter.mapper.*;
 import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.service.OptionsService;
 import lombok.RequiredArgsConstructor;
@@ -35,6 +29,8 @@ public class OptionsServiceImpl implements OptionsService {
     private final IndustryCategoryMapper industryCategoryMapper;
     private final ProductCategoryMapper productCategoryMapper;
     private final UserMapper userMapper;
+    private final RequirementMapper requirementMapper;
+    private final RequirementDimensionMappingMapper dimensionMappingMapper;
     private final DictionaryCacheService dictionaryCache;
 
     /**
@@ -258,6 +254,75 @@ public class OptionsServiceImpl implements OptionsService {
             .color(option.getColor())
             .sortOrder(option.getSortOrder())
             .isEnabled(option.getIsEnabled())
+            .build();
+    }
+
+    @Override
+    public RequirementConfigResponse getRequirementConfig() {
+        // phase 编码 → 中文名（从 system_options 的 requirement_phase 分类读取 label，截取 " — " 之后的部分）
+        Map<String, String> phaseMap = new LinkedHashMap<>();
+        systemOptionMapper.selectList(
+            new LambdaQueryWrapper<SystemOption>()
+                .eq(SystemOption::getCategory, "requirement_phase")
+                .eq(SystemOption::getIsEnabled, 1)
+                .orderByAsc(SystemOption::getSortOrder)
+        ).forEach(opt -> {
+            String label = opt.getLabel();
+            int idx = label.indexOf(" — ");
+            phaseMap.put(opt.getValue(), idx >= 0 ? label.substring(idx + 3) : label);
+        });
+
+        // category 编码 → 中文名
+        Map<String, String> categoryMap = new LinkedHashMap<>();
+        systemOptionMapper.selectList(
+            new LambdaQueryWrapper<SystemOption>()
+                .eq(SystemOption::getCategory, "requirement_category")
+                .eq(SystemOption::getIsEnabled, 1)
+                .orderByAsc(SystemOption::getSortOrder)
+        ).forEach(opt -> categoryMap.put(opt.getValue(), opt.getLabel()));
+
+        // 读取所有启用的标准需求
+        List<Requirement> allReqs = requirementMapper.selectList(
+            new LambdaQueryWrapper<Requirement>()
+                .eq(Requirement::getIsCustom, 0)
+                .eq(Requirement::getIsEnabled, 1)
+                .orderByAsc(Requirement::getSortOrder)
+        );
+
+        List<RequirementConfigResponse.RequirementItemDTO> items = allReqs.stream()
+            .map(r -> RequirementConfigResponse.RequirementItemDTO.builder()
+                .id(r.getId())
+                .name(r.getName())
+                .description(r.getDescription())
+                .phase(phaseMap.getOrDefault(r.getPhase(), r.getPhase()))
+                .category(categoryMap.getOrDefault(r.getCategory(), r.getCategory()))
+                .build())
+            .collect(Collectors.toList());
+
+        Set<String> universalIds = allReqs.stream()
+            .filter(r -> Objects.equals(r.getIsUniversal(), 1))
+            .map(Requirement::getId)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        Set<String> enhancedIds = allReqs.stream()
+            .filter(r -> Objects.equals(r.getIsEnhanced(), 1))
+            .map(Requirement::getId)
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+
+        // 构建维度映射：dimensionKey -> dimensionValue -> requirementId[]
+        List<RequirementDimensionMapping> allMappings = dimensionMappingMapper.selectList(null);
+        Map<String, Map<String, List<String>>> dimMap = new LinkedHashMap<>();
+        for (RequirementDimensionMapping m : allMappings) {
+            dimMap.computeIfAbsent(m.getDimensionKey(), k -> new LinkedHashMap<>())
+                  .computeIfAbsent(m.getDimensionValue(), k -> new ArrayList<>())
+                  .add(m.getRequirementId());
+        }
+
+        return RequirementConfigResponse.builder()
+            .requirements(items)
+            .universalRequiredIds(universalIds)
+            .universalEnhancedIds(enhancedIds)
+            .dimensionRequirementMapping(dimMap)
             .build();
     }
 }

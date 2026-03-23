@@ -1,0 +1,19 @@
+{
+  "contacts": [
+    {
+      "name": "编辑后主联系人",
+      "phone": "13900000002",
+      "position": "副总",
+      "isPrimary": true,
+      "email": "verify@example.com",
+      "wechat": "wx_v",
+      "remark": "备注验收"
+    },
+    {
+      "name": "次要联系人",
+      "phone": "13900000003",
+      "position": "",
+      "isPrimary": false
+    }
+  ]
+}

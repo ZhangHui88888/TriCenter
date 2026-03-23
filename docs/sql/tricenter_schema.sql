@@ -2,7 +2,12 @@
 -- 常州跨境电商三中心 - 企业信息管理系统
 -- 数据库建表脚本
 -- ============================================================
-
+--
+-- 【执行说明】
+-- 1) 本文件不仅建表，还包含 system_options、requirements 等种子数据；文末有默认用户 admin / manager / user（密码见文末注释）。
+-- 2) 需整份执行到最后一条语句成功提交，users 里才会有账号。若只执行了前半段 DDL、或中途报错中断，users 为空时登录会提示「用户名或密码错误」。
+-- 3) tricenter_init.sql 建议在 schema 之后执行：会 TRUNCATE 并重灌字典表、行业/品类及测试企业等；不执行 init 时，只要 schema 跑完全篇仍可登录，但可能缺少 init 里独有的选项/测试数据。
+--
 -- 数据库配置
 -- 推荐: MySQL 8.0+ 或 PostgreSQL 14+
 -- 字符集: UTF-8 (utf8mb4)
@@ -27,6 +32,7 @@ DROP TABLE IF EXISTS enterprise_products;
 DROP TABLE IF EXISTS enterprise_contacts;
 DROP TABLE IF EXISTS enterprises;
 DROP TABLE IF EXISTS system_options;
+DROP TABLE IF EXISTS requirement_categories;
 DROP TABLE IF EXISTS product_categories;
 DROP TABLE IF EXISTS industry_categories;
 DROP TABLE IF EXISTS users;
@@ -89,6 +95,24 @@ CREATE TABLE product_categories (
 ) COMMENT='产品品类分类表';
 
 -- ============================================================
+-- 表3b: requirement_categories (需求分类树)
+-- ============================================================
+CREATE TABLE requirement_categories (
+    id          INT PRIMARY KEY AUTO_INCREMENT,
+    parent_id   INT DEFAULT 0 COMMENT '父级ID，0为顶级',
+    name        VARCHAR(100) NOT NULL COMMENT '分类名称',
+    level       TINYINT NOT NULL COMMENT '层级：1/2/3',
+    path        VARCHAR(100) COMMENT '完整路径',
+    sort_order  INT DEFAULT 0 COMMENT '排序',
+    is_enabled  TINYINT DEFAULT 1 COMMENT '是否启用',
+    created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    INDEX idx_parent (parent_id),
+    INDEX idx_path (path),
+    INDEX idx_level (level)
+) COMMENT='需求分类树';
+
+-- ============================================================
 -- 表4: system_options (系统选项配置表)
 -- ============================================================
 CREATE TABLE system_options (
@@ -123,7 +147,8 @@ CREATE TABLE enterprises (
     enterprise_type         VARCHAR(20) NOT NULL COMMENT '企业类型: 生产型/贸易型/工贸一体/跨境卖家型/品牌运营型/供应链服务型/技术服务型/综合服务型/未定义',
     staff_size_id           INT COMMENT '人员规模ID(关联system_options表,category=staff_size)',
     website                 VARCHAR(200) COMMENT '官网',
-    domestic_revenue_id     INT COMMENT '国内营收ID(关联system_options表,category=revenue)',
+    domestic_revenue_id     INT COMMENT '国内营收ID(关联system_options表,category=revenue，历史档位，优先以 domestic_revenue_wan 为准)',
+    domestic_revenue_wan    DECIMAL(18,4) NULL COMMENT '国内营收(万元)，精确数值',
     cross_border_revenue_id INT COMMENT '跨境营收ID(关联system_options表,category=cross_border_revenue，历史档位，优先以 cross_border_revenue_wan 为准)',
     cross_border_revenue_wan DECIMAL(18,4) COMMENT '跨境营收(万元)，精确数值',
     source_id               INT COMMENT '企业来源ID(关联system_options表,category=source)',
@@ -164,10 +189,7 @@ CREATE TABLE enterprises (
     payment_settlement      VARCHAR(100) COMMENT '支付结算方式ID',
     cross_border_team_size  INT COMMENT '跨境电商团队规模',
     using_erp               TINYINT DEFAULT 0 COMMENT '是否在用ERP',
-    social_media_accounts   JSON COMMENT '社交媒体账号',
-    exhibition_history      VARCHAR(500) COMMENT '国际展会参展情况',
-    overseas_distributors   VARCHAR(500) COMMENT '海外代理商/分销商',
-    using_crm               TINYINT DEFAULT 0 COMMENT '是否使用CRM系统',
+    has_overseas_distributors TINYINT DEFAULT 0 COMMENT '是否有海外分销商',
     transformation_willingness VARCHAR(20) COMMENT '跨境转型意愿',
     investment_willingness  VARCHAR(20) COMMENT '愿意投入转型程度',
     cross_border_platforms  JSON COMMENT '跨境平台ID数组',
@@ -186,13 +208,13 @@ CREATE TABLE enterprises (
     -- 政策支持
     has_policy_support      TINYINT DEFAULT 0 COMMENT '是否享受过政策支持',
     enjoyed_policies        JSON COMMENT '已享受政策列表',
-    desired_support         JSON COMMENT '希望获得的支持',
-    cooperation_demands     JSON COMMENT '合作需求',
     
     -- 竞争力信息
     competition_position    VARCHAR(50) COMMENT '行业竞争地位',
     competition_description TEXT COMMENT '竞争地位描述',
     pain_points             TEXT COMMENT '跨境业务痛点',
+    current_risk_tags       JSON COMMENT '当前面临风险（标签列表）',
+    risk_description        TEXT COMMENT '当前面临风险说明',
     
     -- 三中心合作
     tricenter_demands       JSON COMMENT '与三中心合作主要需求',
@@ -226,6 +248,20 @@ CREATE TABLE enterprises (
 -- 生产环境「仅升级、不 DROP 重建」时：若 enterprises 尚无 cross_border_revenue_wan，单独执行下列语句（与上方 CREATE 二选一，勿重复加列）。
 -- ALTER TABLE enterprises
 --     ADD COLUMN cross_border_revenue_wan DECIMAL(18,4) NULL COMMENT '跨境营收(万元)，精确数值' AFTER cross_border_revenue_id;
+-- ------------------------------------------------------------
+-- 生产环境「仅升级」时：若 enterprises 尚无 domestic_revenue_wan，单独执行：
+-- ALTER TABLE enterprises
+--     ADD COLUMN domestic_revenue_wan DECIMAL(18,4) NULL COMMENT '国内营收(万元)，精确数值' AFTER domestic_revenue_id;
+-- ------------------------------------------------------------
+-- 生产环境「仅升级」时：若 enterprises 尚无 current_risk_tags / risk_description，单独执行（与上方 CREATE 二选一，勿重复加列）：
+-- ALTER TABLE enterprises
+--     ADD COLUMN current_risk_tags JSON NULL COMMENT '当前面临风险（标签列表）' AFTER pain_points,
+--     ADD COLUMN risk_description TEXT NULL COMMENT '当前面临风险说明' AFTER current_risk_tags;
+-- ------------------------------------------------------------
+-- 生产环境「仅升级」：下线已废弃字段 desired_support / cooperation_demands（列内数据将删除）：
+-- ALTER TABLE enterprises
+--     DROP COLUMN desired_support,
+--     DROP COLUMN cooperation_demands;
 -- ------------------------------------------------------------
 
 -- ============================================================
@@ -858,6 +894,100 @@ INSERT INTO system_options (category, value, label, sort_order) VALUES
 ('requirement_category', '4.4', '新品规划', 404),
 ('requirement_category', '4.5', '规模化与降本增效', 405),
 ('requirement_category', '4.6', 'ESG与可持续', 406);
+
+-- ============================================================
+-- 需求分类树初始化数据 (requirement_categories)
+-- ============================================================
+
+-- 一级：阶段
+INSERT INTO requirement_categories (id, parent_id, name, level, path, sort_order) VALUES
+(1, 0, '战略规划与资源准备', 1, '1', 1),
+(2, 0, '渠道搭建与商品上线', 1, '2', 2),
+(3, 0, '营销推广与规模增长', 1, '3', 3),
+(4, 0, '品牌深耕与持续优化', 1, '4', 4);
+
+-- 二级：分类（阶段一）
+INSERT INTO requirement_categories (id, parent_id, name, level, path, sort_order) VALUES
+(11, 1, '品牌规划', 2, '1/11', 1),
+(12, 1, '市场洞察', 2, '1/12', 2),
+(13, 1, '搭建营销体系', 2, '1/13', 3),
+(14, 1, '测品选品与前置认证评估', 2, '1/14', 4),
+(15, 1, '战略与预算', 2, '1/15', 5),
+(16, 1, '供应链与物流准备', 2, '1/16', 6),
+(17, 1, '合规前置', 2, '1/17', 7),
+(18, 1, '团队与组织准备', 2, '1/18', 8);
+
+-- 三级：需求项（阶段一）
+INSERT INTO requirement_categories (id, parent_id, name, level, path, sort_order) VALUES
+(111, 11, '品牌定位与规划/设计', 3, '1/11/111', 1),
+(121, 12, '市场/IP洞察', 3, '1/12/121', 1),
+(131, 13, '用户旅程设计', 3, '1/13/131', 1),
+(132, 13, '画像/要素/标签体系', 3, '1/13/132', 2),
+(133, 13, '营销活动与节奏规划', 3, '1/13/133', 3),
+(141, 14, '平台测品、双轨选品', 3, '1/14/141', 1),
+(142, 14, '海外认证可行性评估', 3, '1/14/142', 2),
+(151, 15, '出海路径规划', 3, '1/15/151', 1),
+(152, 15, '营销战略与预算', 3, '1/15/152', 2),
+(161, 16, '备货策略与库存预案', 3, '1/16/161', 1),
+(162, 16, '物流渠道方案选型', 3, '1/16/162', 2),
+(171, 17, '知识产权布局', 3, '1/17/171', 1),
+(172, 17, '税务合规前置', 3, '1/17/172', 2),
+(181, 18, '组织架构设计', 3, '1/18/181', 1),
+(182, 18, '人才招聘与培养', 3, '1/18/182', 2);
+
+-- 二级：分类（阶段二）
+INSERT INTO requirement_categories (id, parent_id, name, level, path, sort_order) VALUES
+(21, 2, '渠道与店铺建设', 2, '2/21', 1),
+(22, 2, '商品内容与上架', 2, '2/22', 2),
+(23, 2, '达人/社媒/直播启动', 2, '2/23', 3),
+(24, 2, '包装与样品管理', 2, '2/24', 4);
+
+-- 三级：需求项（阶段二）
+INSERT INTO requirement_categories (id, parent_id, name, level, path, sort_order) VALUES
+(211, 21, '平台开店', 3, '2/21/211', 1),
+(212, 21, '独立站建设', 3, '2/21/212', 2),
+(221, 22, 'Listing与素材生产', 3, '2/22/221', 1),
+(222, 22, '合规材料与上架门槛', 3, '2/22/222', 2),
+(231, 23, '达人合作与结算', 3, '2/23/231', 1),
+(232, 23, '直播间搭建与直播运营', 3, '2/23/232', 2),
+(241, 24, '外包装设计', 3, '2/24/241', 1),
+(242, 24, '防损包装', 3, '2/24/242', 2);
+
+-- 二级：分类（阶段三）
+INSERT INTO requirement_categories (id, parent_id, name, level, path, sort_order) VALUES
+(31, 3, '获客与投放', 2, '3/31', 1),
+(32, 3, '订单、财务与收款', 2, '3/32', 2),
+(33, 3, '客服与售后', 2, '3/33', 3),
+(34, 3, '合规与风险的持续运营', 2, '3/34', 4);
+
+-- 三级：需求项（阶段三）
+INSERT INTO requirement_categories (id, parent_id, name, level, path, sort_order) VALUES
+(311, 31, '流量推广与精准营销', 3, '3/31/311', 1),
+(312, 31, '广告投放与优化', 3, '3/31/312', 2),
+(321, 32, '跨境支付与资金管理', 3, '3/32/321', 1),
+(322, 32, '出口退税与税务申报', 3, '3/32/322', 2),
+(331, 33, '知识库/智能客服', 3, '3/33/331', 1),
+(332, 33, '退换货、维修、质保服务', 3, '3/33/332', 2),
+(341, 34, '平台合规', 3, '3/34/341', 1),
+(342, 34, '知识产权维护', 3, '3/34/342', 2);
+
+-- 二级：分类（阶段四）
+INSERT INTO requirement_categories (id, parent_id, name, level, path, sort_order) VALUES
+(41, 4, '履约升级与交付体验', 2, '4/41', 1),
+(42, 4, '私域与会员运营', 2, '4/42', 2),
+(43, 4, '产品与品牌迭代', 2, '4/43', 3),
+(44, 4, '新品规划', 2, '4/44', 4);
+
+-- 三级：需求项（阶段四）
+INSERT INTO requirement_categories (id, parent_id, name, level, path, sort_order) VALUES
+(411, 41, '报关/清关异常处理', 3, '4/41/411', 1),
+(412, 41, '海外仓', 3, '4/41/412', 2),
+(421, 42, '合伙人转介、交叉销售、复购', 3, '4/42/421', 1),
+(431, 43, '产品迭代机制', 3, '4/43/431', 1),
+(432, 43, '品牌推广与IP策略', 3, '4/43/432', 2),
+(441, 44, '商品洞察', 3, '4/44/441', 1),
+(442, 44, '产品定义', 3, '4/44/442', 2);
+
 -- ============================================================
 -- 常州跨境电商三中心 - 企业信息管理系统
 -- 行业分类初始化数据 (industry_categories)
@@ -1685,9 +1815,9 @@ INSERT INTO requirements (id, name, description, detail_description, phase, cate
 -- 注意: 如需修改密码，请使用BCrypt加密后替换
 
 INSERT INTO users (username, password, name, role, phone, email, status) VALUES
-('admin', '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', '系统管理员', 'admin', '13800000000', 'admin@tricenter.com', 1),
-('manager', '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', '业务主管', 'manager', '13800000001', 'manager@tricenter.com', 1),
-('user', '$2a$10$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36WQoeG6Lruj3vjPGga31lW', '普通用户', 'user', '13800000002', 'user@tricenter.com', 1)
+('admin', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '系统管理员', 'admin', '13800000000', 'admin@tricenter.com', 1),
+('manager', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '业务主管', 'manager', '13800000001', 'manager@tricenter.com', 1),
+('user', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '普通用户', 'user', '13800000002', 'user@tricenter.com', 1)
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
 -- ============================================================

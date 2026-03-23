@@ -30,6 +30,10 @@ public class EnterpriseDetailResponse {
     private String website;
     private Integer domesticRevenueId;
     private String domesticRevenueLabel;
+
+    /** 国内营收(万元)，精确数值 */
+    private BigDecimal domesticRevenueWan;
+
     private Integer crossBorderRevenueId;
 
     /** 跨境营收(万元)，精确数值 */
@@ -80,10 +84,7 @@ public class EnterpriseDetailResponse {
     private String paymentSettlement;
     private Integer crossBorderTeamSize;
     private Boolean usingErp;
-    private Object socialMediaAccounts;
-    private String exhibitionHistory;
-    private String overseasDistributors;
-    private Boolean usingCrm;
+    private Boolean hasOverseasDistributors;
     private String transformationWillingness;
     private String investmentWillingness;
     private Object crossBorderPlatforms;
@@ -102,13 +103,13 @@ public class EnterpriseDetailResponse {
     // ========== 政策支持 ==========
     private Boolean hasPolicySupport;
     private List<String> enjoyedPolicies;
-    private Object desiredSupport;
-    private Object cooperationDemands;
     
     // ========== 竞争力信息 ==========
     private String competitionPosition;
     private String competitionDescription;
     private String painPoints;
+    private List<String> currentRiskTags;
+    private String riskDescription;
     
     // ========== 三中心合作 ==========
     private List<String> tricenterDemands;

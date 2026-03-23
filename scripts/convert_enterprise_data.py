@@ -234,8 +234,7 @@ def read_source_data():
         e['cross_border_team_size'] = safe_str(ws.cell(row=row_idx, column=37).value)
         e['pain_points'] = safe_str(ws.cell(row=row_idx, column=38).value)
         e['has_policy_support'] = safe_str(ws.cell(row=row_idx, column=39).value)
-        e['desired_support'] = safe_str(ws.cell(row=row_idx, column=40).value)
-        e['cooperation_demands'] = safe_str(ws.cell(row=row_idx, column=41).value)
+        # 列 40–41 曾为 desired_support / cooperation_demands，已下线，不再写入导出 JSON
         e['competition_position'] = safe_str(ws.cell(row=row_idx, column=42).value)
         e['competitor'] = safe_str(ws.cell(row=row_idx, column=43).value)
         e['risks'] = safe_str(ws.cell(row=row_idx, column=44).value)

@@ -1,8 +1,12 @@
 package com.tricenter.service;
 
 import com.tricenter.entity.IndustryCategory;
+import com.tricenter.entity.ProductCategory;
+import com.tricenter.entity.RequirementCategory;
 import com.tricenter.entity.SystemOption;
 import com.tricenter.mapper.IndustryCategoryMapper;
+import com.tricenter.mapper.ProductCategoryMapper;
+import com.tricenter.mapper.RequirementCategoryMapper;
 import com.tricenter.mapper.SystemOptionMapper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -28,10 +32,14 @@ public class DictionaryCacheService {
 
     private final SystemOptionMapper systemOptionMapper;
     private final IndustryCategoryMapper industryCategoryMapper;
+    private final ProductCategoryMapper productCategoryMapper;
+    private final RequirementCategoryMapper requirementCategoryMapper;
 
     private volatile Map<String, Map<String, SystemOption>> categoryValueMap = new ConcurrentHashMap<>();
     private volatile Map<Integer, SystemOption> optionIdMap = new ConcurrentHashMap<>();
     private volatile Map<Integer, IndustryCategory> industryIdMap = new ConcurrentHashMap<>();
+    private volatile Map<Integer, ProductCategory> productIdMap = new ConcurrentHashMap<>();
+    private volatile Map<Integer, RequirementCategory> requirementIdMap = new ConcurrentHashMap<>();
 
     @PostConstruct
     public void init() {
@@ -63,8 +71,23 @@ public class DictionaryCacheService {
         }
         this.industryIdMap = newIndustryMap;
 
-        log.info("数据字典缓存刷新完成: {} 个选项, {} 个行业分类, 耗时 {}ms",
-                allOptions.size(), allIndustries.size(), System.currentTimeMillis() - start);
+        var allProducts = productCategoryMapper.selectList(null);
+        Map<Integer, ProductCategory> newProductMap = new ConcurrentHashMap<>(allProducts.size());
+        for (ProductCategory product : allProducts) {
+            newProductMap.put(product.getId(), product);
+        }
+        this.productIdMap = newProductMap;
+
+        var allRequirements = requirementCategoryMapper.selectList(null);
+        Map<Integer, RequirementCategory> newRequirementMap = new ConcurrentHashMap<>(allRequirements.size());
+        for (RequirementCategory req : allRequirements) {
+            newRequirementMap.put(req.getId(), req);
+        }
+        this.requirementIdMap = newRequirementMap;
+
+        log.info("数据字典缓存刷新完成: {} 个选项, {} 个行业, {} 个品类, {} 个需求分类, 耗时 {}ms",
+                allOptions.size(), allIndustries.size(), allProducts.size(), allRequirements.size(),
+                System.currentTimeMillis() - start);
     }
 
     public SystemOption getOptionByValue(String category, String value) {

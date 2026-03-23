@@ -46,21 +46,9 @@ public class SurveyCrossBorderData {
     @ColumnWidth(18)
     private String usingErp;
 
-    @ExcelProperty("社交媒体账号")
-    @ColumnWidth(40)
-    private String socialMediaAccounts;
-
-    @ExcelProperty("国际展会参展情况")
-    @ColumnWidth(35)
-    private String exhibitionHistory;
-
-    @ExcelProperty("海外代理商/分销商")
-    @ColumnWidth(35)
-    private String overseasDistributors;
-
-    @ExcelProperty("是否使用CRM系统")
+    @ExcelProperty("是否有海外分销商")
     @ColumnWidth(18)
-    private String usingCrm;
+    private String hasOverseasDistributors;
 
     @ExcelProperty("跨境转型意愿")
     @ColumnWidth(18)

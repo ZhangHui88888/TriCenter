@@ -234,13 +234,13 @@ public class DashboardServiceImpl implements DashboardService {
         List<String> level1Ordered = dictionaryCache.getLevel1IndustryNamesInOrder();
         List<IndustryStatsResponse> result = new ArrayList<>();
         Set<String> seen = new HashSet<>();
-        result.add(new IndustryStatsResponse("未分类", industryMap.getOrDefault("未分类", 0), 0));
+        result.add(new IndustryStatsResponse("未分类", industryMap.getOrDefault("未分类", 0), 0.0));
         seen.add("未分类");
         for (String name : level1Ordered) {
             if (name == null || name.isBlank() || "未分类".equals(name)) {
                 continue;
             }
-            result.add(new IndustryStatsResponse(name, industryMap.getOrDefault(name, 0), 0));
+            result.add(new IndustryStatsResponse(name, industryMap.getOrDefault(name, 0), 0.0));
             seen.add(name);
         }
         List<Map.Entry<String, Integer>> extras = industryMap.entrySet().stream()
@@ -248,7 +248,7 @@ public class DashboardServiceImpl implements DashboardService {
                 .sorted((a, b) -> b.getValue() - a.getValue())
                 .collect(Collectors.toList());
         for (Map.Entry<String, Integer> e : extras) {
-            result.add(new IndustryStatsResponse(e.getKey(), e.getValue(), 0));
+            result.add(new IndustryStatsResponse(e.getKey(), e.getValue(), 0.0));
         }
         return result;
     }

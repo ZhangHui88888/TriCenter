@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Card, Row, Col, Typography, Table, Progress, Spin } from 'antd';
 import { ArrowRightOutlined, RiseOutlined, ArrowUpOutlined } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
-import { dashboardApi } from '@/services/api';
+import { funnelApi } from '@/services/api';
 
 const { Title, Text } = Typography;
 
@@ -21,63 +21,70 @@ const FUNNEL_STAGES_CONFIG = [
   { code: 'INCUBATING', name: '重点孵化', color: C.yellow },
 ];
 
-// 转化数据（待后端API开发后替换）
-const defaultConversionData = [
-  { from: '潜在企业', to: '有明确需求', count: 0, rate: 0 },
-  { from: '潜在企业', to: '无明确需求', count: 0, rate: 0 },
-  { from: '无明确需求', to: '有明确需求', count: 0, rate: 0 },
-  { from: '无明确需求', to: '没有合作意向', count: 0, rate: 0 },
-  { from: '有明确需求', to: '已签约', count: 0, rate: 0 },
-  { from: '已签约', to: '已入驻', count: 0, rate: 0 },
-  { from: '已入驻', to: '重点孵化', count: 0, rate: 0 },
-];
-
 function FunnelAnalysis() {
   const [loading, setLoading] = useState(true);
   const [funnelStages, setFunnelStages] = useState<any[]>([]);
-  const [conversionData, setConversionData] = useState(defaultConversionData);
-  
-  // 加载漏斗数据
+  const [conversionData, setConversionData] = useState<
+    { from: string; to: string; count: number; rate: number }[]
+  >([]);
+  const [trendRows, setTrendRows] = useState<
+    { month: string; potential: number; hasDemand: number; signed: number; settled: number }[]
+  >([]);
+
+  // 加载漏斗数据（专用 funnel 接口）
   const fetchFunnelData = async () => {
     setLoading(true);
     try {
-      const response = await dashboardApi.getFunnelStats();
-      if (response.data) {
-        // 合并配置和数据
+      const [dataRes, convRes, trendRes] = await Promise.all([
+        funnelApi.getData(),
+        funnelApi.getConversionRates(),
+        funnelApi.getTrend(),
+      ]);
+
+      if (dataRes.data) {
         const stages = FUNNEL_STAGES_CONFIG.map(config => {
-          const data = response.data.find((d: any) => d.code === config.code);
+          const row = (dataRes.data as any[]).find((d: any) => d.stage === config.code);
           return {
             ...config,
-            count: data?.count || 0,
+            count: row?.count ?? 0,
           };
         });
         setFunnelStages(stages);
-        
-        // 计算转化数据
-        const newConversionData = [
-          { from: '潜在企业', to: '有明确需求', count: 0, rate: 0 },
-          { from: '潜在企业', to: '无明确需求', count: 0, rate: 0 },
-          { from: '无明确需求', to: '有明确需求', count: 0, rate: 0 },
-          { from: '无明确需求', to: '没有合作意向', count: 0, rate: 0 },
-          { from: '有明确需求', to: '已签约', count: 0, rate: 0 },
-          { from: '已签约', to: '已入驻', count: 0, rate: 0 },
-          { from: '已入驻', to: '重点孵化', count: 0, rate: 0 },
-        ];
-        
-        // 根据阶段数据计算转化率
-        const getCount = (name: string) => stages.find((s: any) => s.name === name)?.count || 0;
-        newConversionData.forEach(item => {
-          const fromCount = getCount(item.from);
-          const toCount = getCount(item.to);
-          item.count = toCount;
-          item.rate = fromCount > 0 ? Math.round((toCount / fromCount) * 100 * 10) / 10 : 0;
-        });
-        setConversionData(newConversionData);
+      } else {
+        setFunnelStages(FUNNEL_STAGES_CONFIG.map(c => ({ ...c, count: 0 })));
+      }
+
+      if (convRes.data && Array.isArray(convRes.data)) {
+        setConversionData(
+          (convRes.data as any[]).map((r: any) => ({
+            from: r.fromName || r.from,
+            to: r.toName || r.to,
+            count: r.count ?? 0,
+            rate: typeof r.rate === 'number' ? Math.round(r.rate * 10) / 10 : 0,
+          }))
+        );
+      } else {
+        setConversionData([]);
+      }
+
+      if (trendRes.data && Array.isArray(trendRes.data)) {
+        setTrendRows(
+          (trendRes.data as any[]).map((t: any) => ({
+            month: t.month,
+            potential: t.potential ?? 0,
+            hasDemand: t.hasDemand ?? 0,
+            signed: t.signed ?? 0,
+            settled: t.settled ?? 0,
+          }))
+        );
+      } else {
+        setTrendRows([]);
       }
     } catch (error) {
       console.error('Failed to fetch funnel data:', error);
-      // 使用默认空数据
       setFunnelStages(FUNNEL_STAGES_CONFIG.map(c => ({ ...c, count: 0 })));
+      setConversionData([]);
+      setTrendRows([]);
     } finally {
       setLoading(false);
     }
@@ -94,9 +101,14 @@ function FunnelAnalysis() {
   const settledCount = funnelStages.find(s => s.code === 'SETTLED')?.count || 0;
   const incubatingCount = funnelStages.find(s => s.code === 'INCUBATING')?.count || 0;
 
-  const overallConversionRate = ((signedCount + settledCount + incubatingCount) / totalEnterprises * 100).toFixed(1);
-  const signingRate = (signedCount / potentialCount * 100).toFixed(1);
-  const settlementRate = (settledCount / signedCount * 100).toFixed(1);
+  const overallConversionRate =
+    totalEnterprises > 0
+      ? (((signedCount + settledCount + incubatingCount) / totalEnterprises) * 100).toFixed(1)
+      : '0.0';
+  const signingRate =
+    potentialCount > 0 ? ((signedCount / potentialCount) * 100).toFixed(1) : '0.0';
+  const settlementRate =
+    signedCount > 0 ? ((settledCount / signedCount) * 100).toFixed(1) : '0.0';
 
   const funnelOption = {
     tooltip: { 
@@ -173,23 +185,30 @@ function FunnelAnalysis() {
     return `rgb(${r}, ${g}, ${b})`;
   }
 
-  const trendOption = {
-    tooltip: { trigger: 'axis', backgroundColor: '#fff', borderColor: '#E6EFF5', borderRadius: 12, textStyle: { color: C.textDark } },
-    legend: { data: ['潜在企业', '有明确需求', '已签约', '已入驻'], bottom: 0, textStyle: { color: C.textMuted } },
-    grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
-    xAxis: {
-      type: 'category',
-      data: ['8月', '9月', '10月', '11月', '12月', '1月'],
-      axisLabel: { color: C.textMuted },
-    },
-    yAxis: { type: 'value', axisLabel: { color: C.textMuted } },
-    series: [
-      { name: '潜在企业', type: 'line', data: [120, 132, 141, 148, 152, 156], smooth: true, itemStyle: { color: C.purple } },
-      { name: '有明确需求', type: 'line', data: [42, 48, 52, 58, 62, 65], smooth: true, itemStyle: { color: C.blue } },
-      { name: '已签约', type: 'line', data: [18, 22, 25, 28, 31, 34], smooth: true, itemStyle: { color: C.purple } },
-      { name: '已入驻', type: 'line', data: [12, 14, 16, 18, 20, 23], smooth: true, itemStyle: { color: C.teal } },
-    ],
-  };
+  const trendOption = useMemo(() => {
+    const monthLabels = trendRows.map(t => {
+      const parts = t.month.split('-');
+      if (parts.length >= 2) return `${parseInt(parts[1], 10)}月`;
+      return t.month;
+    });
+    return {
+      tooltip: { trigger: 'axis', backgroundColor: '#fff', borderColor: '#E6EFF5', borderRadius: 12, textStyle: { color: C.textDark } },
+      legend: { data: ['潜在企业', '有明确需求', '已签约', '已入驻'], bottom: 0, textStyle: { color: C.textMuted } },
+      grid: { left: '3%', right: '4%', bottom: '15%', top: '10%', containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: monthLabels.length ? monthLabels : ['—'],
+        axisLabel: { color: C.textMuted },
+      },
+      yAxis: { type: 'value', axisLabel: { color: C.textMuted } },
+      series: [
+        { name: '潜在企业', type: 'line', data: trendRows.map(t => t.potential), smooth: true, itemStyle: { color: C.purple } },
+        { name: '有明确需求', type: 'line', data: trendRows.map(t => t.hasDemand), smooth: true, itemStyle: { color: C.blue } },
+        { name: '已签约', type: 'line', data: trendRows.map(t => t.signed), smooth: true, itemStyle: { color: C.purple } },
+        { name: '已入驻', type: 'line', data: trendRows.map(t => t.settled), smooth: true, itemStyle: { color: C.teal } },
+      ],
+    };
+  }, [trendRows]);
 
   const conversionColumns = [
     { title: '转化路径', key: 'path', render: (_: unknown, record: { from: string; to: string }) => (
@@ -346,7 +365,7 @@ function FunnelAnalysis() {
             <Table
               columns={conversionColumns}
               dataSource={conversionData}
-              rowKey={(record) => `${record.from}-${record.to}`}
+              rowKey={(record) => `${record.from}-${record.to}-${record.count}`}
               size="small"
               pagination={false}
             />

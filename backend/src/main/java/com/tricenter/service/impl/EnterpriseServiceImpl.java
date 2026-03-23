@@ -17,7 +17,7 @@ import com.tricenter.mapper.*;
 import com.tricenter.service.DashboardService;
 import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.service.EnterpriseService;
-import com.tricenter.util.RequirementFilterHelper;
+import com.tricenter.service.RequirementMatchEngine;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +50,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     private final FollowUpRecordMapper followUpRecordMapper;
     private final DashboardService dashboardService;
     private final DictionaryCacheService dictionaryCache;
+    private final RequirementMatchEngine requirementMatchEngine;
 
     @Override
     public PageResult<EnterpriseListResponse> getEnterpriseList(EnterpriseQueryRequest request) {
@@ -431,7 +432,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                                 .eq(Enterprise::getIsDeleted, 0)
                 ).stream()
                 .filter(enterprise -> {
-                    Set<String> effectiveRequirementIds = RequirementFilterHelper.calculateEffectiveRequirementIds(
+                    Set<String> effectiveRequirementIds = requirementMatchEngine.calculateEffectiveRequirementIds(
                             enterprise.getDimensionSelections(),
                             enterprise.getRemovedRequirements(),
                             enterprise.getCustomRequirements()
@@ -561,6 +562,13 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         return dictionaryCache.getOptionLabel(enterprise.getCrossBorderRevenueId());
     }
 
+    private String resolveDomesticRevenueLabel(Enterprise enterprise) {
+        if (enterprise.getDomesticRevenueWan() != null) {
+            return enterprise.getDomesticRevenueWan().stripTrailingZeros().toPlainString();
+        }
+        return dictionaryCache.getOptionLabel(enterprise.getDomesticRevenueId());
+    }
+
     @Override
     public EnterpriseDetailResponse getEnterpriseDetail(Integer id) {
         Enterprise enterprise = enterpriseMapper.selectById(id);
@@ -664,8 +672,17 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (request.getEnterpriseType() != null) enterprise.setEnterpriseType(request.getEnterpriseType());
         if (request.getStaffSizeId() != null) enterprise.setStaffSizeId(request.getStaffSizeId());
         if (request.getWebsite() != null) enterprise.setWebsite(request.getWebsite());
-        if (request.getDomesticRevenueId() != null) enterprise.setDomesticRevenueId(request.getDomesticRevenueId());
-        if (Boolean.TRUE.equals(request.getCrossBorderRevenueWanTouched())) {
+        // 国内营收：touched 为 true，或请求里带了非空精确万元数（兼容 touched 未绑定的情况）；否则仍可按档位 ID 更新
+        if (Boolean.TRUE.equals(request.getDomesticRevenueWanTouched())
+                || request.getDomesticRevenueWan() != null) {
+            enterprise.setDomesticRevenueWan(request.getDomesticRevenueWan());
+            enterprise.setDomesticRevenueId(null);
+        } else if (request.getDomesticRevenueId() != null) {
+            enterprise.setDomesticRevenueId(request.getDomesticRevenueId());
+            enterprise.setDomesticRevenueWan(null);
+        }
+        if (Boolean.TRUE.equals(request.getCrossBorderRevenueWanTouched())
+                || request.getCrossBorderRevenueWan() != null) {
             enterprise.setCrossBorderRevenueWan(request.getCrossBorderRevenueWan());
             enterprise.setCrossBorderRevenueId(null);
         } else if (request.getCrossBorderRevenueId() != null) {
@@ -707,10 +724,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (request.getPaymentSettlement() != null) enterprise.setPaymentSettlement(request.getPaymentSettlement());
         if (request.getCrossBorderTeamSize() != null) enterprise.setCrossBorderTeamSize(request.getCrossBorderTeamSize());
         if (request.getUsingErp() != null) enterprise.setUsingErp(request.getUsingErp());
-        if (request.getSocialMediaAccounts() != null) enterprise.setSocialMediaAccounts(request.getSocialMediaAccounts());
-        if (request.getExhibitionHistory() != null) enterprise.setExhibitionHistory(request.getExhibitionHistory());
-        if (request.getOverseasDistributors() != null) enterprise.setOverseasDistributors(request.getOverseasDistributors());
-        if (request.getUsingCrm() != null) enterprise.setUsingCrm(request.getUsingCrm());
+        if (request.getHasOverseasDistributors() != null) enterprise.setHasOverseasDistributors(request.getHasOverseasDistributors());
         if (request.getTransformationWillingness() != null) enterprise.setTransformationWillingness(request.getTransformationWillingness());
         if (request.getInvestmentWillingness() != null) enterprise.setInvestmentWillingness(request.getInvestmentWillingness());
         if (request.getCrossBorderPlatforms() != null) enterprise.setCrossBorderPlatforms(request.getCrossBorderPlatforms());
@@ -729,13 +743,13 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         // 政策支持
         if (request.getHasPolicySupport() != null) enterprise.setHasPolicySupport(request.getHasPolicySupport());
         if (request.getEnjoyedPolicies() != null) enterprise.setEnjoyedPolicies(request.getEnjoyedPolicies());
-        if (request.getDesiredSupport() != null) enterprise.setDesiredSupport(request.getDesiredSupport());
-        if (request.getCooperationDemands() != null) enterprise.setCooperationDemands(request.getCooperationDemands());
         
         // 竞争力信息
         if (request.getCompetitionPosition() != null) enterprise.setCompetitionPosition(request.getCompetitionPosition());
         if (request.getCompetitionDescription() != null) enterprise.setCompetitionDescription(request.getCompetitionDescription());
         if (request.getPainPoints() != null) enterprise.setPainPoints(request.getPainPoints());
+        if (request.getCurrentRiskTags() != null) enterprise.setCurrentRiskTags(request.getCurrentRiskTags());
+        if (request.getRiskDescription() != null) enterprise.setRiskDescription(request.getRiskDescription());
         
         // 三中心合作
         if (request.getTricenterDemands() != null) enterprise.setTricenterDemands(request.getTricenterDemands());
@@ -910,6 +924,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setStaffSizeId(enterprise.getStaffSizeId());
         response.setWebsite(enterprise.getWebsite());
         response.setDomesticRevenueId(enterprise.getDomesticRevenueId());
+        response.setDomesticRevenueWan(enterprise.getDomesticRevenueWan());
         response.setCrossBorderRevenueId(enterprise.getCrossBorderRevenueId());
         response.setCrossBorderRevenueWan(enterprise.getCrossBorderRevenueWan());
         response.setSourceId(enterprise.getSourceId());
@@ -923,7 +938,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         }
 
         response.setStaffSizeLabel(dictionaryCache.getOptionLabel(enterprise.getStaffSizeId()));
-        response.setDomesticRevenueLabel(dictionaryCache.getOptionLabel(enterprise.getDomesticRevenueId()));
+        response.setDomesticRevenueLabel(resolveDomesticRevenueLabel(enterprise));
         response.setCrossBorderRevenueLabel(resolveCrossBorderRevenueLabel(enterprise));
         response.setSourceLabel(dictionaryCache.getOptionLabel(enterprise.getSourceId()));
         response.setTradeModeLabel(dictionaryCache.getOptionLabel(enterprise.getTradeModeId()));
@@ -981,10 +996,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setPaymentSettlement(enterprise.getPaymentSettlement());
         response.setCrossBorderTeamSize(enterprise.getCrossBorderTeamSize());
         response.setUsingErp(enterprise.getUsingErp() != null && enterprise.getUsingErp() == 1);
-        response.setSocialMediaAccounts(enterprise.getSocialMediaAccounts());
-        response.setExhibitionHistory(enterprise.getExhibitionHistory());
-        response.setOverseasDistributors(enterprise.getOverseasDistributors());
-        response.setUsingCrm(enterprise.getUsingCrm() != null && enterprise.getUsingCrm() == 1);
+        response.setHasOverseasDistributors(enterprise.getHasOverseasDistributors() != null && enterprise.getHasOverseasDistributors() == 1);
         response.setTransformationWillingness(enterprise.getTransformationWillingness());
         response.setInvestmentWillingness(enterprise.getInvestmentWillingness());
         response.setCrossBorderPlatforms(enterprise.getCrossBorderPlatforms());
@@ -1003,13 +1015,13 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         // 政策支持
         response.setHasPolicySupport(enterprise.getHasPolicySupport() != null && enterprise.getHasPolicySupport() == 1);
         response.setEnjoyedPolicies(enterprise.getEnjoyedPolicies());
-        response.setDesiredSupport(enterprise.getDesiredSupport());
-        response.setCooperationDemands(enterprise.getCooperationDemands());
         
         // 竞争力信息
         response.setCompetitionPosition(enterprise.getCompetitionPosition());
         response.setCompetitionDescription(enterprise.getCompetitionDescription());
         response.setPainPoints(enterprise.getPainPoints());
+        response.setCurrentRiskTags(enterprise.getCurrentRiskTags());
+        response.setRiskDescription(enterprise.getRiskDescription());
         
         // 三中心合作
         response.setTricenterDemands(enterprise.getTricenterDemands());
@@ -1149,11 +1161,9 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                     if (StringUtils.hasText(data.getAeoCertification())) enterprise.setAeoCertification(data.getAeoCertification().trim());
                     if (StringUtils.hasText(data.getOtherCertifications())) enterprise.setOtherCertifications(data.getOtherCertifications().trim());
 
-                    // 营销渠道
-                    if (StringUtils.hasText(data.getSocialMediaAccounts())) enterprise.setSocialMediaAccounts(data.getSocialMediaAccounts().trim());
-                    if (StringUtils.hasText(data.getExhibitionHistory())) enterprise.setExhibitionHistory(data.getExhibitionHistory().trim());
-                    if (StringUtils.hasText(data.getOverseasDistributors())) enterprise.setOverseasDistributors(data.getOverseasDistributors().trim());
-                    if (StringUtils.hasText(data.getUsingCrm())) enterprise.setUsingCrm("是".equals(data.getUsingCrm().trim()) ? 1 : 0);
+                    if (StringUtils.hasText(data.getHasOverseasDistributors())) {
+                        enterprise.setHasOverseasDistributors("是".equals(data.getHasOverseasDistributors().trim()) ? 1 : 0);
+                    }
                     
                     enterpriseMapper.insert(enterprise);
                     
@@ -1253,11 +1263,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             data.setAeoCertification(e.getAeoCertification());
             data.setOtherCertifications(e.getOtherCertifications());
 
-            // 营销渠道
-            if (e.getSocialMediaAccounts() != null) data.setSocialMediaAccounts(e.getSocialMediaAccounts().toString());
-            data.setExhibitionHistory(e.getExhibitionHistory());
-            data.setOverseasDistributors(e.getOverseasDistributors());
-            data.setUsingCrm(e.getUsingCrm() != null && e.getUsingCrm() == 1 ? "是" : "否");
+            data.setHasOverseasDistributors(e.getHasOverseasDistributors() != null && e.getHasOverseasDistributors() == 1 ? "是" : "否");
 
             return data;
         }).collect(Collectors.toList());
@@ -1298,10 +1304,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         example.setIsoCertifications("ISO9001:2015");
         example.setAeoCertification("一般认证");
         example.setOtherCertifications("CE、FDA");
-        example.setSocialMediaAccounts("Facebook:xxx");
-        example.setExhibitionHistory("广交会2025");
-        example.setOverseasDistributors("美国ABC公司");
-        example.setUsingCrm("否");
+        example.setHasOverseasDistributors("否");
         templateData.add(example);
         
         try {

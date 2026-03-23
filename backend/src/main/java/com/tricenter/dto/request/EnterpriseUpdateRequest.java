@@ -29,6 +29,13 @@ public class EnterpriseUpdateRequest {
     private Integer staffSizeId;
     private String website;
     private Integer domesticRevenueId;
+
+    /** 国内营收(万元) */
+    private BigDecimal domesticRevenueWan;
+
+    /** 为 true 时按 domesticRevenueWan 更新（可为 null 表示清空），避免与「未传字段」混淆 */
+    private Boolean domesticRevenueWanTouched;
+
     private Integer crossBorderRevenueId;
 
     /** 跨境营收(万元) */
@@ -72,10 +79,7 @@ public class EnterpriseUpdateRequest {
     private String paymentSettlement;
     private Integer crossBorderTeamSize;
     private Integer usingErp;
-    private Object socialMediaAccounts;
-    private String exhibitionHistory;
-    private String overseasDistributors;
-    private Integer usingCrm;
+    private Integer hasOverseasDistributors;
     private String transformationWillingness;
     private String investmentWillingness;
     private Object crossBorderPlatforms;
@@ -94,13 +98,17 @@ public class EnterpriseUpdateRequest {
     // 政策支持
     private Integer hasPolicySupport;
     private List<String> enjoyedPolicies;
-    private Object desiredSupport;
-    private Object cooperationDemands;
     
     // 竞争力信息
     private String competitionPosition;
     private String competitionDescription;
     private String painPoints;
+
+    /** 当前面临风险（多选标签） */
+    private List<String> currentRiskTags;
+
+    /** 当前面临风险说明 */
+    private String riskDescription;
     
     // 三中心合作
     private List<String> tricenterDemands;

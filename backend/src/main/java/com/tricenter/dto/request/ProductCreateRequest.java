@@ -33,6 +33,14 @@ public class ProductCreateRequest {
     @Schema(description = "年销售额")
     @Size(max = 50, message = "年销售额不能超过50个字符")
     private String annualSales;
+
+    @Schema(description = "出口占比")
+    @Size(max = 50, message = "出口占比不能超过50个字符")
+    private String exportRatio;
+
+    @Schema(description = "利润率")
+    @Size(max = 50, message = "利润率不能超过50个字符")
+    private String profitMargin;
     
     @Schema(description = "原材料本地采购比例")
     @Size(max = 20, message = "原材料本地采购比例不能超过20个字符")

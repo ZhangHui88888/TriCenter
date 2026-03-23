@@ -1,0 +1,17 @@
+{
+  "name": "DB验收仅创建_请改唯一名",
+  "creditCode": "VS9000000000000888",
+  "province": "江苏省",
+  "city": "常州市",
+  "district": "天宁区",
+  "address": "仅创建不写全量",
+  "industryId": 10102,
+  "enterpriseType": "生产型",
+  "staffSizeId": 26,
+  "website": "https://create-only.example.com",
+  "sourceId": 46,
+  "crossBorderRevenueWan": 22,
+  "contactName": "仅创建联系人",
+  "contactPhone": "13811112222",
+  "contactPosition": "职员"
+}

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   Card,
   Table,
@@ -18,6 +18,10 @@ import {
   Empty,
   Tree,
   TreeSelect,
+  Spin,
+  Alert,
+  Row,
+  Col,
 } from 'antd';
 import {
   PlusOutlined,
@@ -26,10 +30,13 @@ import {
   BookOutlined,
   SearchOutlined,
   ApartmentOutlined,
+  UndoOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import type { DataNode } from 'antd/es/tree';
-import { dictionaryData, dictionaryCategories, type DictionaryItem, type DictionaryCategory } from '@/data/dictionaryData';
+import { dictionaryCategories, type DictionaryItem, type DictionaryCategory } from '@/data/dictionaryData';
+import { dimensions as personaDimensions } from '@/data/requirementsData';
+import { optionsApi, dictionaryApi, requirementItemAdminApi, treeCategoryApi, type TreeCategoryItem } from '@/services/api';
 
 const { Text } = Typography;
 
@@ -49,117 +56,32 @@ interface CategoryTreeItem {
   children?: CategoryTreeItem[];
 }
 
-// 初始行业分类数据
-const initialIndustryCategories: CategoryTreeItem[] = [
-  { id: 1, parent_id: 0, name: '制造业', level: 1, path: '1', sort_order: 1, is_enabled: true },
-  { id: 2, parent_id: 0, name: '贸易/零售', level: 1, path: '2', sort_order: 2, is_enabled: true },
-  { id: 3, parent_id: 0, name: '服务业', level: 1, path: '3', sort_order: 3, is_enabled: true },
-  { id: 10, parent_id: 1, name: '园艺制品', level: 2, path: '1/10', sort_order: 1, is_enabled: true },
-  { id: 11, parent_id: 1, name: '电动工具', level: 2, path: '1/11', sort_order: 2, is_enabled: true },
-  { id: 12, parent_id: 1, name: '汽车零部件', level: 2, path: '1/12', sort_order: 3, is_enabled: true },
-  { id: 13, parent_id: 1, name: '家居建材', level: 2, path: '1/13', sort_order: 4, is_enabled: true },
-  { id: 14, parent_id: 1, name: '机械设备', level: 2, path: '1/14', sort_order: 5, is_enabled: true },
-  { id: 15, parent_id: 1, name: '纺织服装', level: 2, path: '1/15', sort_order: 6, is_enabled: true },
-  { id: 16, parent_id: 1, name: '电子产品', level: 2, path: '1/16', sort_order: 7, is_enabled: true },
-  { id: 160, parent_id: 16, name: '消费电子', level: 3, path: '1/16/160', sort_order: 1, is_enabled: true },
-  { id: 161, parent_id: 16, name: '工业电子', level: 3, path: '1/16/161', sort_order: 2, is_enabled: true },
-  { id: 162, parent_id: 16, name: '智能硬件', level: 3, path: '1/16/162', sort_order: 3, is_enabled: true },
-];
+/** 数据字典「需求项与画像维度」行 */
+interface RequirementAdminRow {
+  id: string;
+  name: string;
+  phase: string;
+  category: string;
+  sortOrder?: number;
+  dimensions?: Record<string, string[]>;
+}
 
-// 初始产品品类数据
-const initialProductCategories: CategoryTreeItem[] = [
-  { id: 1, parent_id: 0, name: '园艺工具', level: 1, path: '1', sort_order: 1, is_enabled: true },
-  { id: 2, parent_id: 0, name: '电动工具', level: 1, path: '2', sort_order: 2, is_enabled: true },
-  { id: 3, parent_id: 0, name: '家居用品', level: 1, path: '3', sort_order: 3, is_enabled: true },
-  { id: 4, parent_id: 0, name: '户外运动', level: 1, path: '4', sort_order: 4, is_enabled: true },
-  { id: 5, parent_id: 0, name: '汽车配件', level: 1, path: '5', sort_order: 5, is_enabled: true },
-  { id: 6, parent_id: 0, name: '电子产品', level: 1, path: '6', sort_order: 6, is_enabled: true },
-  { id: 101, parent_id: 1, name: '园艺手工具', level: 2, path: '1/101', sort_order: 1, is_enabled: true },
-  { id: 102, parent_id: 1, name: '园艺电动工具', level: 2, path: '1/102', sort_order: 2, is_enabled: true },
-  { id: 103, parent_id: 1, name: '园艺装饰品', level: 2, path: '1/103', sort_order: 3, is_enabled: true },
-  { id: 10101, parent_id: 101, name: '铲子', level: 3, path: '1/101/10101', sort_order: 1, is_enabled: true },
-  { id: 10102, parent_id: 101, name: '剪刀', level: 3, path: '1/101/10102', sort_order: 2, is_enabled: true },
-  { id: 10103, parent_id: 101, name: '耙子', level: 3, path: '1/101/10103', sort_order: 3, is_enabled: true },
-  { id: 201, parent_id: 2, name: '电钻', level: 2, path: '2/201', sort_order: 1, is_enabled: true },
-  { id: 202, parent_id: 2, name: '电锯', level: 2, path: '2/202', sort_order: 2, is_enabled: true },
-  { id: 203, parent_id: 2, name: '角磨机', level: 2, path: '2/203', sort_order: 3, is_enabled: true },
-];
+const TREE_CATEGORY_KEYS = ['_industry_categories', '_product_categories', '_requirement_categories'] as const;
 
-// 初始需求管理数据（阶段 → 分类 → 需求项）
-const initialRequirementCategories: CategoryTreeItem[] = [
-  // 第一阶段
-  { id: 1, parent_id: 0, name: '战略规划与资源准备', level: 1, path: '1', sort_order: 1, is_enabled: true },
-  { id: 11, parent_id: 1, name: '品牌规划', level: 2, path: '1/11', sort_order: 1, is_enabled: true },
-  { id: 111, parent_id: 11, name: '品牌定位与规划/设计', level: 3, path: '1/11/111', sort_order: 1, is_enabled: true },
-  { id: 12, parent_id: 1, name: '市场洞察', level: 2, path: '1/12', sort_order: 2, is_enabled: true },
-  { id: 121, parent_id: 12, name: '市场/IP洞察', level: 3, path: '1/12/121', sort_order: 1, is_enabled: true },
-  { id: 13, parent_id: 1, name: '搭建营销体系', level: 2, path: '1/13', sort_order: 3, is_enabled: true },
-  { id: 131, parent_id: 13, name: '用户旅程设计', level: 3, path: '1/13/131', sort_order: 1, is_enabled: true },
-  { id: 132, parent_id: 13, name: '画像/要素/标签体系', level: 3, path: '1/13/132', sort_order: 2, is_enabled: true },
-  { id: 133, parent_id: 13, name: '营销活动与节奏规划', level: 3, path: '1/13/133', sort_order: 3, is_enabled: true },
-  { id: 14, parent_id: 1, name: '测品选品与前置认证评估', level: 2, path: '1/14', sort_order: 4, is_enabled: true },
-  { id: 141, parent_id: 14, name: '平台测品、双轨选品', level: 3, path: '1/14/141', sort_order: 1, is_enabled: true },
-  { id: 142, parent_id: 14, name: '海外认证可行性评估', level: 3, path: '1/14/142', sort_order: 2, is_enabled: true },
-  { id: 15, parent_id: 1, name: '战略与预算', level: 2, path: '1/15', sort_order: 5, is_enabled: true },
-  { id: 151, parent_id: 15, name: '出海路径规划', level: 3, path: '1/15/151', sort_order: 1, is_enabled: true },
-  { id: 152, parent_id: 15, name: '营销战略与预算', level: 3, path: '1/15/152', sort_order: 2, is_enabled: true },
-  { id: 16, parent_id: 1, name: '供应链与物流准备', level: 2, path: '1/16', sort_order: 6, is_enabled: true },
-  { id: 161, parent_id: 16, name: '备货策略与库存预案', level: 3, path: '1/16/161', sort_order: 1, is_enabled: true },
-  { id: 162, parent_id: 16, name: '物流渠道方案选型', level: 3, path: '1/16/162', sort_order: 2, is_enabled: true },
-  { id: 17, parent_id: 1, name: '合规前置', level: 2, path: '1/17', sort_order: 7, is_enabled: true },
-  { id: 171, parent_id: 17, name: '知识产权布局', level: 3, path: '1/17/171', sort_order: 1, is_enabled: true },
-  { id: 172, parent_id: 17, name: '税务合规前置', level: 3, path: '1/17/172', sort_order: 2, is_enabled: true },
-  { id: 18, parent_id: 1, name: '团队与组织准备', level: 2, path: '1/18', sort_order: 8, is_enabled: true },
-  { id: 181, parent_id: 18, name: '组织架构设计', level: 3, path: '1/18/181', sort_order: 1, is_enabled: true },
-  { id: 182, parent_id: 18, name: '人才招聘与培养', level: 3, path: '1/18/182', sort_order: 2, is_enabled: true },
-  
-  // 第二阶段
-  { id: 2, parent_id: 0, name: '渠道搭建与商品上线', level: 1, path: '2', sort_order: 2, is_enabled: true },
-  { id: 21, parent_id: 2, name: '渠道与店铺建设', level: 2, path: '2/21', sort_order: 1, is_enabled: true },
-  { id: 211, parent_id: 21, name: '平台开店', level: 3, path: '2/21/211', sort_order: 1, is_enabled: true },
-  { id: 212, parent_id: 21, name: '独立站建设', level: 3, path: '2/21/212', sort_order: 2, is_enabled: true },
-  { id: 22, parent_id: 2, name: '商品内容与上架', level: 2, path: '2/22', sort_order: 2, is_enabled: true },
-  { id: 221, parent_id: 22, name: 'Listing与素材生产', level: 3, path: '2/22/221', sort_order: 1, is_enabled: true },
-  { id: 222, parent_id: 22, name: '合规材料与上架门槛', level: 3, path: '2/22/222', sort_order: 2, is_enabled: true },
-  { id: 23, parent_id: 2, name: '达人/社媒/直播启动', level: 2, path: '2/23', sort_order: 3, is_enabled: true },
-  { id: 231, parent_id: 23, name: '达人合作与结算', level: 3, path: '2/23/231', sort_order: 1, is_enabled: true },
-  { id: 232, parent_id: 23, name: '直播间搭建与直播运营', level: 3, path: '2/23/232', sort_order: 2, is_enabled: true },
-  { id: 24, parent_id: 2, name: '包装与样品管理', level: 2, path: '2/24', sort_order: 4, is_enabled: true },
-  { id: 241, parent_id: 24, name: '外包装设计', level: 3, path: '2/24/241', sort_order: 1, is_enabled: true },
-  { id: 242, parent_id: 24, name: '防损包装', level: 3, path: '2/24/242', sort_order: 2, is_enabled: true },
-  
-  // 第三阶段
-  { id: 3, parent_id: 0, name: '营销推广与规模增长', level: 1, path: '3', sort_order: 3, is_enabled: true },
-  { id: 31, parent_id: 3, name: '获客与投放', level: 2, path: '3/31', sort_order: 1, is_enabled: true },
-  { id: 311, parent_id: 31, name: '流量推广与精准营销', level: 3, path: '3/31/311', sort_order: 1, is_enabled: true },
-  { id: 312, parent_id: 31, name: '广告投放与优化', level: 3, path: '3/31/312', sort_order: 2, is_enabled: true },
-  { id: 32, parent_id: 3, name: '订单、财务与收款', level: 2, path: '3/32', sort_order: 2, is_enabled: true },
-  { id: 321, parent_id: 32, name: '跨境支付与资金管理', level: 3, path: '3/32/321', sort_order: 1, is_enabled: true },
-  { id: 322, parent_id: 32, name: '出口退税与税务申报', level: 3, path: '3/32/322', sort_order: 2, is_enabled: true },
-  { id: 33, parent_id: 3, name: '客服与售后', level: 2, path: '3/33', sort_order: 3, is_enabled: true },
-  { id: 331, parent_id: 33, name: '知识库/智能客服', level: 3, path: '3/33/331', sort_order: 1, is_enabled: true },
-  { id: 332, parent_id: 33, name: '退换货、维修、质保服务', level: 3, path: '3/33/332', sort_order: 2, is_enabled: true },
-  { id: 34, parent_id: 3, name: '合规与风险的持续运营', level: 2, path: '3/34', sort_order: 4, is_enabled: true },
-  { id: 341, parent_id: 34, name: '平台合规', level: 3, path: '3/34/341', sort_order: 1, is_enabled: true },
-  { id: 342, parent_id: 34, name: '知识产权维护', level: 3, path: '3/34/342', sort_order: 2, is_enabled: true },
-  
-  // 第四阶段
-  { id: 4, parent_id: 0, name: '品牌深耕与持续优化', level: 1, path: '4', sort_order: 4, is_enabled: true },
-  { id: 41, parent_id: 4, name: '履约升级与交付体验', level: 2, path: '4/41', sort_order: 1, is_enabled: true },
-  { id: 411, parent_id: 41, name: '报关/清关异常处理', level: 3, path: '4/41/411', sort_order: 1, is_enabled: true },
-  { id: 412, parent_id: 41, name: '海外仓', level: 3, path: '4/41/412', sort_order: 2, is_enabled: true },
-  { id: 42, parent_id: 4, name: '私域与会员运营', level: 2, path: '4/42', sort_order: 2, is_enabled: true },
-  { id: 421, parent_id: 42, name: '合伙人转介、交叉销售、复购', level: 3, path: '4/42/421', sort_order: 1, is_enabled: true },
-  { id: 43, parent_id: 4, name: '产品与品牌迭代', level: 2, path: '4/43', sort_order: 3, is_enabled: true },
-  { id: 431, parent_id: 43, name: '产品迭代机制', level: 3, path: '4/43/431', sort_order: 1, is_enabled: true },
-  { id: 432, parent_id: 43, name: '品牌推广与IP策略', level: 3, path: '4/43/432', sort_order: 2, is_enabled: true },
-  { id: 44, parent_id: 4, name: '新品规划', level: 2, path: '4/44', sort_order: 4, is_enabled: true },
-  { id: 441, parent_id: 44, name: '商品洞察', level: 3, path: '4/44/441', sort_order: 1, is_enabled: true },
-  { id: 442, parent_id: 44, name: '产品定义', level: 3, path: '4/44/442', sort_order: 2, is_enabled: true },
-];
+/** API 响应 → 前端 CategoryTreeItem 映射 */
+const mapApiToTreeItem = (item: TreeCategoryItem): CategoryTreeItem => ({
+  id: item.id,
+  parent_id: item.parentId ?? 0,
+  name: item.name,
+  level: item.level,
+  path: item.path ?? '',
+  sort_order: item.sortOrder ?? 0,
+  is_enabled: item.isEnabled === 1,
+});
 
 function DataDictionary() {
-  const [data, setData] = useState<DictionaryItem[]>(dictionaryData);
+  const [remoteFlatItems, setRemoteFlatItems] = useState<DictionaryItem[]>([]);
+  const [flatLoading, setFlatLoading] = useState(false);
   const [categories] = useState<DictionaryCategory[]>(dictionaryCategories);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
@@ -167,13 +89,132 @@ function DataDictionary() {
   const [form] = Form.useForm();
   
   // 多级分类状态
-  const [industryCategories, setIndustryCategories] = useState<CategoryTreeItem[]>(initialIndustryCategories);
-  const [productCategories, setProductCategories] = useState<CategoryTreeItem[]>(initialProductCategories);
-  const [requirementCategories, setRequirementCategories] = useState<CategoryTreeItem[]>(initialRequirementCategories);
+  const [industryCategories, setIndustryCategories] = useState<CategoryTreeItem[]>([]);
+  const [productCategories, setProductCategories] = useState<CategoryTreeItem[]>([]);
+  const [requirementCategories, setRequirementCategories] = useState<CategoryTreeItem[]>([]);
+  const [treeLoading, setTreeLoading] = useState(false);
   const [treeModalVisible, setTreeModalVisible] = useState(false);
   const [editingTreeItem, setEditingTreeItem] = useState<CategoryTreeItem | null>(null);
   const [treeForm] = Form.useForm();
   const [currentTreeType, setCurrentTreeType] = useState<'industry' | 'product' | 'requirement'>('industry');
+
+  const [requirementRows, setRequirementRows] = useState<RequirementAdminRow[]>([]);
+  const [reqItemsLoading, setReqItemsLoading] = useState(false);
+  const [reqDimensionModalOpen, setReqDimensionModalOpen] = useState(false);
+  const [editingRequirement, setEditingRequirement] = useState<RequirementAdminRow | null>(null);
+  const [reqDimensionSaving, setReqDimensionSaving] = useState(false);
+  const [reqDimensionForm] = Form.useForm();
+
+  const isTreeCategory = selectedCategory != null && TREE_CATEGORY_KEYS.includes(selectedCategory as typeof TREE_CATEGORY_KEYS[number]);
+  const isRequirementItemsCategory = selectedCategory === '_requirement_items';
+  const treeType =
+    selectedCategory === '_industry_categories'
+      ? 'industry'
+      : selectedCategory === '_product_categories'
+        ? 'product'
+        : 'requirement';
+
+  // 平面字典分类：从后端 system_options 加载
+  useEffect(() => {
+    if (!selectedCategory || isTreeCategory || isRequirementItemsCategory) {
+      setRemoteFlatItems([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setFlatLoading(true);
+      try {
+        const res = await optionsApi.getOptions(selectedCategory);
+        if (cancelled) return;
+        const list = (res.data || []).map((o: any) => ({
+          id: o.id,
+          category: selectedCategory,
+          value: o.value,
+          label: o.label,
+          color: o.color,
+          sort_order: o.sortOrder ?? 0,
+          is_enabled: o.isEnabled === 1,
+          created_at: '—',
+        })) as DictionaryItem[];
+        setRemoteFlatItems(list);
+      } catch {
+        if (!cancelled) {
+          message.error('加载字典选项失败');
+          setRemoteFlatItems([]);
+        }
+      } finally {
+        if (!cancelled) setFlatLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCategory, isTreeCategory, isRequirementItemsCategory]);
+
+  // 树形分类：从后端加载
+  const loadTreeData = async (type: 'industry' | 'product' | 'requirement') => {
+    setTreeLoading(true);
+    try {
+      const res = await treeCategoryApi.list(type);
+      const items = ((res as any).data || []).map(mapApiToTreeItem);
+      const setter = type === 'industry' ? setIndustryCategories
+        : type === 'product' ? setProductCategories
+        : setRequirementCategories;
+      setter(items);
+    } catch {
+      message.error('加载分类数据失败');
+    } finally {
+      setTreeLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isTreeCategory) return;
+    loadTreeData(treeType);
+  }, [selectedCategory, isTreeCategory]);
+
+  // 需求项 + 画像维度（requirement_dimension_mapping）
+  useEffect(() => {
+    if (selectedCategory !== '_requirement_items') {
+      setRequirementRows([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setReqItemsLoading(true);
+      try {
+        const res = (await requirementItemAdminApi.list()) as { data?: unknown[] };
+        if (cancelled) return;
+        const list = Array.isArray(res.data) ? res.data : [];
+        setRequirementRows(
+          list.map((item) => {
+            const r = item as Record<string, unknown>;
+            return {
+              id: String(r.id ?? ''),
+              name: String(r.name ?? ''),
+              phase: String(r.phase ?? ''),
+              category: String(r.category ?? ''),
+              sortOrder: typeof r.sortOrder === 'number' ? r.sortOrder : undefined,
+              dimensions:
+                r.dimensions && typeof r.dimensions === 'object' && r.dimensions !== null
+                  ? (r.dimensions as Record<string, string[]>)
+                  : {},
+            };
+          }),
+        );
+      } catch {
+        if (!cancelled) {
+          message.error('加载需求项失败');
+          setRequirementRows([]);
+        }
+      } finally {
+        if (!cancelled) setReqItemsLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCategory]);
 
   // 分类选项（包含多级分类的特殊标记）
   const categoryOptions = useMemo(() => {
@@ -185,40 +226,64 @@ function DataDictionary() {
     }));
     // 添加多级分类选项
     options.unshift(
-      { value: '_industry_categories', label: '行业分类 (多级)', desc: '企业主表.industry_id - 支持多级分类管理', isTree: true },
-      { value: '_product_categories', label: '产品品类 (多级)', desc: '企业产品.category_id - 支持多级分类管理', isTree: true },
-      { value: '_requirement_categories', label: '需求管理 (多级)', desc: '需求主表.requirements - 阶段→分类→需求项', isTree: true },
+      {
+        value: '_industry_categories',
+        label: '行业分类 (多级)',
+        desc: '企业主表 industry_id 关联，数据存储于 industry_categories 表',
+        isTree: true,
+      },
+      {
+        value: '_product_categories',
+        label: '产品品类 (多级)',
+        desc: '企业产品 category_id 关联，数据存储于 product_categories 表',
+        isTree: true,
+      },
+      {
+        value: '_requirement_categories',
+        label: '需求管理 (多级)',
+        desc: '需求阶段/分类/条目的多级管理，数据存储于 requirement_categories 表',
+        isTree: true,
+      },
+      {
+        value: '_requirement_items',
+        label: '需求项与画像维度',
+        desc: '每条标准需求可配置企业类型、目标模式等五维，写入 requirement_dimension_mapping，并参与企业列表「按需求筛选」',
+        isTree: false,
+      },
     );
     return options;
   }, [categories]);
 
-  // 判断是否为多级分类
-  const isTreeCategory = selectedCategory?.startsWith('_');
-  const treeType = selectedCategory === '_industry_categories' ? 'industry' 
-    : selectedCategory === '_product_categories' ? 'product' 
-    : 'requirement';
-
   // 当前分类的数据
   const currentData = useMemo(() => {
-    if (!selectedCategory || isTreeCategory) return [];
-    return data
-      .filter(item => item.category === selectedCategory)
-      .sort((a, b) => a.sort_order - b.sort_order);
-  }, [data, selectedCategory, isTreeCategory]);
+    if (!selectedCategory || isTreeCategory || isRequirementItemsCategory) return [];
+    return [...remoteFlatItems].sort((a, b) => a.sort_order - b.sort_order);
+  }, [remoteFlatItems, selectedCategory, isTreeCategory, isRequirementItemsCategory]);
 
   // 当前分类信息
   const currentCategory = useMemo(() => {
+    if (isRequirementItemsCategory) {
+      return {
+        key: '_requirement_items',
+        name: '需求项与画像维度',
+        description: '标准需求项（requirements 表）与五维画像的对应关系，落库 requirement_dimension_mapping',
+      };
+    }
     if (isTreeCategory) {
       if (selectedCategory === '_industry_categories') {
         return { key: '_industry_categories', name: '行业分类', description: '企业主表.industry_id' };
       } else if (selectedCategory === '_product_categories') {
         return { key: '_product_categories', name: '产品品类', description: '企业产品.category_id' };
       } else {
-        return { key: '_requirement_categories', name: '需求管理', description: '需求主表 - 阶段→分类→需求项' };
+        return {
+          key: '_requirement_categories',
+          name: '需求管理',
+          description: 'requirement_categories 表',
+        };
       }
     }
     return categories.find(c => c.key === selectedCategory);
-  }, [selectedCategory, categories, isTreeCategory]);
+  }, [selectedCategory, categories, isTreeCategory, isRequirementItemsCategory]);
 
   // 是否需要颜色字段
   const needsColor = selectedCategory === 'stage';
@@ -281,50 +346,76 @@ function DataDictionary() {
   };
 
   // 删除
-  const handleDelete = (id: number) => {
-    setData(prev => prev.filter(item => item.id !== id));
-    message.success('删除成功');
+  const handleDelete = async (id: number) => {
+    if (!selectedCategory || isTreeCategory) return;
+    try {
+      await dictionaryApi.deleteOption(selectedCategory, id);
+      message.success('删除成功');
+      setRemoteFlatItems(prev => prev.filter(item => item.id !== id));
+    } catch {
+      message.error('删除失败');
+    }
   };
 
   // 切换启用状态
-  const handleToggleEnabled = (record: DictionaryItem) => {
-    setData(prev =>
-      prev.map(item =>
-        item.id === record.id ? { ...item, is_enabled: !item.is_enabled } : item
-      )
-    );
-    message.success(record.is_enabled ? '已禁用' : '已启用');
+  const handleToggleEnabled = async (record: DictionaryItem) => {
+    if (!selectedCategory || isTreeCategory) return;
+    try {
+      await dictionaryApi.updateOption(selectedCategory, record.id, {
+        isEnabled: record.is_enabled ? 0 : 1,
+      });
+      setRemoteFlatItems(prev =>
+        prev.map(item =>
+          item.id === record.id ? { ...item, is_enabled: !item.is_enabled } : item
+        )
+      );
+      message.success(record.is_enabled ? '已禁用' : '已启用');
+    } catch {
+      message.error('更新状态失败');
+    }
   };
 
   // 保存
   const handleSave = async () => {
+    if (!selectedCategory || isTreeCategory) return;
     try {
       const values = await form.validateFields();
       const colorValue = values.color?.toHexString ? values.color.toHexString() : values.color;
-      
+
       if (editingItem) {
-        setData(prev =>
-          prev.map(item =>
-            item.id === editingItem.id
-              ? { ...item, ...values, color: colorValue }
-              : item
-          )
-        );
+        await dictionaryApi.updateOption(selectedCategory, editingItem.id, {
+          label: values.label,
+          color: needsColor ? colorValue : undefined,
+          sortOrder: values.sort_order,
+          isEnabled: values.is_enabled ? 1 : 0,
+        });
         message.success('修改成功');
       } else {
-        const newId = Math.max(...data.map(d => d.id), 0) + 1;
-        const newItem: DictionaryItem = {
-          ...values,
-          id: newId,
-          color: colorValue,
-          created_at: new Date().toISOString().split('T')[0],
-        };
-        setData(prev => [...prev, newItem]);
+        await dictionaryApi.addOption(selectedCategory, {
+          value: values.value,
+          label: values.label,
+          color: needsColor ? colorValue : undefined,
+          sortOrder: values.sort_order,
+          isEnabled: values.is_enabled ? 1 : 0,
+        });
         message.success('添加成功');
       }
+      const res = await optionsApi.getOptions(selectedCategory);
+      const list = (res.data || []).map((o: any) => ({
+        id: o.id,
+        category: selectedCategory,
+        value: o.value,
+        label: o.label,
+        color: o.color,
+        sort_order: o.sortOrder ?? 0,
+        is_enabled: o.isEnabled === 1,
+        created_at: '—',
+      })) as DictionaryItem[];
+      setRemoteFlatItems(list);
       setModalVisible(false);
-    } catch (error) {
-      console.error('Validation failed:', error);
+    } catch (error: any) {
+      if (error?.errorFields) return;
+      message.error(error?.message || '保存失败');
     }
   };
 
@@ -360,58 +451,53 @@ function DataDictionary() {
     setTreeModalVisible(true);
   };
 
-  const handleDeleteTreeItem = (id: number) => {
-    const setItems = treeType === 'industry' ? setIndustryCategories 
-      : treeType === 'product' ? setProductCategories 
-      : setRequirementCategories;
-    const items = treeType === 'industry' ? industryCategories 
-      : treeType === 'product' ? productCategories 
-      : requirementCategories;
-    
-    // 检查是否有子分类
-    const hasChildren = items.some(i => i.parent_id === id);
-    if (hasChildren) {
-      message.error('请先删除子分类');
-      return;
+  const handleDeleteTreeItem = async (id: number) => {
+    try {
+      await treeCategoryApi.delete(treeType, id);
+      message.success('删除成功');
+      await loadTreeData(treeType);
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || error?.message || '删除失败');
     }
-    
-    setItems(prev => prev.filter(item => item.id !== id));
-    message.success('删除成功');
   };
 
   const handleSaveTreeItem = async () => {
     try {
       const values = await treeForm.validateFields();
-      const setItems = currentTreeType === 'industry' ? setIndustryCategories 
-        : currentTreeType === 'product' ? setProductCategories 
-        : setRequirementCategories;
-      const items = currentTreeType === 'industry' ? industryCategories 
-        : currentTreeType === 'product' ? productCategories 
-        : requirementCategories;
-      
       if (editingTreeItem) {
-        setItems(prev =>
-          prev.map(item =>
-            item.id === editingTreeItem.id ? { ...item, ...values } : item
-          )
-        );
+        await treeCategoryApi.update(currentTreeType, editingTreeItem.id, {
+          name: values.name,
+          sortOrder: values.sort_order,
+          isEnabled: values.is_enabled,
+        });
         message.success('修改成功');
       } else {
-        const newId = Math.max(...items.map(d => d.id), 0) + 1;
-        const parent = items.find(i => i.id === values.parent_id);
-        const path = parent ? `${parent.path}/${newId}` : String(newId);
-        
-        const newItem: CategoryTreeItem = {
-          ...values,
-          id: newId,
-          path,
-        };
-        setItems(prev => [...prev, newItem]);
+        await treeCategoryApi.create(currentTreeType, {
+          parentId: values.parent_id ?? 0,
+          name: values.name,
+          sortOrder: values.sort_order,
+          isEnabled: values.is_enabled,
+        });
         message.success('添加成功');
       }
       setTreeModalVisible(false);
-    } catch (error) {
-      console.error('Validation failed:', error);
+      await loadTreeData(currentTreeType);
+    } catch (error: any) {
+      if (error?.errorFields) return;
+      message.error(error?.response?.data?.message || error?.message || '保存失败');
+    }
+  };
+
+  const handleResetTreeToDefault = async () => {
+    try {
+      setTreeLoading(true);
+      await treeCategoryApi.resetToDefault(treeType);
+      message.success('已恢复默认数据');
+      await loadTreeData(treeType);
+    } catch (error: any) {
+      message.error(error?.response?.data?.message || error?.message || '恢复失败');
+    } finally {
+      setTreeLoading(false);
     }
   };
 
@@ -446,8 +532,8 @@ function DataDictionary() {
       render: (_, record) => (
         <Space size="small">
           <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEdit(record)}>编辑</Button>
-          <Button type="link" size="small" onClick={() => handleToggleEnabled(record)}>{record.is_enabled ? '禁用' : '启用'}</Button>
-          <Popconfirm title="确定删除此选项吗？" onConfirm={() => handleDelete(record.id)} okText="确定" cancelText="取消">
+          <Button type="link" size="small" onClick={() => void handleToggleEnabled(record)}>{record.is_enabled ? '禁用' : '启用'}</Button>
+          <Popconfirm title="确定删除此选项吗？" onConfirm={() => void handleDelete(record.id)} okText="确定" cancelText="取消">
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
           </Popconfirm>
         </Space>
@@ -517,6 +603,102 @@ function DataDictionary() {
     return roots;
   }, [selectedCategory, industryCategories, productCategories, requirementCategories]);
 
+  const summarizeDimensions = (d?: Record<string, string[]>) => {
+    if (!d || Object.keys(d).length === 0) return '—';
+    const parts: string[] = [];
+    personaDimensions.forEach((dim) => {
+      const vals = d[dim.key];
+      if (vals && vals.length) parts.push(`${dim.name} ${vals.length}项`);
+    });
+    return parts.length ? parts.join('；') : '—';
+  };
+
+  const openEditRequirementDimensions = (row: RequirementAdminRow) => {
+    setEditingRequirement(row);
+    const init: Record<string, unknown> = {};
+    personaDimensions.forEach((d) => {
+      const vals = row.dimensions?.[d.key];
+      if (d.multiple) {
+        init[d.key] = vals && vals.length ? [...vals] : [];
+      } else {
+        init[d.key] = vals && vals.length ? vals[0] : undefined;
+      }
+    });
+    reqDimensionForm.setFieldsValue(init);
+    setReqDimensionModalOpen(true);
+  };
+
+  const reloadRequirementRows = async () => {
+    const res = (await requirementItemAdminApi.list()) as { data?: unknown[] };
+    const list = Array.isArray(res.data) ? res.data : [];
+    setRequirementRows(
+      list.map((item) => {
+        const r = item as Record<string, unknown>;
+        return {
+          id: String(r.id ?? ''),
+          name: String(r.name ?? ''),
+          phase: String(r.phase ?? ''),
+          category: String(r.category ?? ''),
+          sortOrder: typeof r.sortOrder === 'number' ? r.sortOrder : undefined,
+          dimensions:
+            r.dimensions && typeof r.dimensions === 'object' && r.dimensions !== null
+              ? (r.dimensions as Record<string, string[]>)
+              : {},
+        };
+      }),
+    );
+  };
+
+  const handleSaveRequirementDimensions = async () => {
+    if (!editingRequirement) return;
+    try {
+      const values = await reqDimensionForm.validateFields();
+      const body: Record<string, string[]> = {};
+      personaDimensions.forEach((d) => {
+        const v = values[d.key];
+        if (d.multiple) {
+          body[d.key] = Array.isArray(v) ? v.filter((x: unknown) => x != null && x !== '') : [];
+        } else {
+          body[d.key] = v != null && v !== '' ? [String(v)] : [];
+        }
+      });
+      setReqDimensionSaving(true);
+      await requirementItemAdminApi.putDimensions(editingRequirement.id, body);
+      message.success('画像维度已保存');
+      setReqDimensionModalOpen(false);
+      await reloadRequirementRows();
+    } catch (e: unknown) {
+      const err = e as { errorFields?: unknown; message?: string };
+      if (err?.errorFields) return;
+      message.error(err?.message || '保存失败');
+    } finally {
+      setReqDimensionSaving(false);
+    }
+  };
+
+  const requirementItemColumns: ColumnsType<RequirementAdminRow> = [
+    { title: '需求ID', dataIndex: 'id', width: 100, render: (t: string) => <Text code>{t}</Text> },
+    { title: '名称', dataIndex: 'name', width: 220, ellipsis: true },
+    { title: '阶段', dataIndex: 'phase', width: 200, ellipsis: true },
+    { title: '分类', dataIndex: 'category', width: 140, ellipsis: true },
+    {
+      title: '画像维度配置',
+      key: 'dims',
+      ellipsis: true,
+      render: (_, row) => <Text type="secondary">{summarizeDimensions(row.dimensions)}</Text>,
+    },
+    {
+      title: '操作',
+      key: 'act',
+      width: 100,
+      render: (_, row) => (
+        <Button type="link" size="small" icon={<EditOutlined />} onClick={() => openEditRequirementDimensions(row)}>
+          编辑维度
+        </Button>
+      ),
+    },
+  ];
+
   return (
     <div style={{ background: '#F5F7FA', minHeight: '100%', padding: 24, fontFamily: 'Inter, sans-serif' }}>
       <Card
@@ -558,7 +740,7 @@ function DataDictionary() {
                 </div>
               )}
             />
-            {selectedCategory && !isTreeCategory && (
+            {selectedCategory && !isTreeCategory && !isRequirementItemsCategory && (
               <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd} style={{ background: C.blue, borderColor: C.blue, borderRadius: 12 }}>新增选项</Button>
             )}
           </Space>
@@ -572,24 +754,60 @@ function DataDictionary() {
                 {isTreeCategory && <ApartmentOutlined style={{ color: C.purple }} />}
                 <Text strong style={{ fontSize: 15 }}>{currentCategory.name}</Text>
                 {isTreeCategory && <Tag color="purple">多级分类</Tag>}
+                {isTreeCategory && (
+                  <Popconfirm title="确定恢复默认数据？当前数据将被清空并重置。" onConfirm={() => void handleResetTreeToDefault()} okText="确定恢复" cancelText="取消" okButtonProps={{ danger: true }}>
+                    <Button size="small" icon={<UndoOutlined />} style={{ borderRadius: 8 }}>恢复默认</Button>
+                  </Popconfirm>
+                )}
+                {isRequirementItemsCategory && <Tag color="blue">落库映射</Tag>}
               </Space>
               <Text type="secondary">使用位置：{currentCategory.description}</Text>
-              {!isTreeCategory && <Text type="secondary">共 {currentData.length} 个选项</Text>}
+              {!isTreeCategory && !isRequirementItemsCategory && (
+                <Text type="secondary">共 {currentData.length} 个选项</Text>
+              )}
+              {isRequirementItemsCategory && (
+                <Text type="secondary">共 {requirementRows.length} 条标准需求</Text>
+              )}
             </Space>
           </div>
         )}
 
+        {isRequirementItemsCategory && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16, borderRadius: 12 }}
+            message="与企业详情「企业画像维度选择」使用同一套维度键"
+            description="勾选某企业类型（如生产型、工贸一体）时，会推荐此处为该类型勾选了对应维度的需求项。首启若映射表为空，后端会用当前代码中的默认关系自动种子一次，之后以本页保存为准。"
+          />
+        )}
+
         {/* 数据展示 */}
         {selectedCategory ? (
-          isTreeCategory ? (
-            <Tree
-              treeData={treeDataWithActions}
-              defaultExpandAll
-              blockNode
-              style={{ background: '#F5F7FA', padding: 16, borderRadius: 12 }}
-            />
+          isRequirementItemsCategory ? (
+            <Spin spinning={reqItemsLoading}>
+              <Table
+                columns={requirementItemColumns}
+                dataSource={requirementRows}
+                rowKey="id"
+                pagination={{ pageSize: 20, showSizeChanger: true }}
+                size="middle"
+                scroll={{ x: 900 }}
+              />
+            </Spin>
+          ) : isTreeCategory ? (
+            <Spin spinning={treeLoading}>
+              <Tree
+                treeData={treeDataWithActions}
+                defaultExpandAll
+                blockNode
+                style={{ background: '#F5F7FA', padding: 16, borderRadius: 12 }}
+              />
+            </Spin>
           ) : (
-            <Table columns={columns} dataSource={currentData} rowKey="id" pagination={false} size="middle" />
+            <Spin spinning={flatLoading}>
+              <Table columns={columns} dataSource={currentData} rowKey="id" pagination={false} size="middle" />
+            </Spin>
           )
         ) : (
           <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请先选择一个数据字典分类" style={{ padding: '60px 0' }} />
@@ -618,10 +836,72 @@ function DataDictionary() {
         </Form>
       </Modal>
 
+      <Modal
+        title={editingRequirement ? `编辑画像维度 — ${editingRequirement.id}` : '编辑画像维度'}
+        open={reqDimensionModalOpen}
+        onOk={() => void handleSaveRequirementDimensions()}
+        onCancel={() => {
+          setReqDimensionModalOpen(false);
+          setEditingRequirement(null);
+          reqDimensionForm.resetFields();
+        }}
+        width={720}
+        confirmLoading={reqDimensionSaving}
+        okText="保存"
+        cancelText="取消"
+        okButtonProps={{ style: { background: C.blue, borderColor: C.blue } }}
+      >
+        <div style={{ marginBottom: 12 }}>
+          <Text type="secondary" style={{ fontSize: 13 }}>
+            {editingRequirement?.name}
+          </Text>
+        </div>
+        <Form form={reqDimensionForm} layout="vertical">
+          <Row gutter={16}>
+            {personaDimensions.map((dim) => (
+              <Col span={dim.key === 'ecommerceExp' ? 24 : 12} key={dim.key}>
+                <Form.Item
+                  name={dim.key}
+                  label={
+                    <span>
+                      {dim.name}
+                      <Text type="secondary" style={{ fontSize: 12, marginLeft: 6 }}>
+                        {dim.multiple ? '（可多选）' : '（单选）'}
+                      </Text>
+                    </span>
+                  }
+                >
+                  <Select
+                    mode={dim.multiple ? 'multiple' : undefined}
+                    allowClear
+                    placeholder={`请选择${dim.name}`}
+                    options={dim.options.map((o) => ({
+                      value: o.value,
+                      label: o.description ? `${o.label} — ${o.description}` : o.label,
+                    }))}
+                    showSearch={dim.multiple}
+                    optionFilterProp="label"
+                    style={{ width: '100%' }}
+                  />
+                </Form.Item>
+              </Col>
+            ))}
+          </Row>
+        </Form>
+      </Modal>
+
       {/* 多级分类编辑弹窗 */}
       <Modal title={editingTreeItem ? '编辑分类' : '新增子分类'} open={treeModalVisible} onOk={handleSaveTreeItem} onCancel={() => setTreeModalVisible(false)} width={500} okButtonProps={{ style: { background: C.blue, borderColor: C.blue } }}>
         <Form form={treeForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="parent_id" label="上级分类">
+          <Form.Item
+            name="parent_id"
+            label="上级分类"
+            extra={
+              editingTreeItem
+                ? '编辑时不支持调整上级。如需改变层级关系，请删除后重建。'
+                : '新增时可选择上级；最多 3 级。'
+            }
+          >
             <TreeSelect
               treeData={buildTreeSelectData(
                 currentTreeType === 'industry' ? industryCategories 
@@ -630,7 +910,7 @@ function DataDictionary() {
               )}
               placeholder="选择上级分类"
               treeDefaultExpandAll
-              disabled
+              disabled={!!editingTreeItem}
             />
           </Form.Item>
           <Form.Item name="name" label="分类名称" rules={[{ required: true, message: '请输入分类名称' }]}>

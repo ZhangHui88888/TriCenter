@@ -38,6 +38,8 @@ export const dictionaryCategories: DictionaryCategory[] = [
   { key: 'automation_level', name: '自动化程度', description: '企业产品.automation_level_id' },
   { key: 'logistics', name: '物流合作方', description: '企业产品.logistics_partner_ids' },
   { key: 'follow_type', name: '跟进类型', description: '跟进记录.follow_type' },
+  { key: 'requirement_phase', name: '需求阶段', description: 'system_options：与 requirements 表 phase 字段、前端需求阶段文案应对齐（value 如 phase_1）' },
+  { key: 'requirement_category', name: '需求分类', description: 'system_options：与 requirements 表 category 编码对应（value 如 1.1、2.1）；展示名可在此修改' },
 ];
 
 // 数据字典数据

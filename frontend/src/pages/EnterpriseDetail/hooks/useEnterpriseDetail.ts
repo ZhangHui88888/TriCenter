@@ -26,7 +26,6 @@ export function useEnterpriseDetail() {
   const [isSupplementModalOpen, setIsSupplementModalOpen] = useState(false);
   const [isPolicySupportModalOpen, setIsPolicySupportModalOpen] = useState(false);
   const [isCompetitionModalOpen, setIsCompetitionModalOpen] = useState(false);
-  const [isCompetitorModalOpen, setIsCompetitorModalOpen] = useState(false);
   const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
   const [isCustomRequirementModalOpen, setIsCustomRequirementModalOpen] = useState(false);
   const [isRestoreRequirementModalOpen, setIsRestoreRequirementModalOpen] = useState(false);
@@ -99,7 +98,6 @@ export function useEnterpriseDetail() {
     isSupplementModalOpen, setIsSupplementModalOpen,
     isPolicySupportModalOpen, setIsPolicySupportModalOpen,
     isCompetitionModalOpen, setIsCompetitionModalOpen,
-    isCompetitorModalOpen, setIsCompetitorModalOpen,
     isRiskModalOpen, setIsRiskModalOpen,
     isCustomRequirementModalOpen, setIsCustomRequirementModalOpen,
     isRestoreRequirementModalOpen, setIsRestoreRequirementModalOpen,

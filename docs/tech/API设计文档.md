@@ -66,7 +66,7 @@ NODE_ENV=production npm start
 | 序号 | 模块 | API数量 | 状态 | 备注 |
 |------|------|---------|------|------|
 | 1 | 用户认证 | 4 | ✅ 已完成 | 登录、权限基础 |
-| 2 | 基础数据/数据字典 | 8 | ✅ 已完成 | 下拉选项、行业分类、产品品类 |
+| 2 | 基础数据/数据字典 | 11 | ✅ 已完成 | 下拉选项、行业分类、产品品类、需求项画像维度 |
 | 3 | 企业管理 | 12 | ✅ 基本完成 | 核心业务模块（10/12 API完成） |
 | 4 | 企业产品管理 | 4 | ✅ 已完成 | 产品、品牌、专利 |
 | 5 | 跟进记录 | 5 | ✅ 已完成 | 跟进管理 |
@@ -115,7 +115,7 @@ NODE_ENV=production npm start
 
 ---
 
-## 模块2: 基础数据/数据字典 (8个API)
+## 模块2: 基础数据/数据字典 (11个API)
 
 ### 2.1 获取系统选项列表
 | 项 | 值 |
@@ -218,6 +218,27 @@ NODE_ENV=production npm start
 | 路径 | `DELETE /api/dictionary/:category/:id` |
 | 响应 | `{ success: true }` |
 | 说明 | 删除选项，已被引用的选项不可删除，仅可禁用（管理员功能） |
+
+### 2.9 标准需求项列表（含画像维度摘要）
+| 项 | 值 |
+|-----|-----|
+| 路径 | `GET /api/dictionary/requirement-items` |
+| 响应 | `[{ id, name, phase, category, sortOrder, dimensions: { enterpriseType?: string[], targetMode?: string[], ... } }]` |
+| 说明 | `is_custom=0` 且启用的需求；`dimensions` 来自 `requirement_dimension_mapping`。数据字典页「需求项与画像维度」使用。 |
+
+### 2.10 获取某需求项的画像维度
+| 项 | 值 |
+|-----|-----|
+| 路径 | `GET /api/dictionary/requirement-items/{id}/dimensions` |
+| 响应 | `{ enterpriseType: string[], targetMode: string[], ... }`（键与 `dimension_selections` 一致） |
+| 说明 | `id` 为需求编号如 `1.1.1`，需 URL 编码。 |
+
+### 2.11 覆盖保存某需求项的画像维度
+| 项 | 值 |
+|-----|-----|
+| 路径 | `PUT /api/dictionary/requirement-items/{id}/dimensions` |
+| 请求 | JSON：`enterpriseType`、`targetMode`、`currentStage`、`brandStatus`、`ecommerceExp` 等键，值为选项 value 数组（单选维度传 0 或 1 个元素）；空数组表示清除该维度下该需求的映射 |
+| 说明 | 全量替换该 `requirement_id` 在映射表中的行；刷新内存缓存；企业列表「按需求筛选」与 `RequirementMatchEngine` 以表中数据为准（表为空时启动会种子一次默认关系） |
 
 **开发状态:** ✅ 已完成
 

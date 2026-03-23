@@ -1,0 +1,14 @@
+{
+  "name": "验收产品一号",
+  "categoryId": 101,
+  "certificationIds": [82, 83],
+  "targetRegionIds": [73, 75],
+  "targetCountryIds": ["CN", "JP"],
+  "annualSales": "888",
+  "exportRatio": "55%",
+  "profitMargin": "12%",
+  "localProcurementRatio": "70%",
+  "automationLevelId": 92,
+  "annualCapacity": "年产100万件",
+  "logisticsPartnerIds": [96, 97]
+}

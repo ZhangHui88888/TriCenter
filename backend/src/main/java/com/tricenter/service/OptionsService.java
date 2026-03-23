@@ -50,4 +50,10 @@ public interface OptionsService {
      * 删除字典选项
      */
     void deleteDictionaryOption(String category, Integer id);
+
+    /**
+     * 获取需求配置（需求列表 + universal/enhanced 标记 + 维度映射）
+     * 供企业详情页需求分析使用，从数据库实时读取
+     */
+    com.tricenter.dto.response.RequirementConfigResponse getRequirementConfig();
 }

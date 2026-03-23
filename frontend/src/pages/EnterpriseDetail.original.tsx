@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import dayjs from 'dayjs';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ENTERPRISE_TYPE_OPTIONS } from '@/utils/constants';
@@ -22,6 +22,8 @@ import {
   Cascader,
   Spin,
   AutoComplete,
+  Alert,
+  Popconfirm,
 } from 'antd';
 import {
   ArrowLeftOutlined,
@@ -48,8 +50,9 @@ import {
 import { Rate, Switch, Slider } from 'antd';
 import { Form, Input, DatePicker, InputNumber } from 'antd';
 import { FOLLOW_UP_TYPES } from '@/utils/constants';
-import { dimensions, calculateRequirements, groupRequirementsByPhase, dimensionRequirementMapping, type RequirementItem } from '@/data/requirementsData';
-import { enterpriseApi, contactApi, optionsApi, dictionaryApi, surveyExcelApi, serviceRecordApi } from '@/services/api';
+import { dimensions, groupRequirementsByPhase, type RequirementItem } from '@/data/requirementsData';
+import { enterpriseApi, contactApi, optionsApi, dictionaryApi, surveyExcelApi, serviceRecordApi, followUpApi, productApi, patentApi } from '@/services/api';
+import type { RequirementConfigData } from '@/services/api';
 
 // 漏斗阶段配置
 const FUNNEL_STAGES = [
@@ -61,6 +64,66 @@ const FUNNEL_STAGES = [
   { code: 'SETTLED', name: '已入驻', color: '#10b981' },
   { code: 'INCUBATING', name: '重点孵化', color: '#f97316' },
 ];
+
+/** 已享受政策选项（与编辑弹窗、后端存 value 一致） */
+const ENJOYED_POLICY_OPTIONS = [
+  { label: '跨境电商扶持资金', value: 'cross_border_fund' },
+  { label: '外贸稳增长补贴', value: 'trade_growth_subsidy' },
+  { label: '品牌出海补贴', value: 'brand_overseas_subsidy' },
+  { label: '人才引进补贴', value: 'talent_subsidy' },
+  { label: '跨境电商出口退税', value: 'export_tax_rebate' },
+  { label: '海外仓补贴', value: 'overseas_warehouse_subsidy' },
+  { label: '产品认证补贴', value: 'certification_subsidy' },
+  { label: '展会补贴', value: 'exhibition_subsidy' },
+  { label: '物流补贴', value: 'logistics_subsidy' },
+  { label: '培训补贴', value: 'training_subsidy' },
+  { label: '创新研发资金', value: 'innovation_fund' },
+  { label: '中小企业扶持', value: 'sme_support' },
+  { label: '其他', value: 'other' },
+];
+
+function labelForEnjoyedPolicyValue(v: string) {
+  const o = ENJOYED_POLICY_OPTIONS.find((x) => x.value === v);
+  return o?.label ?? v;
+}
+
+function mapProductCategoriesToCascader(nodes) {
+  if (!nodes?.length) return [];
+  return nodes.map((n) => ({
+    value: n.id,
+    label: n.name,
+    children: n.children?.length ? mapProductCategoriesToCascader(n.children) : undefined,
+  }));
+}
+
+function findProductCategoryPath(nodes, targetId, path = []) {
+  for (const n of nodes || []) {
+    const next = [...path, n.id];
+    if (n.id === targetId) return next;
+    if (n.children?.length) {
+      const sub = findProductCategoryPath(n.children, targetId, next);
+      if (sub) return sub;
+    }
+  }
+  return null;
+}
+
+/** 行业 Cascader：根据叶子 id 解析从根到叶的 value 路径 */
+function findIndustryCascaderPath(nodes: any[], targetId: unknown, path: number[] = []): number[] | null {
+  if (targetId == null || targetId === '') return null;
+  const tid = Number(targetId);
+  if (Number.isNaN(tid)) return null;
+  for (const n of nodes || []) {
+    const val = n.value as number;
+    const next = [...path, val];
+    if (val === tid) return next;
+    if (n.children?.length) {
+      const sub = findIndustryCascaderPath(n.children, targetId, next);
+      if (sub) return sub;
+    }
+  }
+  return null;
+}
 
 const { Title, Text } = Typography;
 
@@ -78,11 +141,29 @@ function makeCustomDictionaryValue(): string {
   return `custom_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+/** 编辑产品表单：去掉末尾 %，与 Input suffix 组合显示，避免视觉上出现 %% */
+function stripTrailingPercentForInput(v: unknown): string | undefined {
+  if (v == null) return undefined;
+  const t = String(v).trim();
+  if (!t) return undefined;
+  const s = t.replace(/\s*%+\s*$/g, '').trim();
+  return s || undefined;
+}
+
+/** 保存产品占比字段：用户只填数字或范围时自动补 % */
+function ensurePercentSuffix(v: unknown): string | undefined {
+  if (v == null) return undefined;
+  const t = String(v).trim();
+  if (!t) return undefined;
+  return /%\s*$/.test(t) ? t : `${t}%`;
+}
+
 function EnterpriseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('basic');
   const [dimensionSelections, setDimensionSelections] = useState<Record<string, string[]>>({});
+  const [reqConfig, setReqConfig] = useState<RequirementConfigData | null>(null);
   const [isStageModalOpen, setIsStageModalOpen] = useState(false);
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [isEditEnterpriseOpen, setIsEditEnterpriseOpen] = useState(false);
@@ -119,7 +200,6 @@ function EnterpriseDetail() {
   const [isSupplementModalOpen, setIsSupplementModalOpen] = useState(false);
   const [isPolicySupportModalOpen, setIsPolicySupportModalOpen] = useState(false);
   const [isCompetitionModalOpen, setIsCompetitionModalOpen] = useState(false);
-  const [isCompetitorModalOpen, setIsCompetitorModalOpen] = useState(false);
   const [isRiskModalOpen, setIsRiskModalOpen] = useState(false);
   const [competitionPosition, setCompetitionPosition] = useState('medium'); // 行业竞争地位: leader/medium/startup
   const [competitionDesc, setCompetitionDesc] = useState('');
@@ -137,11 +217,19 @@ function EnterpriseDetail() {
   const [isRestoreRequirementModalOpen, setIsRestoreRequirementModalOpen] = useState(false);
   const [restoreCategory, setRestoreCategory] = useState<{phase: string; category: string} | null>(null);
   const [isTradeChangeModalOpen, setIsTradeChangeModalOpen] = useState(false);
+  const [tradeChangeSaving, setTradeChangeSaving] = useState(false);
   const [tradeChangeType, setTradeChangeType] = useState<'market' | 'mode' | 'category'>('market');
   const [tradeChangeDirection, setTradeChangeDirection] = useState<'up' | 'down'>('up');
   const [editingTradeChange, setEditingTradeChange] = useState<{name: string; rate: string} | null>(null);
   const [tradeChangeForm] = Form.useForm();
+  /** 变化率输入框右侧固定显示 %，编辑已保存数据时去掉末尾 % 避免显示成「25%%」 */
+  const stripTradeRatePercentForInput = (rate: unknown) => {
+    if (rate == null || rate === '') return rate;
+    const s = String(rate).trim();
+    return s.endsWith('%') ? s.slice(0, -1).trim() : s;
+  };
   const [isTradePerformanceModalOpen, setIsTradePerformanceModalOpen] = useState(false);
+  const [tradePerformanceSaving, setTradePerformanceSaving] = useState(false);
   const [tradePerformanceForm] = Form.useForm();
   
   // 外贸业绩变化数据 - 从 API 加载后由 useEffect 赋值
@@ -204,15 +292,47 @@ function EnterpriseDetail() {
   const [enterprise, setEnterprise] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [enterpriseRecords, setEnterpriseRecords] = useState<any[]>([]);
+  const [productCategoryTree, setProductCategoryTree] = useState<any[]>([]);
+
+  const productCascaderOptions = useMemo(
+    () => mapProductCategoriesToCascader(productCategoryTree),
+    [productCategoryTree]
+  );
+
+  const loadEnterpriseFollowUps = useCallback(async (enterpriseId) => {
+    if (!enterpriseId) return;
+    try {
+      const res = await followUpApi.getByEnterprise(enterpriseId);
+      const list = (res.data || []).map((item) => ({
+        id: item.id,
+        enterprise_id: item.enterpriseId,
+        enterprise_name: item.enterpriseName,
+        follow_up_date: item.followDate,
+        follow_up_person: item.followerName,
+        follow_up_type: item.followType,
+        content: item.content,
+        overall_status: item.status,
+        next_step: item.nextPlan,
+        stage_before: item.stageFrom,
+        stage_after: item.stageTo,
+      }));
+      setEnterpriseRecords(list);
+    } catch (e) {
+      console.error(e);
+      setEnterpriseRecords([]);
+    }
+  }, []);
   const [industryCategories, setIndustryCategories] = useState<any[]>([]);
   
   // 选项数据状态
   const [staffSizeOptions, setStaffSizeOptions] = useState<any[]>([]);
-  const [domesticRevenueOptions, setDomesticRevenueOptions] = useState<any[]>([]);
   const [sourceOptions, setSourceOptions] = useState<any[]>([]);
   const [regionOptions, setRegionOptions] = useState<any[]>([]);
   const [tradeModeOptions, setTradeModeOptions] = useState<any[]>([]);
   const [tradeTeamModeOptions, setTradeTeamModeOptions] = useState<any[]>([]);
+  const [certificationOptions, setCertificationOptions] = useState<any[]>([]);
+  const [automationLevelOptionsProduct, setAutomationLevelOptionsProduct] = useState<any[]>([]);
+  const [logisticsOptionsProduct, setLogisticsOptionsProduct] = useState<any[]>([]);
 
   // 加载行业分类
   useEffect(() => {
@@ -241,20 +361,31 @@ function EnterpriseDetail() {
   useEffect(() => {
     const fetchOptions = async () => {
       try {
-        const [staffSize, domesticRevenue, source, region, tradeMode, tradeTeamMode] = await Promise.all([
-          optionsApi.getOptions('staff_size'),
-          optionsApi.getOptions('domestic_revenue'),
-          optionsApi.getOptions('source'),
-          optionsApi.getOptions('region'),
-          optionsApi.getOptions('trade_mode'),
-          optionsApi.getOptions('trade_team_mode'),
-        ]);
+        const [staffSize, source, region, tradeMode, tradeTeamMode, certification, automationLevel, logistics] =
+          await Promise.all([
+            optionsApi.getOptions('staff_size'),
+            optionsApi.getOptions('source'),
+            optionsApi.getOptions('region'),
+            optionsApi.getOptions('trade_mode'),
+            optionsApi.getOptions('trade_team_mode'),
+            optionsApi.getOptions('certification'),
+            optionsApi.getOptions('automation_level'),
+            optionsApi.getOptions('logistics'),
+          ]);
         if (staffSize.data) setStaffSizeOptions(staffSize.data.map((o: any) => ({ label: o.label, value: o.id })));
-        if (domesticRevenue.data) setDomesticRevenueOptions(domesticRevenue.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (source.data) setSourceOptions(source.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (region.data) setRegionOptions(region.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (tradeMode.data) setTradeModeOptions(tradeMode.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (tradeTeamMode.data) setTradeTeamModeOptions(tradeTeamMode.data.map((o: any) => ({ label: o.label, value: o.id })));
+        if (certification.data) {
+          setCertificationOptions(certification.data.map((o: any) => ({ label: o.label, value: o.id })));
+        }
+        if (automationLevel.data) {
+          setAutomationLevelOptionsProduct(automationLevel.data.map((o: any) => ({ label: o.label, value: o.id })));
+        }
+        if (logistics.data) {
+          setLogisticsOptionsProduct(logistics.data.map((o: any) => ({ label: o.label, value: o.id })));
+        }
       } catch (error) {
         console.error('Failed to fetch options:', error);
       }
@@ -290,6 +421,7 @@ function EnterpriseDetail() {
             website: data.website,
             domestic_revenue: data.domesticRevenueLabel,
             domestic_revenue_id: data.domesticRevenueId,
+            domestic_revenue_wan: data.domesticRevenueWan != null ? Number(data.domesticRevenueWan) : undefined,
             crossborder_revenue: data.crossBorderRevenueLabel,
             crossborder_revenue_wan: data.crossBorderRevenueWan != null ? Number(data.crossBorderRevenueWan) : undefined,
             crossborder_revenue_id: data.crossBorderRevenueId,
@@ -327,10 +459,8 @@ function EnterpriseDetail() {
             payment_settlement: data.paymentSettlement,
             cross_border_team_size: data.crossBorderTeamSize,
             using_erp: data.usingErp,
-            social_media_accounts: data.socialMediaAccounts,
-            exhibition_history: data.exhibitionHistory,
-            overseas_distributors: data.overseasDistributors,
-            using_crm: data.usingCrm,
+            has_overseas_distributors:
+              data.hasOverseasDistributors === true || data.hasOverseasDistributors === 1,
             transformation_willingness: data.transformationWillingness,
             investment_willingness: data.investmentWillingness,
             cross_border_platforms: data.crossBorderPlatforms,
@@ -343,11 +473,13 @@ function EnterpriseDetail() {
             overall_cooperation_rating: data.overallCooperationRating,
             benchmark_possibility: data.benchmarkPossibility,
             additional_notes: data.additionalNotes,
-            has_policy_support: data.hasPolicySupport,
-            enjoyed_policies: data.enjoyedPolicies,
+            has_policy_support: data.hasPolicySupport === true || data.hasPolicySupport === 1 ? 1 : 0,
+            enjoyed_policies: data.enjoyedPolicies ?? [],
             competition_position: data.competitionPosition,
             competition_description: data.competitionDescription,
             pain_points: data.painPoints,
+            current_risk_tags: data.currentRiskTags ?? [],
+            risk_description: data.riskDescription,
             tricenter_demands: data.tricenterDemands,
             tricenter_concerns: data.tricenterConcerns,
             dimension_selections: data.dimensionSelections,
@@ -368,6 +500,19 @@ function EnterpriseDetail() {
     };
     fetchEnterprise();
   }, [id]);
+
+  useEffect(() => {
+    optionsApi
+      .getProductCategories()
+      .then((res) => {
+        if (res.data) setProductCategoryTree(res.data);
+      })
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (enterprise?.id) loadEnterpriseFollowUps(enterprise.id);
+  }, [enterprise?.id, loadEnterpriseFollowUps]);
 
   // 合作服务接口暂未实现，跳过请求
   // useEffect(() => {
@@ -447,6 +592,18 @@ function EnterpriseDetail() {
     }
   }, [enterprise?.id]);
 
+  // 从数据库加载需求配置（需求列表 + 通用/增强标记 + 维度映射）
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await optionsApi.getRequirementConfig();
+        setReqConfig((res as any).data || res);
+      } catch {
+        console.error('加载需求配置失败');
+      }
+    })();
+  }, []);
+
   // 加载中状态
   if (loading) {
     return (
@@ -482,13 +639,149 @@ function EnterpriseDetail() {
   const saveEnterpriseFields = async (fields: Record<string, any>, successMsg: string) => {
     try {
       await enterpriseApi.update(enterprise.id, fields);
-      setEnterprise({ ...enterprise, ...fields });
+      setEnterprise((prev) => {
+        if (!prev) return prev;
+        const next = { ...prev, ...fields };
+        // 与详情页初始映射一致：PUT 常用 camelCase，界面状态多为 snake_case，避免保存后弹窗/概览读错字段
+        if (Object.prototype.hasOwnProperty.call(fields, 'targetRegionIds')) {
+          next.target_region_ids = fields.targetRegionIds;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'targetCountryIds')) {
+          next.target_country_ids = fields.targetCountryIds;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'hasImportExportLicense')) {
+          next.has_import_export_license =
+            fields.hasImportExportLicense === 1 || fields.hasImportExportLicense === true;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'lastYearRevenue')) {
+          next.last_year_revenue = fields.lastYearRevenue;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'yearBeforeLastRevenue')) {
+          next.year_before_last_revenue = fields.yearBeforeLastRevenue;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'currentRiskTags')) {
+          next.current_risk_tags = fields.currentRiskTags;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'riskDescription')) {
+          next.risk_description = fields.riskDescription;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'marketChanges')) {
+          next.market_changes = fields.marketChanges;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'modeChanges')) {
+          next.mode_changes = fields.modeChanges;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'categoryChanges')) {
+          next.category_changes = fields.categoryChanges;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'growthReasons')) {
+          next.growth_reasons = fields.growthReasons;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'declineReasons')) {
+          next.decline_reasons = fields.declineReasons;
+        }
+        // 外贸信息：PUT 为 camelCase，详情展示为 snake_case + 选项标签
+        if (Object.prototype.hasOwnProperty.call(fields, 'tradeModeId')) {
+          next.trade_mode_id = fields.tradeModeId;
+          if (fields.tradeModeId != null) {
+            const opt = tradeModeOptions.find((o: any) => o.value === fields.tradeModeId);
+            next.trade_mode = opt?.label ?? next.trade_mode;
+          } else {
+            next.trade_mode = undefined;
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'customsDeclarationMode')) {
+          next.customs_declaration_mode = fields.customsDeclarationMode;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'tradeTeamModeId')) {
+          next.trade_team_mode_id = fields.tradeTeamModeId;
+          if (fields.tradeTeamModeId != null) {
+            const opt = tradeTeamModeOptions.find((o: any) => o.value === fields.tradeTeamModeId);
+            next.trade_team_mode = opt?.label ?? next.trade_team_mode;
+          } else {
+            next.trade_team_mode = undefined;
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'tradeTeamSize')) {
+          next.trade_team_size = fields.tradeTeamSize;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'hasDomesticEcommerce')) {
+          next.has_domestic_ecommerce = fields.hasDomesticEcommerce;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'hasOverseasDistributors')) {
+          next.has_overseas_distributors =
+            fields.hasOverseasDistributors === true || fields.hasOverseasDistributors === 1;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'hasCrossBorder')) {
+          next.has_cross_border = fields.hasCrossBorder;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'crossBorderRatio')) {
+          next.cross_border_ratio =
+            fields.crossBorderRatio != null && fields.crossBorderRatio !== ''
+              ? String(fields.crossBorderRatio)
+              : undefined;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'crossBorderLogistics')) {
+          next.cross_border_logistics = fields.crossBorderLogistics;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'paymentSettlement')) {
+          next.payment_settlement = fields.paymentSettlement;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'crossBorderTeamSize')) {
+          next.cross_border_team_size = fields.crossBorderTeamSize;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'usingErp')) {
+          next.using_erp = fields.usingErp === 1 || fields.usingErp === true;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'transformationWillingness')) {
+          next.transformation_willingness = fields.transformationWillingness;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'investmentWillingness')) {
+          next.investment_willingness = fields.investmentWillingness;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'targetMarkets')) {
+          next.target_markets = fields.targetMarkets;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'hasPolicySupport')) {
+          next.has_policy_support =
+            fields.hasPolicySupport === 1 || fields.hasPolicySupport === true ? 1 : 0;
+        }
+        if (Object.prototype.hasOwnProperty.call(fields, 'enjoyedPolicies')) {
+          next.enjoyed_policies = fields.enjoyedPolicies ?? [];
+        }
+        return next;
+      });
       message.success(successMsg);
       return true;
     } catch (error: any) {
-      message.error(error.message || '保存失败');
+      if (!error?.response) {
+        message.error(error?.message || '保存失败');
+      }
       return false;
     }
+  };
+
+  /** 市场/模式/品类变化 JSON 立即 PUT，并同步本地 state（用于子弹窗与 Tag 删除） */
+  const persistTradePerformanceJson = async (
+    nextMarket: { up: any[]; down: any[] },
+    nextMode: { up: any[]; down: any[] },
+    nextCategory: { up: any[]; down: any[] },
+    successMsg = '外贸业绩变化已保存',
+  ) => {
+    const ok = await saveEnterpriseFields(
+      {
+        marketChanges: nextMarket,
+        modeChanges: nextMode,
+        categoryChanges: nextCategory,
+      },
+      successMsg,
+    );
+    if (ok) {
+      setMarketChanges(nextMarket);
+      setModeChanges(nextMode);
+      setCategoryChanges(nextCategory);
+    }
+    return ok;
   };
 
   const handleStageChange = () => {
@@ -496,24 +789,64 @@ function EnterpriseDetail() {
     setIsStageModalOpen(false);
   };
 
-  const handleAddFollowUp = () => {
-    followUpForm.validateFields().then(() => {
+  const handleAddFollowUp = async () => {
+    try {
+      const values = await followUpForm.validateFields();
       if (editingFollowUp) {
+        await followUpApi.update(editingFollowUp.id, {
+          followType: values.follow_up_type,
+          followDate: values.follow_up_date?.format('YYYY-MM-DD'),
+          content: values.content,
+          status: values.overall_status,
+          nextPlan: values.next_step,
+        });
         message.success('跟进记录更新成功');
       } else {
+        await followUpApi.create({
+          enterpriseId: enterprise.id,
+          followType: values.follow_up_type,
+          followDate: values.follow_up_date?.format('YYYY-MM-DD'),
+          content: values.content,
+          status: values.overall_status,
+          nextPlan: values.next_step,
+          stageAfter: values.stage_after,
+        });
         message.success('跟进记录添加成功');
+        if (values.stage_after) {
+          const d = await enterpriseApi.getDetail(enterprise.id);
+          if (d.data?.stage) {
+            setEnterprise((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    funnel_stage: d.data.stage,
+                    stage_name: d.data.stageName,
+                    stage_color: d.data.stageColor,
+                  }
+                : prev
+            );
+          }
+        }
       }
       setIsFollowUpModalOpen(false);
       setEditingFollowUp(null);
       followUpForm.resetFields();
-    });
+      await loadEnterpriseFollowUps(enterprise.id);
+    } catch (e) {
+      if (e?.errorFields) return;
+      message.error(e?.message || '操作失败');
+    }
   };
 
   const handleEditFollowUp = (record: any) => {
     setEditingFollowUp(record);
     followUpForm.setFieldsValue({
-      ...record,
+      follow_up_type: record.follow_up_type,
       follow_up_date: record.follow_up_date ? dayjs(record.follow_up_date) : null,
+      content: record.content,
+      overall_status: record.overall_status,
+      next_step: record.next_step,
+      stage_after: record.stage_after,
     });
     setIsFollowUpModalOpen(true);
   };
@@ -525,8 +858,14 @@ function EnterpriseDetail() {
       okText: '删除',
       okType: 'danger',
       cancelText: '取消',
-      onOk: () => {
-        message.success('跟进记录删除成功');
+      onOk: async () => {
+        try {
+          await followUpApi.delete(record.id);
+          message.success('跟进记录删除成功');
+          await loadEnterpriseFollowUps(enterprise.id);
+        } catch (e) {
+          message.error(e?.message || '删除失败');
+        }
       },
     });
   };
@@ -538,6 +877,11 @@ function EnterpriseDetail() {
       const industryId = Array.isArray(values.industry_id) 
         ? values.industry_id[values.industry_id.length - 1] 
         : values.industry_id;
+      const parseWan = (raw: unknown): number | null => {
+        if (raw == null || raw === '') return null;
+        const n = typeof raw === 'number' ? raw : Number(raw);
+        return Number.isFinite(n) ? n : null;
+      };
       // 构建更新数据
       const updateData = {
         name: values.enterprise_name,
@@ -552,10 +896,16 @@ function EnterpriseDetail() {
         enterpriseType: values.enterprise_type,
         staffSizeId: values.staff_size_id,
         website: values.website,
-        domesticRevenueId: values.domestic_revenue_id,
+        domesticRevenueWanTouched: true,
+        domesticRevenueWan: parseWan(values.domestic_revenue_wan),
         crossBorderRevenueWanTouched: true,
-        crossBorderRevenueWan: values.crossborder_revenue_wan != null && values.crossborder_revenue_wan !== '' ? values.crossborder_revenue_wan : null,
+        crossBorderRevenueWan: parseWan(values.crossborder_revenue_wan),
         sourceId: values.source_id,
+        hasImportExportLicense:
+          values.hasImportExportLicense === true || values.hasImportExportLicense === 1 ? 1 : 0,
+        isoCertifications: (values.iso_certifications ?? '').trim(),
+        aeoCertification: (values.aeo_certification ?? '').trim(),
+        otherCertifications: (values.other_certifications ?? '').trim(),
       };
       await enterpriseApi.update(enterprise.id, updateData);
       // 重新获取企业详情以更新显示
@@ -580,11 +930,16 @@ function EnterpriseDetail() {
           website: data.website,
           domestic_revenue: data.domesticRevenueLabel,
           domestic_revenue_id: data.domesticRevenueId,
+          domestic_revenue_wan: data.domesticRevenueWan != null ? Number(data.domesticRevenueWan) : undefined,
           crossborder_revenue: data.crossBorderRevenueLabel,
           crossborder_revenue_wan: data.crossBorderRevenueWan != null ? Number(data.crossBorderRevenueWan) : undefined,
           crossborder_revenue_id: data.crossBorderRevenueId,
           source: data.sourceLabel,
           source_id: data.sourceId,
+          iso_certifications: data.isoCertifications,
+          aeo_certification: data.aeoCertification,
+          other_certifications: data.otherCertifications,
+          has_import_export_license: data.hasImportExportLicense,
         });
       }
       message.success('企业信息更新成功');
@@ -648,38 +1003,135 @@ function EnterpriseDetail() {
 
   const handleEditProduct = (product: any) => {
     setEditingProduct(product);
-    productForm.setFieldsValue(product);
+    const catPath =
+      product.categoryId != null ? findProductCategoryPath(productCategoryTree, product.categoryId) : null;
+    const localPct =
+      product.localProcurementRatio != null
+        ? parseFloat(String(product.localProcurementRatio).replace(/[^\d.]/g, '')) || undefined
+        : undefined;
+    productForm.setFieldsValue({
+      name: product.name,
+      category: catPath || undefined,
+      certification_ids: product.certificationIds || [],
+      target_region_ids: product.targetRegionIds || [],
+      target_country_ids: product.targetCountryIds || [],
+      annual_sales: product.annualSales,
+      export_ratio: stripTrailingPercentForInput(product.exportRatio),
+      profit_margin: stripTrailingPercentForInput(product.profitMargin),
+      local_procurement: localPct,
+      automation_level_id: product.automationLevelId,
+      annual_capacity: product.annualCapacity,
+      logistics_partner_ids: product.logisticsPartnerIds || [],
+    });
     setIsProductModalOpen(true);
   };
 
-  const handleDeleteProduct = (productName: string) => {
+  const handleDeleteProduct = (product: any) => {
     Modal.confirm({
       title: '确认删除',
-      content: `确定要删除产品「${productName}」吗？此操作不可恢复。`,
+      content: `确定要删除产品「${product.name}」吗？此操作不可恢复。`,
       okText: '删除',
       okType: 'danger',
       cancelText: '取消',
-      onOk() {
-        message.success('产品已删除');
+      async onOk() {
+        try {
+          await productApi.delete(enterprise.id, product.id);
+          message.success('产品已删除');
+          const detail = await enterpriseApi.getDetail(enterprise.id);
+          if (detail.data) {
+            setEnterprise((prev) => (prev ? { ...prev, products: detail.data.products || [] } : prev));
+          }
+        } catch (e) {
+          message.error(e?.message || '删除失败');
+        }
       },
     });
   };
 
-  const handleSaveProduct = () => {
-    productForm.validateFields().then(() => {
-      message.success(editingProduct ? '产品信息更新成功' : '产品添加成功');
+  const handleSaveProduct = async () => {
+    try {
+      const values = await productForm.validateFields();
+      const categoryId =
+        Array.isArray(values.category) && values.category.length
+          ? values.category[values.category.length - 1]
+          : values.category;
+      const payload = {
+        name: values.name,
+        categoryId: categoryId ?? undefined,
+        certificationIds:
+          Array.isArray(values.certification_ids) && values.certification_ids.length
+            ? values.certification_ids
+            : undefined,
+        targetRegionIds:
+          Array.isArray(values.target_region_ids) && values.target_region_ids.length
+            ? values.target_region_ids
+            : undefined,
+        targetCountryIds:
+          Array.isArray(values.target_country_ids) && values.target_country_ids.length
+            ? values.target_country_ids
+            : undefined,
+        annualSales:
+          values.annual_sales != null && values.annual_sales !== ''
+            ? String(values.annual_sales)
+            : undefined,
+        exportRatio: ensurePercentSuffix(values.export_ratio),
+        profitMargin: ensurePercentSuffix(values.profit_margin),
+        localProcurementRatio:
+          values.local_procurement != null && values.local_procurement !== ''
+            ? `${values.local_procurement}%`
+            : undefined,
+        automationLevelId: values.automation_level_id ?? undefined,
+        annualCapacity: values.annual_capacity || undefined,
+        logisticsPartnerIds:
+          Array.isArray(values.logistics_partner_ids) && values.logistics_partner_ids.length
+            ? values.logistics_partner_ids
+            : undefined,
+      };
+      if (editingProduct?.id) {
+        await productApi.update(enterprise.id, editingProduct.id, payload);
+        message.success('产品信息更新成功');
+      } else {
+        await productApi.create(enterprise.id, payload);
+        message.success('产品添加成功');
+      }
+      const detail = await enterpriseApi.getDetail(enterprise.id);
+      if (detail.data) {
+        setEnterprise((prev) => (prev ? { ...prev, products: detail.data.products || [] } : prev));
+      }
       setIsProductModalOpen(false);
       productForm.resetFields();
       setEditingProduct(null);
-    });
+    } catch (e) {
+      if (e?.errorFields) return;
+      message.error(e?.message || '保存失败');
+    }
   };
 
-  const handleSaveBrand = () => {
-    brandForm.validateFields().then(() => {
+  const handleSaveBrand = async () => {
+    try {
+      const values = await brandForm.validateFields();
+      const hasOwn = values.has_brand === true ? 1 : 0;
+      const names = Array.isArray(values.brand_names) ? values.brand_names.filter(Boolean) : [];
+      await enterpriseApi.update(enterprise.id, {
+        hasOwnBrand: hasOwn,
+        brandNames: names.length ? names.join(',') : '',
+      });
+      setEnterprise((prev: any) =>
+        prev
+          ? {
+              ...prev,
+              has_own_brand: hasOwn === 1,
+              brand_names: names,
+            }
+          : prev
+      );
       message.success('品牌信息更新成功');
       setIsBrandModalOpen(false);
       brandForm.resetFields();
-    });
+    } catch (e: any) {
+      if (e?.errorFields) return;
+      message.error(e?.message || '保存失败');
+    }
   };
 
   const handleAddPatent = () => {
@@ -690,30 +1142,57 @@ function EnterpriseDetail() {
 
   const handleEditPatent = (patent: any) => {
     setEditingPatent(patent);
-    patentForm.setFieldsValue(patent);
+    patentForm.setFieldsValue({
+      name: patent.name,
+      patent_no: patent.patentNo,
+    });
     setIsPatentModalOpen(true);
   };
 
-  const handleDeletePatent = (patentName: string) => {
+  const handleDeletePatent = (patent: any) => {
     Modal.confirm({
       title: '确认删除',
-      content: `确定要删除专利「${patentName}」吗？`,
+      content: `确定要删除专利「${patent.name}」吗？`,
       okText: '删除',
       okType: 'danger',
       cancelText: '取消',
-      onOk() {
-        message.success('专利已删除');
+      async onOk() {
+        try {
+          await patentApi.delete(enterprise.id, patent.id);
+          message.success('专利已删除');
+          const detail = await enterpriseApi.getDetail(enterprise.id);
+          if (detail.data) {
+            setEnterprise((prev) => (prev ? { ...prev, patents: detail.data.patents || [] } : prev));
+          }
+        } catch (e) {
+          message.error(e?.message || '删除失败');
+        }
       },
     });
   };
 
-  const handleSavePatent = () => {
-    patentForm.validateFields().then(() => {
-      message.success(editingPatent ? '专利信息更新成功' : '专利添加成功');
+  const handleSavePatent = async () => {
+    try {
+      const values = await patentForm.validateFields();
+      const body = { name: values.name, patentNo: values.patent_no };
+      if (editingPatent?.id) {
+        await patentApi.update(enterprise.id, editingPatent.id, body);
+        message.success('专利信息更新成功');
+      } else {
+        await patentApi.create(enterprise.id, body);
+        message.success('专利添加成功');
+      }
+      const detail = await enterpriseApi.getDetail(enterprise.id);
+      if (detail.data) {
+        setEnterprise((prev) => (prev ? { ...prev, patents: detail.data.patents || [] } : prev));
+      }
       setIsPatentModalOpen(false);
       patentForm.resetFields();
       setEditingPatent(null);
-    });
+    } catch (e) {
+      if (e?.errorFields) return;
+      message.error(e?.message || '保存失败');
+    }
   };
 
   const openEditModal = (section: 'enterprise' | 'contact') => {
@@ -726,14 +1205,23 @@ function EnterpriseDetail() {
         province: enterprise.province,
         city: enterprise.city,
         district: enterprise.district,
-        industry_id: enterprise.industry_id ? [enterprise.industry_id] : undefined,
+        industry_id:
+          findIndustryCascaderPath(industryCategories, enterprise.industry_id) ??
+          (enterprise.industry_id != null ? [enterprise.industry_id] : undefined),
         enterprise_type: enterprise.enterprise_type,
         staff_size_id: enterprise.staff_size_id,
         detailed_address: enterprise.detailed_address,
-        domestic_revenue_id: enterprise.domestic_revenue_id,
+        domestic_revenue_wan: enterprise.domestic_revenue_wan ?? undefined,
         crossborder_revenue_wan: enterprise.crossborder_revenue_wan ?? undefined,
         source_id: enterprise.source_id,
         website: enterprise.website,
+        iso_certifications: enterprise.iso_certifications ?? '',
+        aeo_certification: enterprise.aeo_certification ?? '',
+        other_certifications: enterprise.other_certifications ?? '',
+        hasImportExportLicense:
+          enterprise.has_import_export_license === true ||
+          enterprise.has_import_export_license === 1 ||
+          enterprise.has_import_export_license === '1',
       });
       setIsEditEnterpriseOpen(true);
     } else if (section === 'contact') {
@@ -915,25 +1403,18 @@ function EnterpriseDetail() {
             headStyle={{ borderBottom: '1px solid #f0f0f0' }}
             extra={<Button type="link" icon={<EditOutlined />} onClick={() => openEditModal('enterprise')} style={{ fontWeight: 500 }}>编辑</Button>}
           >
-            <Descriptions column={2} labelStyle={{ color: '#888', fontWeight: 500 }} contentStyle={{ color: '#333' }}>
-              <Descriptions.Item label="企业名称">
-                <span style={{ fontWeight: 500 }}>{enterprise.enterprise_name}</span>
-              </Descriptions.Item>
+            <Descriptions
+              column={2}
+              labelStyle={{ color: '#888', fontWeight: 500 }}
+              contentStyle={{ color: '#333', fontWeight: 400, fontSize: 14 }}
+            >
+              <Descriptions.Item label="企业名称">{enterprise.enterprise_name}</Descriptions.Item>
               <Descriptions.Item label="统一社会信用代码">
-                <span style={{ fontFamily: 'monospace', fontSize: 13 }}>{enterprise.unified_credit_code || '-'}</span>
+                <span style={{ fontFamily: 'monospace' }}>{enterprise.unified_credit_code || '-'}</span>
               </Descriptions.Item>
               <Descriptions.Item label="成立日期">{enterprise.established_date || '-'}</Descriptions.Item>
               <Descriptions.Item label="注册资本">{enterprise.registered_capital || '-'}</Descriptions.Item>
-              <Descriptions.Item label="所属行业">
-                <span style={{ 
-                  padding: '2px 8px', 
-                  background: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.1) 100%)',
-                  borderRadius: 4,
-                  color: '#667eea',
-                  fontWeight: 500,
-                  fontSize: 12
-                }}>{enterprise.industry}</span>
-              </Descriptions.Item>
+              <Descriptions.Item label="所属行业">{enterprise.industry || '-'}</Descriptions.Item>
               <Descriptions.Item label="企业类型">{enterprise.enterprise_type}</Descriptions.Item>
               <Descriptions.Item label="人员规模">{enterprise.employee_scale || '-'}</Descriptions.Item>
               <Descriptions.Item label="省/市/区">
@@ -941,28 +1422,35 @@ function EnterpriseDetail() {
               </Descriptions.Item>
               <Descriptions.Item label="详细地址">
                 <Space>
-                  <EnvironmentOutlined style={{ color: '#667eea' }} />
+                  <EnvironmentOutlined style={{ color: '#8c8c8c' }} />
                   {enterprise.detailed_address || '-'}
                 </Space>
               </Descriptions.Item>
               <Descriptions.Item label="国内营收(万元)">
-                <span style={{ fontWeight: 600, color: '#667eea' }}>{enterprise.domestic_revenue || '-'}</span>
+                {enterprise.domestic_revenue_wan != null && enterprise.domestic_revenue_wan !== ''
+                  ? enterprise.domestic_revenue_wan
+                  : enterprise.domestic_revenue || '-'}
               </Descriptions.Item>
               <Descriptions.Item label="跨境营收(万元)">
-                <span style={{ fontWeight: 600, color: '#43e97b' }}>{enterprise.crossborder_revenue || '-'}</span>
+                {enterprise.crossborder_revenue_wan != null && enterprise.crossborder_revenue_wan !== ''
+                  ? enterprise.crossborder_revenue_wan
+                  : enterprise.crossborder_revenue || '-'}
               </Descriptions.Item>
               <Descriptions.Item label="企业来源">{enterprise.source || '-'}</Descriptions.Item>
               <Descriptions.Item label="官网">
                 {enterprise.website ? (
-                  <a href={enterprise.website} target="_blank" rel="noopener noreferrer" style={{ color: '#667eea' }}>
-                    <GlobalOutlined style={{ marginRight: 4 }} /> {enterprise.website}
+                  <a
+                    href={enterprise.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#333', fontWeight: 400, fontSize: 14, textDecoration: 'underline' }}
+                  >
+                    <GlobalOutlined style={{ marginRight: 4, color: '#8c8c8c' }} /> {enterprise.website}
                   </a>
                 ) : '-'}
               </Descriptions.Item>
               <Descriptions.Item label="进出口经营权">
-                {enterprise.has_import_export_license ? (
-                  <span style={{ color: '#10b981', fontWeight: 500 }}>有</span>
-                ) : <span style={{ color: '#999' }}>无</span>}
+                {enterprise.has_import_export_license ? '有' : '无'}
               </Descriptions.Item>
               <Descriptions.Item label="ISO认证">{enterprise.iso_certifications || '-'}</Descriptions.Item>
               <Descriptions.Item label="AEO认证等级">{enterprise.aeo_certification || '-'}</Descriptions.Item>
@@ -1033,6 +1521,21 @@ function EnterpriseDetail() {
                           职位: <span style={{ color: '#555' }}>{contact.position}</span>
                         </div>
                       )}
+                      {contact.email && (
+                        <div style={{ marginTop: 6, color: '#888' }}>
+                          邮箱: <span style={{ color: '#555' }}>{contact.email}</span>
+                        </div>
+                      )}
+                      {contact.wechat && (
+                        <div style={{ marginTop: 6, color: '#888' }}>
+                          微信: <span style={{ color: '#555' }}>{contact.wechat}</span>
+                        </div>
+                      )}
+                      {contact.remark && (
+                        <div style={{ marginTop: 6, color: '#888' }}>
+                          备注: <span style={{ color: '#555' }}>{contact.remark}</span>
+                        </div>
+                      )}
                     </div>
                   </Card>
                 </Col>
@@ -1061,7 +1564,10 @@ function EnterpriseDetail() {
             const regionIds: number[] = enterprise.target_region_ids || (enterprise as any).targetRegionIds || [];
             const regionNames = regionIds.map((id: number) => regionOptions.find((o: any) => o.value === id)?.label).filter(Boolean);
             const countryNames: string[] = enterprise.target_country_ids || (enterprise as any).targetCountryIds || [];
-            const hasLicense = enterprise.has_import_export_license;
+            // 与「编辑产品信息」弹窗 hasImportExportLicense 的判定一致，避免页面显示「-」而弹窗显示「否」
+            const licRaw = enterprise.has_import_export_license ?? (enterprise as any).hasImportExportLicense;
+            const hasImportExportLicenseYes =
+              licRaw === true || licRaw === 1 || licRaw === '1';
             return (
               <Card
                 size="small"
@@ -1070,42 +1576,54 @@ function EnterpriseDetail() {
                 headStyle={{ borderBottom: '1px solid #f0f0f0' }}
                 extra={<Button type="link" size="small" icon={<EditOutlined />} style={{ fontWeight: 500 }} onClick={() => setIsProductOverviewModalOpen(true)}>编辑</Button>}
               >
-                <Row gutter={[24, 20]}>
+                <Row gutter={[20, 20]}>
                   <Col span={6}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售区域</Text>
-                    <div style={{ fontWeight: 500 }}>{regionNames.length > 0 ? regionNames.join('、') : '-'}</div>
+                    <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售区域</Text>
+                      <div style={{ fontWeight: 500, color: '#333' }}>{regionNames.length > 0 ? regionNames.join('、') : '-'}</div>
+                    </div>
                   </Col>
                   <Col span={6}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售国家</Text>
-                    <div style={{ fontWeight: 500 }}>{countryNames.length > 0 ? countryNames.join('、') : '-'}</div>
+                    <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>主要销售国家</Text>
+                      <div style={{ fontWeight: 500, color: '#333' }}>{countryNames.length > 0 ? countryNames.join('、') : '-'}</div>
+                    </div>
                   </Col>
                   <Col span={6}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否有进出口资质</Text>
-                    {hasLicense ? (
-                      <span style={{ padding: '3px 10px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: 20, color: '#fff', fontWeight: 500, fontSize: 12 }}>是</span>
-                    ) : (
-                      <span style={{ color: '#999' }}>{hasLicense === false || hasLicense === 0 ? '否' : '-'}</span>
-                    )}
+                    <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否有进出口资质</Text>
+                      <div style={{ fontWeight: 500, color: '#333' }}>{hasImportExportLicenseYes ? '是' : '否'}</div>
+                    </div>
                   </Col>
                   <Col span={6}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>产品数量</Text>
-                    <div style={{ fontWeight: 600 }}>{products.length} 个</div>
+                    <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>产品数量</Text>
+                      <div style={{ fontWeight: 600, color: '#333' }}>{products.length} <span style={{ fontSize: 13, fontWeight: 400, color: '#888' }}>个</span></div>
+                    </div>
                   </Col>
                   <Col span={6}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>产品品类</Text>
-                    <div style={{ fontWeight: 500 }}>{allCategories.length > 0 ? allCategories.join('、') : '-'}</div>
+                    <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>产品品类</Text>
+                      <div style={{ fontWeight: 500, color: '#333' }}>{allCategories.length > 0 ? allCategories.join('、') : '-'}</div>
+                    </div>
                   </Col>
                   <Col span={6}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>年销售额合计</Text>
-                    <div style={{ fontWeight: 700, color: '#667eea', fontSize: 16 }}>{totalSales > 0 ? `${totalSales}万元` : '-'}</div>
+                    <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>年销售额合计</Text>
+                      <div style={{ fontWeight: 700, color: '#667eea', fontSize: 16 }}>{totalSales > 0 ? `${totalSales}万元` : '-'}</div>
+                    </div>
                   </Col>
                   <Col span={6}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>产品认证</Text>
-                    <div style={{ fontWeight: 500 }}>{allCerts.length > 0 ? allCerts.join('、') : '-'}</div>
+                    <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>产品认证</Text>
+                      <div style={{ fontWeight: 500, color: '#333' }}>{allCerts.length > 0 ? allCerts.join('、') : '-'}</div>
+                    </div>
                   </Col>
                   <Col span={6}>
-                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>物流合作方</Text>
-                    <div style={{ fontWeight: 500 }}>{allLogistics.length > 0 ? allLogistics.join('、') : '-'}</div>
+                    <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>物流合作方</Text>
+                      <div style={{ fontWeight: 500, color: '#333' }}>{allLogistics.length > 0 ? allLogistics.join('、') : '-'}</div>
+                    </div>
                   </Col>
                 </Row>
               </Card>
@@ -1130,10 +1648,7 @@ function EnterpriseDetail() {
                 icon={<PlusOutlined />}
                 onClick={handleAddProduct}
                 style={{
-                  borderRadius: 8,
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  border: 'none',
-                  fontWeight: 500
+                  borderRadius: 6
                 }}
               >
                 添加产品
@@ -1141,26 +1656,34 @@ function EnterpriseDetail() {
             }
           >
           {enterprise.products && enterprise.products.length > 0 ? (
-            <Space direction="vertical" style={{ width: '100%' }} size={8}>
+            <Space direction="vertical" style={{ width: '100%' }} size={12}>
               {enterprise.products.map((product: any) => (
                 <div key={product.id} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '12px 16px', borderRadius: 8, background: '#fafbfc',
+                  padding: '16px 20px', borderRadius: 8, background: '#fafbfc',
                   border: '1px solid #f0f0f0',
                 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
-                    <Text strong style={{ fontSize: 14 }}>{product.name}</Text>
-                    {product.categoryName && (
-                      <span style={{ padding: '2px 8px', background: 'rgba(102,126,234,0.1)', borderRadius: 4, color: '#667eea', fontSize: 12 }}>{product.categoryName}</span>
-                    )}
-                    {product.certificationNames?.map((cert: string, idx: number) => (
-                      <span key={idx} style={{ padding: '2px 8px', background: 'rgba(67,233,123,0.1)', borderRadius: 4, color: '#389e0d', fontSize: 12 }}>{cert}</span>
-                    ))}
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <Text strong style={{ fontSize: 15 }}>{product.name}</Text>
+                      {product.categoryName && (
+                        <span style={{ padding: '3px 10px', background: 'rgba(102,126,234,0.08)', borderRadius: 4, color: '#667eea', fontSize: 13 }}>{product.categoryName}</span>
+                      )}
+                      {product.certificationNames?.map((cert: string, idx: number) => (
+                        <span key={idx} style={{ padding: '3px 10px', background: 'rgba(67,233,123,0.08)', borderRadius: 4, color: '#389e0d', fontSize: 13 }}>{cert}</span>
+                      ))}
+                    </div>
+                    <Space size={8}>
+                      <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEditProduct(product)}>编辑</Button>
+                      <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeleteProduct(product)}>删除</Button>
+                    </Space>
                   </div>
-                  <Space size={4}>
-                    <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEditProduct(product)}>编辑</Button>
-                    <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeleteProduct(product.name)}>删除</Button>
-                  </Space>
+                  {(product.exportRatio || product.profitMargin) && (
+                    <div style={{ fontSize: 13, color: '#666' }}>
+                      {[product.exportRatio ? `出口占比 ${product.exportRatio}` : null, product.profitMargin ? `利润率 ${product.profitMargin}` : null]
+                        .filter(Boolean)
+                        .join('  ·  ')}
+                    </div>
+                  )}
                 </div>
               ))}
             </Space>
@@ -1172,31 +1695,49 @@ function EnterpriseDetail() {
           {/* 自主品牌 */}
           <Card
             size="small"
-            title={<span style={{ fontWeight: 600, fontSize: 15, color: '#43e97b' }}>自主品牌</span>}
-            style={{ marginBottom: 16, borderRadius: 8, border: 'none', borderLeft: '3px solid #43e97b', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+            title={<span style={{ fontWeight: 600, fontSize: 15 }}>自主品牌</span>}
+            style={{ marginBottom: 16, borderRadius: 8, border: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
             headStyle={{ borderBottom: '1px solid #f0f0f0' }}
             extra={
               <Button type="link" size="small" icon={<EditOutlined />} style={{ fontWeight: 500 }}
                 onClick={() => {
-                  brandForm.setFieldsValue({ has_brand: enterprise.has_own_brand, brand_names: enterprise.brand_names || [] });
+                  brandForm.setFieldsValue({
+                    has_brand: !!(enterprise.has_own_brand === true || enterprise.has_own_brand === 1),
+                    brand_names: enterprise.brand_names || [],
+                  });
                   setIsBrandModalOpen(true);
                 }}>编辑</Button>
             }
           >
-            <Row gutter={24}>
-              <Col span={8}>
-                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否有自主品牌</Text>
-                <span style={{ padding: '4px 12px', background: enterprise.has_own_brand ? 'linear-gradient(135deg, rgba(67,233,123,0.15) 0%, rgba(56,249,215,0.1) 100%)' : 'rgba(0,0,0,0.04)', borderRadius: 6, color: enterprise.has_own_brand ? '#389e0d' : '#999', fontSize: 12, fontWeight: 600 }}>{enterprise.has_own_brand ? '是' : '否'}</span>
+            <Row gutter={[20, 20]}>
+              <Col span={6}>
+                <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否有自主品牌</Text>
+                  <div style={{ fontWeight: 500, color: enterprise.has_own_brand ? '#333' : '#999' }}>
+                    {enterprise.has_own_brand ? '是' : '否'}
+                  </div>
+                </div>
               </Col>
-              <Col span={16}>
-                <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>品牌名称</Text>
-                {enterprise.brand_names && enterprise.brand_names.length > 0 ? (
-                  <Space size={8} wrap>
-                    {enterprise.brand_names.map((brand: string, idx: number) => (
-                      <span key={idx} style={{ padding: '5px 14px', background: idx % 2 === 0 ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: 20, color: '#fff', fontSize: 13, fontWeight: 500 }}>{brand}</span>
-                    ))}
-                  </Space>
-                ) : <span style={{ color: '#999' }}>-</span>}
+              <Col span={18}>
+                <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                  <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>品牌名称</Text>
+                  {enterprise.brand_names && enterprise.brand_names.length > 0 ? (
+                    <Space size={12} wrap>
+                      {enterprise.brand_names.map((brand: string, idx: number) => (
+                        <span key={idx} style={{
+                          padding: '6px 20px',
+                          background: '#fff',
+                          border: '1px solid #e8e8e8',
+                          borderRadius: 6,
+                          color: '#333',
+                          fontSize: 14,
+                          fontWeight: 600,
+                          letterSpacing: 1,
+                        }}>{brand}</span>
+                      ))}
+                    </Space>
+                  ) : <span style={{ color: '#999' }}>-</span>}
+                </div>
               </Col>
             </Row>
           </Card>
@@ -1204,32 +1745,36 @@ function EnterpriseDetail() {
           {/* 核心技术/专利 */}
           <Card
             size="small"
-            title={<span style={{ fontWeight: 600, fontSize: 15, color: '#f97316' }}>核心技术/专利</span>}
-            style={{ borderRadius: 8, border: 'none', borderLeft: '3px solid #f97316', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
+            title={<span style={{ fontWeight: 600, fontSize: 15 }}>核心技术/专利</span>}
+            style={{ borderRadius: 8, border: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
             headStyle={{ borderBottom: '1px solid #f0f0f0' }}
             extra={
               <Button type="primary" size="small" icon={<PlusOutlined />} onClick={handleAddPatent}
-                style={{ borderRadius: 6, background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', border: 'none', fontWeight: 500 }}>添加专利</Button>
+                style={{ borderRadius: 6 }}>添加专利</Button>
             }
           >
             {enterprise.patents && enterprise.patents.length > 0 ? (
-              <Space direction="vertical" style={{ width: '100%' }} size={12}>
-                {enterprise.patents.map((patent: any, idx: number) => (
-                  <div key={patent.id} style={{ padding: '16px 20px', background: idx % 2 === 0 ? 'linear-gradient(135deg, rgba(67,233,123,0.1) 0%, rgba(56,249,215,0.05) 100%)' : 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)', borderRadius: 10, border: idx % 2 === 0 ? '1px solid rgba(67,233,123,0.2)' : '1px solid rgba(102,126,234,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                      <div style={{ width: 40, height: 40, borderRadius: 10, background: idx % 2 === 0 ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <SafetyCertificateOutlined style={{ color: '#fff', fontSize: 20 }} />
+              <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                {enterprise.patents.map((patent: any) => (
+                  <div key={patent.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '12px 16px', borderRadius: 8, background: '#fafbfc',
+                    border: '1px solid #f0f0f0',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1 }}>
+                      <div style={{ width: 32, height: 32, borderRadius: 6, background: 'rgba(102,126,234,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <SafetyCertificateOutlined style={{ color: '#667eea', fontSize: 16 }} />
                       </div>
-                      <div>
-                        <Text strong style={{ fontSize: 14, display: 'block' }}>{patent.name}</Text>
-                        <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
-                          专利号：<span style={{ fontFamily: 'monospace' }}>{patent.patentNo || '-'}</span>
-                        </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <Text strong style={{ fontSize: 14 }}>{patent.name}</Text>
+                        <span style={{ fontSize: 12, color: '#888' }}>
+                          专利号: <span style={{ fontFamily: 'monospace' }}>{patent.patentNo || '-'}</span>
+                        </span>
                       </div>
                     </div>
                     <Space size={4}>
-                      <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEditPatent(patent)} />
-                      <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeletePatent(patent.name)} />
+                      <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEditPatent(patent)}>编辑</Button>
+                      <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDeletePatent(patent)}>删除</Button>
                     </Space>
                   </div>
                 ))}
@@ -1254,7 +1799,7 @@ function EnterpriseDetail() {
               borderRadius: 12, 
               border: hasForeignTrade ? '1px solid rgba(67,233,123,0.3)' : 'none', 
               boxShadow: hasForeignTrade ? '0 4px 12px rgba(67,233,123,0.15)' : '0 2px 8px rgba(0,0,0,0.04)',
-              background: hasForeignTrade ? 'linear-gradient(135deg, rgba(67,233,123,0.05) 0%, rgba(56,249,215,0.02) 100%)' : '#fff',
+              background: hasForeignTrade ? 'rgba(67,233,123,0.05)' : '#fff',
               transition: 'all 0.3s ease'
             }}
           >
@@ -1264,7 +1809,7 @@ function EnterpriseDetail() {
                   width: 8,
                   height: 8,
                   borderRadius: '50%',
-                  background: hasForeignTrade ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' : '#d9d9d9',
+                  background: hasForeignTrade ? '#43e97b' : '#d9d9d9',
                   transition: 'all 0.3s ease',
                   boxShadow: hasForeignTrade ? '0 0 8px rgba(67,233,123,0.5)' : 'none'
                 }} />
@@ -1275,13 +1820,11 @@ function EnterpriseDetail() {
                 onChange={setHasForeignTrade}
                 checkedChildren="是" 
                 unCheckedChildren="否"
-                style={{ 
-                  background: hasForeignTrade ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' : undefined
-                }}
               />
             </div>
           </Card>
 
+          {/* 是否有海外分销商：仅在下方面板只读展示，通过「编辑」弹窗与主表 PUT 一并保存 */}
           {/* 外贸详细信息 - 仅在开展外贸时显示 */}
           <div style={{
             maxHeight: hasForeignTrade ? 3000 : 0,
@@ -1298,33 +1841,46 @@ function EnterpriseDetail() {
                 <Col span={8}>
                   <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>外贸模式</Text>
-                    <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.trade_mode || '-'}</div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>{enterprise.trade_mode || '-'}</div>
                   </div>
                 </Col>
                 <Col span={8}>
                   <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>报关申报主体模式</Text>
-                    <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.customs_declaration_mode || '-'}</div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>{enterprise.customs_declaration_mode || '-'}</div>
                   </div>
                 </Col>
                 <Col span={8}>
                   <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>外贸业务团队模式</Text>
-                    <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.trade_team_mode || '-'}</div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>{enterprise.trade_team_mode || '-'}</div>
                   </div>
                 </Col>
                 <Col span={8}>
                   <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>外贸团队人数</Text>
-                    <div style={{ fontWeight: 700, color: '#667eea', fontSize: 18 }}>{enterprise.trade_team_size || '-'}{enterprise.trade_team_size ? <span style={{ fontSize: 13, fontWeight: 500, color: '#888' }}> 人</span> : ''}</div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>
+                      {enterprise.trade_team_size != null && enterprise.trade_team_size !== '' ? (
+                        <>
+                          {enterprise.trade_team_size}
+                          <span style={{ fontSize: 14, fontWeight: 500, color: '#666' }}> 人</span>
+                        </>
+                      ) : (
+                        '-'
+                      )}
+                    </div>
                   </div>
                 </Col>
                 <Col span={8}>
-                  <div style={{ padding: '16px', background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.05) 100%)', borderRadius: 10 }}>
+                  <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                     <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否有国内电商经验</Text>
-                    {enterprise.has_domestic_ecommerce ? (
-                      <span style={{ padding: '4px 12px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: 20, color: '#fff', fontWeight: 500, fontSize: 12 }}>是</span>
-                    ) : <span style={{ color: '#999' }}>否</span>}
+                    <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>{enterprise.has_domestic_ecommerce ? '是' : '否'}</div>
+                  </div>
+                </Col>
+                <Col span={8}>
+                  <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
+                    <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否有海外分销商</Text>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>{enterprise.has_overseas_distributors ? '是' : '否'}</div>
                   </div>
                 </Col>
               </Row>
@@ -1345,7 +1901,6 @@ function EnterpriseDetail() {
                     tradePerformanceForm.setFieldsValue({
                       yearBeforeLastRevenue: enterprise.year_before_last_revenue ?? undefined,
                       lastYearRevenue: enterprise.last_year_revenue ?? undefined,
-                      remark: undefined,
                     });
                     setIsTradePerformanceModalOpen(true);
                   }}
@@ -1389,8 +1944,9 @@ function EnterpriseDetail() {
                     <Col span={8}>
                       <div style={{ 
                         padding: '20px', 
-                        background: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)', 
+                        background: 'rgba(102,126,234,0.05)', 
                         borderRadius: 12,
+                        border: '1px solid rgba(102,126,234,0.2)',
                         textAlign: 'center'
                       }}>
                         <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>{yearBeforeLast}年外贸营业额</Text>
@@ -1400,8 +1956,9 @@ function EnterpriseDetail() {
                     <Col span={8}>
                       <div style={{ 
                         padding: '20px', 
-                        background: 'linear-gradient(135deg, rgba(250,173,20,0.1) 0%, rgba(255,193,7,0.05) 100%)', 
+                        background: 'rgba(250,173,20,0.05)', 
                         borderRadius: 12,
+                        border: '1px solid rgba(250,173,20,0.2)',
                         textAlign: 'center'
                       }}>
                         <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>{lastYear}年外贸营业额</Text>
@@ -1411,8 +1968,9 @@ function EnterpriseDetail() {
                     <Col span={8}>
                       <div style={{ 
                         padding: '20px', 
-                        background: `linear-gradient(135deg, ${growthRate != null && isPositive ? 'rgba(67,233,123,0.1)' : 'rgba(239,68,68,0.1)'} 0%, ${growthRate != null && isPositive ? 'rgba(56,249,215,0.05)' : 'rgba(239,68,68,0.05)'} 100%)`, 
+                        background: growthRate != null && isPositive ? 'rgba(67,233,123,0.05)' : 'rgba(239,68,68,0.05)', 
                         borderRadius: 12,
+                        border: growthRate != null && isPositive ? '1px solid rgba(67,233,123,0.2)' : '1px solid rgba(239,68,68,0.2)',
                         textAlign: 'center'
                       }}>
                         <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>同比增长率</Text>
@@ -1440,7 +1998,7 @@ function EnterpriseDetail() {
                   <Col span={12}>
                     <div style={{ 
                       padding: '14px 16px', 
-                      background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.03) 100%)', 
+                      background: 'rgba(67,233,123,0.05)', 
                       borderRadius: 10,
                       border: '1px solid rgba(67,233,123,0.2)'
                     }}>
@@ -1458,7 +2016,7 @@ function EnterpriseDetail() {
                         {marketChanges.up.map((item, idx) => (
                           <Tag key={idx} color="green" closable style={{ borderRadius: 4, fontWeight: 500 }}
                             onClose={() => setMarketChanges(prev => ({ ...prev, up: prev.up.filter((_, i) => i !== idx) }))}>
-                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('market'); setTradeChangeDirection('up'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue(item); setIsTradeChangeModalOpen(true); }}>
+                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('market'); setTradeChangeDirection('up'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue({ ...item, rate: stripTradeRatePercentForInput(item.rate) }); setIsTradeChangeModalOpen(true); }}>
                               {item.name} {item.rate}
                             </span>
                           </Tag>
@@ -1469,7 +2027,7 @@ function EnterpriseDetail() {
                   <Col span={12}>
                     <div style={{ 
                       padding: '14px 16px', 
-                      background: 'linear-gradient(135deg, rgba(255,77,79,0.08) 0%, rgba(255,77,79,0.03) 100%)', 
+                      background: 'rgba(255,77,79,0.05)', 
                       borderRadius: 10,
                       border: '1px solid rgba(255,77,79,0.2)'
                     }}>
@@ -1486,8 +2044,11 @@ function EnterpriseDetail() {
                       <Space size={8} wrap>
                         {marketChanges.down.map((item, idx) => (
                           <Tag key={idx} color="red" closable style={{ borderRadius: 4, fontWeight: 500 }}
-                            onClose={() => setMarketChanges(prev => ({ ...prev, down: prev.down.filter((_, i) => i !== idx) }))}>
-                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('market'); setTradeChangeDirection('down'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue(item); setIsTradeChangeModalOpen(true); }}>
+                            onClose={() => {
+                              const next = { ...marketChanges, down: marketChanges.down.filter((_, i) => i !== idx) };
+                              void persistTradePerformanceJson(next, modeChanges, categoryChanges);
+                            }}>
+                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('market'); setTradeChangeDirection('down'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue({ ...item, rate: stripTradeRatePercentForInput(item.rate) }); setIsTradeChangeModalOpen(true); }}>
                               {item.name} {item.rate}
                             </span>
                           </Tag>
@@ -1505,7 +2066,7 @@ function EnterpriseDetail() {
                   <Col span={12}>
                     <div style={{ 
                       padding: '14px 16px', 
-                      background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.03) 100%)', 
+                      background: 'rgba(67,233,123,0.05)', 
                       borderRadius: 10,
                       border: '1px solid rgba(67,233,123,0.2)'
                     }}>
@@ -1522,8 +2083,11 @@ function EnterpriseDetail() {
                       <Space size={8} wrap>
                         {modeChanges.up.map((item, idx) => (
                           <Tag key={idx} color="green" closable style={{ borderRadius: 4, fontWeight: 500 }}
-                            onClose={() => setModeChanges(prev => ({ ...prev, up: prev.up.filter((_, i) => i !== idx) }))}>
-                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('mode'); setTradeChangeDirection('up'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue(item); setIsTradeChangeModalOpen(true); }}>
+                            onClose={() => {
+                              const next = { ...modeChanges, up: modeChanges.up.filter((_, i) => i !== idx) };
+                              void persistTradePerformanceJson(marketChanges, next, categoryChanges);
+                            }}>
+                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('mode'); setTradeChangeDirection('up'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue({ ...item, rate: stripTradeRatePercentForInput(item.rate) }); setIsTradeChangeModalOpen(true); }}>
                               {item.name} {item.rate}
                             </span>
                           </Tag>
@@ -1534,7 +2098,7 @@ function EnterpriseDetail() {
                   <Col span={12}>
                     <div style={{ 
                       padding: '14px 16px', 
-                      background: 'linear-gradient(135deg, rgba(255,77,79,0.08) 0%, rgba(255,77,79,0.03) 100%)', 
+                      background: 'rgba(255,77,79,0.05)', 
                       borderRadius: 10,
                       border: '1px solid rgba(255,77,79,0.2)'
                     }}>
@@ -1551,8 +2115,11 @@ function EnterpriseDetail() {
                       <Space size={8} wrap>
                         {modeChanges.down.map((item, idx) => (
                           <Tag key={idx} color="red" closable style={{ borderRadius: 4, fontWeight: 500 }}
-                            onClose={() => setModeChanges(prev => ({ ...prev, down: prev.down.filter((_, i) => i !== idx) }))}>
-                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('mode'); setTradeChangeDirection('down'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue(item); setIsTradeChangeModalOpen(true); }}>
+                            onClose={() => {
+                              const next = { ...modeChanges, down: modeChanges.down.filter((_, i) => i !== idx) };
+                              void persistTradePerformanceJson(marketChanges, next, categoryChanges);
+                            }}>
+                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('mode'); setTradeChangeDirection('down'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue({ ...item, rate: stripTradeRatePercentForInput(item.rate) }); setIsTradeChangeModalOpen(true); }}>
                               {item.name} {item.rate}
                             </span>
                           </Tag>
@@ -1570,7 +2137,7 @@ function EnterpriseDetail() {
                   <Col span={12}>
                     <div style={{ 
                       padding: '14px 16px', 
-                      background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.03) 100%)', 
+                      background: 'rgba(67,233,123,0.05)', 
                       borderRadius: 10,
                       border: '1px solid rgba(67,233,123,0.2)'
                     }}>
@@ -1587,8 +2154,11 @@ function EnterpriseDetail() {
                       <Space size={8} wrap>
                         {categoryChanges.up.map((item, idx) => (
                           <Tag key={idx} color="green" closable style={{ borderRadius: 4, fontWeight: 500 }}
-                            onClose={() => setCategoryChanges(prev => ({ ...prev, up: prev.up.filter((_, i) => i !== idx) }))}>
-                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('category'); setTradeChangeDirection('up'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue(item); setIsTradeChangeModalOpen(true); }}>
+                            onClose={() => {
+                              const next = { ...categoryChanges, up: categoryChanges.up.filter((_, i) => i !== idx) };
+                              void persistTradePerformanceJson(marketChanges, modeChanges, next);
+                            }}>
+                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('category'); setTradeChangeDirection('up'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue({ ...item, rate: stripTradeRatePercentForInput(item.rate) }); setIsTradeChangeModalOpen(true); }}>
                               {item.name} {item.rate}
                             </span>
                           </Tag>
@@ -1599,7 +2169,7 @@ function EnterpriseDetail() {
                   <Col span={12}>
                     <div style={{ 
                       padding: '14px 16px', 
-                      background: 'linear-gradient(135deg, rgba(255,77,79,0.08) 0%, rgba(255,77,79,0.03) 100%)', 
+                      background: 'rgba(255,77,79,0.05)', 
                       borderRadius: 10,
                       border: '1px solid rgba(255,77,79,0.2)'
                     }}>
@@ -1616,8 +2186,11 @@ function EnterpriseDetail() {
                       <Space size={8} wrap>
                         {categoryChanges.down.map((item, idx) => (
                           <Tag key={idx} color="red" closable style={{ borderRadius: 4, fontWeight: 500 }}
-                            onClose={() => setCategoryChanges(prev => ({ ...prev, down: prev.down.filter((_, i) => i !== idx) }))}>
-                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('category'); setTradeChangeDirection('down'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue(item); setIsTradeChangeModalOpen(true); }}>
+                            onClose={() => {
+                              const next = { ...categoryChanges, down: categoryChanges.down.filter((_, i) => i !== idx) };
+                              void persistTradePerformanceJson(marketChanges, modeChanges, next);
+                            }}>
+                            <span style={{ cursor: 'pointer' }} onClick={() => { setTradeChangeType('category'); setTradeChangeDirection('down'); setEditingTradeChange(item); tradeChangeForm.setFieldsValue({ ...item, rate: stripTradeRatePercentForInput(item.rate) }); setIsTradeChangeModalOpen(true); }}>
                               {item.name} {item.rate}
                             </span>
                           </Tag>
@@ -1635,7 +2208,7 @@ function EnterpriseDetail() {
                   <Col span={12}>
                     <div style={{ 
                       padding: '14px 16px', 
-                      background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.03) 100%)', 
+                      background: 'rgba(67,233,123,0.05)', 
                       borderRadius: 10,
                       border: '1px solid rgba(67,233,123,0.2)'
                     }}>
@@ -1669,7 +2242,7 @@ function EnterpriseDetail() {
                   <Col span={12}>
                     <div style={{ 
                       padding: '14px 16px', 
-                      background: 'linear-gradient(135deg, rgba(255,77,79,0.08) 0%, rgba(255,77,79,0.03) 100%)', 
+                      background: 'rgba(255,77,79,0.05)', 
                       borderRadius: 10,
                       border: '1px solid rgba(255,77,79,0.2)'
                     }}>
@@ -1720,7 +2293,7 @@ function EnterpriseDetail() {
               borderRadius: 12, 
               border: hasCrossborderEcommerce ? '1px solid rgba(102,126,234,0.3)' : 'none', 
               boxShadow: hasCrossborderEcommerce ? '0 4px 12px rgba(102,126,234,0.15)' : '0 2px 8px rgba(0,0,0,0.04)',
-              background: hasCrossborderEcommerce ? 'linear-gradient(135deg, rgba(102,126,234,0.05) 0%, rgba(118,75,162,0.02) 100%)' : '#fff',
+              background: hasCrossborderEcommerce ? 'rgba(102,126,234,0.05)' : '#fff',
               transition: 'all 0.3s ease'
             }}
           >
@@ -1730,7 +2303,7 @@ function EnterpriseDetail() {
                   width: 8,
                   height: 8,
                   borderRadius: '50%',
-                  background: hasCrossborderEcommerce ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#d9d9d9',
+                  background: hasCrossborderEcommerce ? '#667eea' : '#d9d9d9',
                   transition: 'all 0.3s ease',
                   boxShadow: hasCrossborderEcommerce ? '0 0 8px rgba(102,126,234,0.5)' : 'none'
                 }} />
@@ -1741,9 +2314,6 @@ function EnterpriseDetail() {
                 onChange={setHasCrossborderEcommerce}
                 checkedChildren="是" 
                 unCheckedChildren="否"
-                style={{ 
-                  background: hasCrossborderEcommerce ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : undefined
-                }}
               />
             </div>
           </Card>
@@ -1767,48 +2337,48 @@ function EnterpriseDetail() {
             <Space size={16} wrap>
               {(() => {
                 const platformConfigs: Record<string, { name: string; subName: string; letter: string; gradient: string; border: string; shadow: string }> = {
-                  '亚马逊 (Amazon)': { name: '亚马逊', subName: 'Amazon', letter: 'A', gradient: 'linear-gradient(135deg, rgba(250,140,22,0.1) 0%, rgba(250,173,20,0.05) 100%)', border: '1px solid rgba(250,140,22,0.2)', shadow: '0 4px 12px rgba(250,140,22,0.3)' },
-                  '阿里国际站 (Alibaba.com)': { name: '阿里国际站', subName: 'Alibaba.com', letter: '阿', gradient: 'linear-gradient(135deg, rgba(212,56,13,0.1) 0%, rgba(245,87,108,0.05) 100%)', border: '1px solid rgba(212,56,13,0.2)', shadow: '0 4px 12px rgba(212,56,13,0.3)' },
-                  'TikTok Shop': { name: 'TikTok Shop', subName: 'TikTok', letter: 'T', gradient: 'linear-gradient(135deg, rgba(0,0,0,0.1) 0%, rgba(105,201,208,0.05) 100%)', border: '1px solid rgba(0,0,0,0.2)', shadow: '0 4px 12px rgba(0,0,0,0.2)' },
-                  '速卖通 (AliExpress)': { name: '速卖通', subName: 'AliExpress', letter: 'A', gradient: 'linear-gradient(135deg, rgba(255,77,79,0.1) 0%, rgba(255,107,53,0.05) 100%)', border: '1px solid rgba(255,77,79,0.2)', shadow: '0 4px 12px rgba(255,77,79,0.3)' },
-                  'eBay': { name: 'eBay', subName: 'eBay.com', letter: 'E', gradient: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)', border: '1px solid rgba(102,126,234,0.2)', shadow: '0 4px 12px rgba(102,126,234,0.3)' },
-                  '独立站 (Shopify)': { name: '独立站', subName: 'Shopify', letter: '独', gradient: 'linear-gradient(135deg, rgba(67,233,123,0.1) 0%, rgba(56,249,215,0.05) 100%)', border: '1px solid rgba(67,233,123,0.2)', shadow: '0 4px 12px rgba(67,233,123,0.3)' },
-                  'Temu': { name: 'Temu', subName: 'Temu.com', letter: 'T', gradient: 'linear-gradient(135deg, rgba(255,107,53,0.1) 0%, rgba(255,140,22,0.05) 100%)', border: '1px solid rgba(255,107,53,0.2)', shadow: '0 4px 12px rgba(255,107,53,0.3)' },
-                  'SHEIN': { name: 'SHEIN', subName: 'SHEIN.com', letter: 'S', gradient: 'linear-gradient(135deg, rgba(0,0,0,0.1) 0%, rgba(64,64,64,0.05) 100%)', border: '1px solid rgba(0,0,0,0.2)', shadow: '0 4px 12px rgba(0,0,0,0.2)' },
-                  '沃尔玛 (Walmart)': { name: '沃尔玛', subName: 'Walmart', letter: 'W', gradient: 'linear-gradient(135deg, rgba(0,113,220,0.1) 0%, rgba(0,150,255,0.05) 100%)', border: '1px solid rgba(0,113,220,0.2)', shadow: '0 4px 12px rgba(0,113,220,0.3)' },
-                  'Lazada': { name: 'Lazada', subName: 'Lazada.com', letter: 'L', gradient: 'linear-gradient(135deg, rgba(15,76,129,0.1) 0%, rgba(29,161,242,0.05) 100%)', border: '1px solid rgba(15,76,129,0.2)', shadow: '0 4px 12px rgba(15,76,129,0.3)' },
-                  'Shopee': { name: 'Shopee', subName: 'Shopee.com', letter: 'S', gradient: 'linear-gradient(135deg, rgba(238,77,45,0.1) 0%, rgba(255,107,53,0.05) 100%)', border: '1px solid rgba(238,77,45,0.2)', shadow: '0 4px 12px rgba(238,77,45,0.3)' },
-                  'Wish': { name: 'Wish', subName: 'Wish.com', letter: 'W', gradient: 'linear-gradient(135deg, rgba(0,150,199,0.1) 0%, rgba(0,199,190,0.05) 100%)', border: '1px solid rgba(0,150,199,0.2)', shadow: '0 4px 12px rgba(0,150,199,0.3)' },
-                  'Etsy': { name: 'Etsy', subName: 'Etsy.com', letter: 'E', gradient: 'linear-gradient(135deg, rgba(242,101,34,0.1) 0%, rgba(255,140,22,0.05) 100%)', border: '1px solid rgba(242,101,34,0.2)', shadow: '0 4px 12px rgba(242,101,34,0.3)' },
-                  'Wayfair': { name: 'Wayfair', subName: 'Wayfair.com', letter: 'W', gradient: 'linear-gradient(135deg, rgba(124,58,237,0.1) 0%, rgba(139,92,246,0.05) 100%)', border: '1px solid rgba(124,58,237,0.2)', shadow: '0 4px 12px rgba(124,58,237,0.3)' },
-                  'Mercado Libre': { name: 'Mercado Libre', subName: 'MercadoLibre', letter: 'M', gradient: 'linear-gradient(135deg, rgba(255,229,0,0.1) 0%, rgba(255,235,59,0.05) 100%)', border: '1px solid rgba(255,229,0,0.2)', shadow: '0 4px 12px rgba(255,229,0,0.3)' },
-                  '乐天 (Rakuten)': { name: '乐天', subName: 'Rakuten', letter: 'R', gradient: 'linear-gradient(135deg, rgba(191,0,0,0.1) 0%, rgba(220,38,38,0.05) 100%)', border: '1px solid rgba(191,0,0,0.2)', shadow: '0 4px 12px rgba(191,0,0,0.3)' },
-                  '京东国际 (JD Global)': { name: '京东国际', subName: 'JD Global', letter: '京', gradient: 'linear-gradient(135deg, rgba(225,37,27,0.1) 0%, rgba(239,68,68,0.05) 100%)', border: '1px solid rgba(225,37,27,0.2)', shadow: '0 4px 12px rgba(225,37,27,0.3)' },
-                  '其他': { name: '其他', subName: 'Other', letter: '其', gradient: 'linear-gradient(135deg, rgba(156,163,175,0.1) 0%, rgba(209,213,219,0.05) 100%)', border: '1px solid rgba(156,163,175,0.2)', shadow: '0 4px 12px rgba(156,163,175,0.3)' },
+                  '亚马逊 (Amazon)': { name: '亚马逊', subName: 'Amazon', letter: 'A', gradient: 'rgba(250,140,22,0.05)', border: '1px solid rgba(250,140,22,0.2)', shadow: 'none' },
+                  '阿里国际站 (Alibaba.com)': { name: '阿里国际站', subName: 'Alibaba.com', letter: '阿', gradient: 'rgba(212,56,13,0.05)', border: '1px solid rgba(212,56,13,0.2)', shadow: 'none' },
+                  'TikTok Shop': { name: 'TikTok Shop', subName: 'TikTok', letter: 'T', gradient: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.2)', shadow: 'none' },
+                  '速卖通 (AliExpress)': { name: '速卖通', subName: 'AliExpress', letter: 'A', gradient: 'rgba(255,77,79,0.05)', border: '1px solid rgba(255,77,79,0.2)', shadow: 'none' },
+                  'eBay': { name: 'eBay', subName: 'eBay.com', letter: 'E', gradient: 'rgba(102,126,234,0.05)', border: '1px solid rgba(102,126,234,0.2)', shadow: 'none' },
+                  '独立站 (Shopify)': { name: '独立站', subName: 'Shopify', letter: '独', gradient: 'rgba(67,233,123,0.05)', border: '1px solid rgba(67,233,123,0.2)', shadow: 'none' },
+                  'Temu': { name: 'Temu', subName: 'Temu.com', letter: 'T', gradient: 'rgba(255,107,53,0.05)', border: '1px solid rgba(255,107,53,0.2)', shadow: 'none' },
+                  'SHEIN': { name: 'SHEIN', subName: 'SHEIN.com', letter: 'S', gradient: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.2)', shadow: 'none' },
+                  '沃尔玛 (Walmart)': { name: '沃尔玛', subName: 'Walmart', letter: 'W', gradient: 'rgba(0,113,220,0.05)', border: '1px solid rgba(0,113,220,0.2)', shadow: 'none' },
+                  'Lazada': { name: 'Lazada', subName: 'Lazada.com', letter: 'L', gradient: 'rgba(15,76,129,0.05)', border: '1px solid rgba(15,76,129,0.2)', shadow: 'none' },
+                  'Shopee': { name: 'Shopee', subName: 'Shopee.com', letter: 'S', gradient: 'rgba(238,77,45,0.05)', border: '1px solid rgba(238,77,45,0.2)', shadow: 'none' },
+                  'Wish': { name: 'Wish', subName: 'Wish.com', letter: 'W', gradient: 'rgba(0,150,199,0.05)', border: '1px solid rgba(0,150,199,0.2)', shadow: 'none' },
+                  'Etsy': { name: 'Etsy', subName: 'Etsy.com', letter: 'E', gradient: 'rgba(242,101,34,0.05)', border: '1px solid rgba(242,101,34,0.2)', shadow: 'none' },
+                  'Wayfair': { name: 'Wayfair', subName: 'Wayfair.com', letter: 'W', gradient: 'rgba(124,58,237,0.05)', border: '1px solid rgba(124,58,237,0.2)', shadow: 'none' },
+                  'Mercado Libre': { name: 'Mercado Libre', subName: 'MercadoLibre', letter: 'M', gradient: 'rgba(255,229,0,0.05)', border: '1px solid rgba(255,229,0,0.2)', shadow: 'none' },
+                  '乐天 (Rakuten)': { name: '乐天', subName: 'Rakuten', letter: 'R', gradient: 'rgba(191,0,0,0.05)', border: '1px solid rgba(191,0,0,0.2)', shadow: 'none' },
+                  '京东国际 (JD Global)': { name: '京东国际', subName: 'JD Global', letter: '京', gradient: 'rgba(225,37,27,0.05)', border: '1px solid rgba(225,37,27,0.2)', shadow: 'none' },
+                  '其他': { name: '其他', subName: 'Other', letter: '其', gradient: 'rgba(156,163,175,0.05)', border: '1px solid rgba(156,163,175,0.2)', shadow: 'none' },
                 };
                 const iconColors: Record<string, string> = {
-                  '亚马逊 (Amazon)': 'linear-gradient(135deg, #fa8c16 0%, #faad14 100%)',
-                  '阿里国际站 (Alibaba.com)': 'linear-gradient(135deg, #d4380d 0%, #f5222d 100%)',
-                  'TikTok Shop': 'linear-gradient(135deg, #000000 0%, #69c9d0 100%)',
-                  '速卖通 (AliExpress)': 'linear-gradient(135deg, #ff4d4f 0%, #ff6b35 100%)',
-                  'eBay': 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  '独立站 (Shopify)': 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
-                  'Temu': 'linear-gradient(135deg, #ff6b35 0%, #fa8c16 100%)',
-                  'SHEIN': 'linear-gradient(135deg, #000000 0%, #404040 100%)',
-                  '沃尔玛 (Walmart)': 'linear-gradient(135deg, #0071dc 0%, #0096ff 100%)',
-                  'Lazada': 'linear-gradient(135deg, #0f4c81 0%, #1da1f2 100%)',
-                  'Shopee': 'linear-gradient(135deg, #ee4d2d 0%, #ff6b35 100%)',
-                  'Wish': 'linear-gradient(135deg, #0096c7 0%, #00c7be 100%)',
-                  'Etsy': 'linear-gradient(135deg, #f26522 0%, #fa8c16 100%)',
-                  'Wayfair': 'linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%)',
-                  'Mercado Libre': 'linear-gradient(135deg, #ffe500 0%, #ffeb3b 100%)',
-                  '乐天 (Rakuten)': 'linear-gradient(135deg, #bf0000 0%, #dc2626 100%)',
-                  '京东国际 (JD Global)': 'linear-gradient(135deg, #e1251b 0%, #ef4444 100%)',
-                  '其他': 'linear-gradient(135deg, #9ca3af 0%, #d1d5db 100%)',
+                  '亚马逊 (Amazon)': '#fa8c16',
+                  '阿里国际站 (Alibaba.com)': '#d4380d',
+                  'TikTok Shop': '#000000',
+                  '速卖通 (AliExpress)': '#ff4d4f',
+                  'eBay': '#667eea',
+                  '独立站 (Shopify)': '#43e97b',
+                  'Temu': '#ff6b35',
+                  'SHEIN': '#404040',
+                  '沃尔玛 (Walmart)': '#0071dc',
+                  'Lazada': '#0f4c81',
+                  'Shopee': '#ee4d2d',
+                  'Wish': '#0096c7',
+                  'Etsy': '#f26522',
+                  'Wayfair': '#7c3aed',
+                  'Mercado Libre': '#ffeb3b',
+                  '乐天 (Rakuten)': '#dc2626',
+                  '京东国际 (JD Global)': '#e1251b',
+                  '其他': '#9ca3af',
                 };
                 return selectedCrossborderPlatforms.map((platform) => {
-                  const config = platformConfigs[platform] || { name: platform, subName: '', letter: platform.charAt(0), gradient: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)', border: '1px solid rgba(102,126,234,0.2)', shadow: '0 4px 12px rgba(102,126,234,0.3)' };
-                  const iconColor = iconColors[platform] || 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+                  const config = platformConfigs[platform] || { name: platform, subName: '', letter: platform.charAt(0), gradient: 'rgba(102,126,234,0.05)', border: '1px solid rgba(102,126,234,0.2)', shadow: 'none' };
+                  const iconColor = iconColors[platform] || '#667eea';
                   return (
                     <div key={platform} style={{ 
                       padding: '16px 20px', 
@@ -1853,47 +2423,68 @@ function EnterpriseDetail() {
           >
             <Row gutter={[16, 16]}>
               <Col span={6}>
-                <div style={{ padding: '14px', background: 'linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.05) 100%)', borderRadius: 10 }}>
+                <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>跨境业务占比</Text>
-                  <div style={{ fontWeight: 700, color: '#667eea', fontSize: 18 }}>{enterprise.cross_border_ratio ? `${enterprise.cross_border_ratio}%` : '-'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>
+                    {enterprise.cross_border_ratio ? (
+                      <>
+                        {enterprise.cross_border_ratio}
+                        <span style={{ fontSize: 14, fontWeight: 500, color: '#666' }}>%</span>
+                      </>
+                    ) : (
+                      '-'
+                    )}
+                  </div>
                 </div>
               </Col>
               <Col span={6}>
-                <div style={{ padding: '14px', background: '#fafbfc', borderRadius: 10 }}>
+                <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>跨境物流模式</Text>
-                  <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.cross_border_logistics || '-'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>{enterprise.cross_border_logistics || '-'}</div>
                 </div>
               </Col>
               <Col span={6}>
-                <div style={{ padding: '14px', background: '#fafbfc', borderRadius: 10 }}>
+                <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>支付结算方式</Text>
-                  <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.payment_settlement || '-'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>{enterprise.payment_settlement || '-'}</div>
                 </div>
               </Col>
               <Col span={6}>
-                <div style={{ padding: '14px', background: '#fafbfc', borderRadius: 10 }}>
+                <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>跨境电商团队规模</Text>
-                  <div style={{ fontWeight: 700, color: '#667eea', fontSize: 16 }}>{enterprise.cross_border_team_size != null ? <>{enterprise.cross_border_team_size}<span style={{ fontSize: 12, fontWeight: 500, color: '#888' }}> 人</span></> : '-'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>
+                    {enterprise.cross_border_team_size != null ? (
+                      <>
+                        {enterprise.cross_border_team_size}
+                        <span style={{ fontSize: 14, fontWeight: 500, color: '#666' }}> 人</span>
+                      </>
+                    ) : (
+                      '-'
+                    )}
+                  </div>
                 </div>
               </Col>
               <Col span={6}>
-                <div style={{ padding: '14px', background: '#fafbfc', borderRadius: 10 }}>
+                <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否在用ERP</Text>
-                  <div style={{ fontWeight: 600, color: '#333' }}>{enterprise.using_erp != null ? (enterprise.using_erp ? '是' : '否') : '-'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>
+                    {enterprise.using_erp != null ? (enterprise.using_erp ? '是' : '否') : '-'}
+                  </div>
                 </div>
               </Col>
               <Col span={6}>
-                <div style={{ padding: '14px', background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.05) 100%)', borderRadius: 10 }}>
+                <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>跨境转型意愿</Text>
-                  <div style={{ fontWeight: 600, color: '#43e97b' }}>{enterprise.transformation_willingness || '-'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>{enterprise.transformation_willingness || '-'}</div>
                 </div>
               </Col>
               <Col span={6}>
-                <div style={{ padding: '14px', background: 'linear-gradient(135deg, rgba(67,233,123,0.08) 0%, rgba(56,249,215,0.05) 100%)', borderRadius: 10 }}>
+                <div style={{ padding: '16px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>愿意投入转型程度</Text>
-                  <div style={{ fontWeight: 600, color: '#43e97b' }}>{enterprise.investment_willingness || '-'}</div>
+                  <div style={{ fontSize: 14, fontWeight: 500, color: '#333', lineHeight: 1.5 }}>{enterprise.investment_willingness || '-'}</div>
                 </div>
               </Col>
+              <Col span={6} />
             </Row>
           </Card>
 
@@ -1994,8 +2585,24 @@ function EnterpriseDetail() {
 
           {/* 需求清单展示区域 */}
           {(() => {
-            const result = calculateRequirements(dimensionSelections);
-            const isNotRemoved = (req: RequirementItem) => !removedRequirements.includes(req.id);
+            if (!reqConfig) return <Spin style={{ padding: 32, display: 'block', textAlign: 'center' }} />;
+            const { requirements: dbRequirements, universalRequiredIds, universalEnhancedIds, dimensionRequirementMapping } = reqConfig;
+            const requirementIds = new Set<string>(universalRequiredIds);
+            Object.entries(dimensionSelections).forEach(([dimKey, selectedValues]) => {
+              if (!selectedValues || selectedValues.length === 0) return;
+              const dimMapping = dimensionRequirementMapping[dimKey];
+              if (!dimMapping) return;
+              selectedValues.forEach(v => { const ids = dimMapping[v]; if (ids) ids.forEach(id => requirementIds.add(id)); });
+            });
+            const universalSet = new Set(universalRequiredIds);
+            const enhancedSet = new Set(universalEnhancedIds);
+            const result = {
+              universal: dbRequirements.filter(r => universalSet.has(r.id)),
+              enhanced: dbRequirements.filter(r => enhancedSet.has(r.id)),
+              dimensional: dbRequirements.filter(r => requirementIds.has(r.id) && !universalSet.has(r.id) && !enhancedSet.has(r.id)),
+              all: dbRequirements.filter(r => requirementIds.has(r.id)),
+            };
+            const isNotRemoved = (req: RequirementItem | typeof dbRequirements[0]) => !removedRequirements.includes(req.id);
             const filteredUniversal = result.universal.filter(isNotRemoved);
             const filteredEnhanced = result.enhanced.filter(isNotRemoved);
             const filteredAll = result.all.filter(isNotRemoved);
@@ -2111,7 +2718,8 @@ function EnterpriseDetail() {
                     <Col span={6}>
                       <div style={{
                         padding: '16px',
-                        background: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)',
+                        background: 'rgba(102,126,234,0.05)',
+                        border: '1px solid rgba(102,126,234,0.2)',
                         borderRadius: 10,
                         textAlign: 'center'
                       }}>
@@ -2124,7 +2732,8 @@ function EnterpriseDetail() {
                     <Col span={6}>
                       <div style={{
                         padding: '16px',
-                        background: 'linear-gradient(135deg, rgba(67,233,123,0.1) 0%, rgba(56,249,215,0.05) 100%)',
+                        background: 'rgba(67,233,123,0.05)',
+                        border: '1px solid rgba(67,233,123,0.2)',
                         borderRadius: 10,
                         textAlign: 'center'
                       }}>
@@ -2137,7 +2746,8 @@ function EnterpriseDetail() {
                     <Col span={6}>
                       <div style={{
                         padding: '16px',
-                        background: 'linear-gradient(135deg, rgba(249,115,22,0.1) 0%, rgba(251,191,36,0.05) 100%)',
+                        background: 'rgba(249,115,22,0.05)',
+                        border: '1px solid rgba(249,115,22,0.2)',
                         borderRadius: 10,
                         textAlign: 'center'
                       }}>
@@ -2150,7 +2760,8 @@ function EnterpriseDetail() {
                     <Col span={6}>
                       <div style={{
                         padding: '16px',
-                        background: 'linear-gradient(135deg, rgba(139,92,246,0.1) 0%, rgba(168,85,247,0.05) 100%)',
+                        background: 'rgba(139,92,246,0.05)',
+                        border: '1px solid rgba(139,92,246,0.2)',
                         borderRadius: 10,
                         textAlign: 'center'
                       }}>
@@ -2172,13 +2783,22 @@ function EnterpriseDetail() {
                     '品牌深耕与持续优化': { bg: 'rgba(139,92,246,0.08)', text: '#8b5cf6', border: 'rgba(139,92,246,0.2)' },
                   };
                   
+                  // 所有匹配的需求（含已移除），用于判断阶段是否应显示
+                  const allMatchedByPhase: Record<string, Array<RequirementItem | typeof dbRequirements[0]>> = {};
+                  [...new Set([...result.universal, ...result.enhanced, ...result.all])].forEach(req => {
+                    if (!allMatchedByPhase[req.phase]) allMatchedByPhase[req.phase] = [];
+                    if (!allMatchedByPhase[req.phase].some(r => r.id === req.id)) allMatchedByPhase[req.phase].push(req);
+                  });
+
                   const phaseItems = phases.map(phase => {
                     const phaseRequirements = groupedByPhase[phase] || [];
-                    if (phaseRequirements.length === 0) return null;
+                    const allPhaseReqs = allMatchedByPhase[phase] || [];
+                    const removedInPhase = allPhaseReqs.filter(r => removedRequirements.includes(r.id));
+                    if (allPhaseReqs.length === 0) return null;
                     
                     const colors = phaseColors[phase] || phaseColors['战略规划与资源准备'];
                     
-                    // 按分类分组
+                    // 按分类分组（仅显示未移除的）
                     const categories: Record<string, RequirementItem[]> = {};
                     phaseRequirements.forEach((req: RequirementItem) => {
                       if (!categories[req.category]) {
@@ -2205,6 +2825,30 @@ function EnterpriseDetail() {
                           <Text type="secondary" style={{ fontSize: 13 }}>
                             共 {phaseRequirements.length} 项需求
                           </Text>
+                          {removedInPhase.length > 0 && (
+                            <Popconfirm
+                              title={`恢复「${phase}」下全部 ${removedInPhase.length} 项已移除需求？`}
+                              onConfirm={(e) => {
+                                e?.stopPropagation();
+                                const idsToRestore = new Set(removedInPhase.map(r => r.id));
+                                const newRemoved = removedRequirements.filter(id => !idsToRestore.has(id));
+                                setRemovedRequirements(newRemoved);
+                                saveEnterpriseFields({ removedRequirements: newRemoved }, `已恢复「${phase}」的 ${removedInPhase.length} 项需求`);
+                              }}
+                              onCancel={(e) => e?.stopPropagation()}
+                              okText="确定恢复"
+                              cancelText="取消"
+                            >
+                              <Button
+                                size="small"
+                                type="link"
+                                style={{ color: colors.text, fontSize: 12 }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                恢复已移除 ({removedInPhase.length})
+                              </Button>
+                            </Popconfirm>
+                          )}
                         </div>
                       ),
                       children: (
@@ -2383,7 +3027,7 @@ function EnterpriseDetail() {
                       size="small" 
                       icon={<PlusOutlined />}
                       onClick={() => setIsCustomRequirementModalOpen(true)}
-                      style={{ borderRadius: 6, background: 'linear-gradient(135deg, #fa8c16 0%, #faad14 100%)', border: 'none' }}
+                      style={{ borderRadius: 6 }}
                     >
                       添加需求
                     </Button>
@@ -2592,16 +3236,25 @@ function EnterpriseDetail() {
               <Col span={8}>
                 <div style={{ padding: '14px 16px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>是否享受过政策支持</Text>
-                  <span style={{ padding: '4px 12px', background: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', borderRadius: 20, color: '#fff', fontWeight: 500, fontSize: 12 }}>是</span>
+                  <span style={{ color: '#333', fontWeight: 400, fontSize: 14 }}>
+                    {enterprise.has_policy_support === 1 || enterprise.has_policy_support === true ? '是' : '否'}
+                  </span>
                 </div>
               </Col>
               <Col span={16}>
                 <div style={{ padding: '14px 16px', background: '#fafbfc', borderRadius: 10 }}>
                   <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 6 }}>已享受政策</Text>
-                  <Space size={8}>
-                    <span style={{ padding: '4px 12px', background: 'linear-gradient(135deg, rgba(67,233,123,0.15) 0%, rgba(56,249,215,0.1) 100%)', borderRadius: 6, color: '#389e0d', fontWeight: 500, fontSize: 12 }}>跨境电商扶持资金</span>
-                    <span style={{ padding: '4px 12px', background: 'linear-gradient(135deg, rgba(102,126,234,0.15) 0%, rgba(118,75,162,0.1) 100%)', borderRadius: 6, color: '#667eea', fontWeight: 500, fontSize: 12 }}>外贸稳增长补贴</span>
-                  </Space>
+                  {Array.isArray(enterprise.enjoyed_policies) && enterprise.enjoyed_policies.length > 0 ? (
+                    <Space size={8} wrap>
+                      {enterprise.enjoyed_policies.map((code: string) => (
+                        <Tag key={code} style={{ margin: 0, fontWeight: 400, fontSize: 14 }}>
+                          {labelForEnjoyedPolicyValue(String(code))}
+                        </Tag>
+                      ))}
+                    </Space>
+                  ) : (
+                    <span style={{ color: '#333', fontWeight: 400, fontSize: 14 }}>-</span>
+                  )}
                 </div>
               </Col>
             </Row>
@@ -2625,7 +3278,7 @@ function EnterpriseDetail() {
                   checkedChildren="已合作" 
                   unCheckedChildren="未合作"
                   style={{ 
-                    background: isCooperating ? 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)' : 'linear-gradient(135deg, #ff6b6b 0%, #ffa07a 100%)'
+                    background: isCooperating ? '#43e97b' : '#ff6b6b'
                   }}
                 />
               </div>
@@ -2909,7 +3562,7 @@ function EnterpriseDetail() {
               borderRadius: 12,
               border: 'none',
               boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
-              background: 'linear-gradient(135deg, rgba(102,126,234,0.06) 0%, rgba(118,75,162,0.03) 100%)',
+              background: 'rgba(102,126,234,0.05)',
             }}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -2967,7 +3620,7 @@ function EnterpriseDetail() {
               borderRadius: 12, 
               border: isSurveyed ? '1px solid rgba(102,126,234,0.3)' : 'none', 
               boxShadow: isSurveyed ? '0 4px 12px rgba(102,126,234,0.15)' : '0 2px 8px rgba(0,0,0,0.04)',
-              background: isSurveyed ? 'linear-gradient(135deg, rgba(102,126,234,0.05) 0%, rgba(118,75,162,0.02) 100%)' : '#fff',
+              background: isSurveyed ? 'rgba(102,126,234,0.05)' : '#fff',
               transition: 'all 0.3s ease'
             }}
           >
@@ -3021,7 +3674,7 @@ function EnterpriseDetail() {
                     <div 
                       style={{ 
                         padding: '16px',
-                        background: isSelected ? 'linear-gradient(135deg, rgba(102,126,234,0.15) 0%, rgba(118,75,162,0.1) 100%)' : '#fafafa',
+                        background: isSelected ? 'rgba(102,126,234,0.1)' : '#fafafa',
                         border: isSelected ? '2px solid #667eea' : '1px solid #f0f0f0',
                         borderRadius: 10,
                         cursor: 'pointer',
@@ -3049,7 +3702,7 @@ function EnterpriseDetail() {
             />
           </Card>
 
-          {/* 当前面临风险 */}
+          {/* 当前面临风险（库字段 current_risk_tags + risk_description） */}
           <Card 
             title={<span style={{ fontWeight: 600, fontSize: 15 }}>当前面临风险</span>}
             size="small" 
@@ -3057,41 +3710,70 @@ function EnterpriseDetail() {
             headStyle={{ borderBottom: '1px solid #f5f5f5' }}
             extra={<Button type="link" size="small" icon={<EditOutlined />} style={{ fontWeight: 500 }} onClick={() => setIsRiskModalOpen(true)}>编辑</Button>}
           >
-            <Space direction="vertical" style={{ width: '100%' }} size={12}>
-              {[
-                { icon: <AlertOutlined />, title: '原材料价格波动风险', desc: '近期钢材、塑料等原材料价格波动较大，影响生产成本', level: 'high', color: '#f5222d', gradient: 'rgba(245,34,45,0.08)' },
-                { icon: <WarningOutlined />, title: '跨境物流成本上涨', desc: '国际运费持续高位运行，压缩利润空间', level: 'medium', color: '#fa8c16', gradient: 'rgba(250,140,22,0.08)' },
-                { icon: <WarningOutlined />, title: '人才流失风险', desc: '跨境电商运营人才稀缺，存在核心员工流失风险', level: 'low', color: '#faad14', gradient: 'rgba(250,173,20,0.08)' },
-              ].map((item, idx) => (
-                <div key={idx} style={{ 
-                  padding: '16px 20px',
-                  background: `linear-gradient(135deg, ${item.gradient} 0%, transparent 100%)`,
-                  borderRadius: 12,
-                  border: `1px solid ${item.color}20`,
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 14
-                }}>
-                  <div style={{ 
-                    width: 36, 
-                    height: 36, 
-                    borderRadius: 10, 
-                    background: '#fff',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    fontSize: 18,
-                    color: item.color,
-                    boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
-                    flexShrink: 0
-                  }}>{item.icon}</div>
-                  <div>
-                    <Text strong style={{ color: item.color, fontSize: 14 }}>{item.title}</Text>
-                    <div style={{ fontSize: 12, color: '#666', marginTop: 4 }}>{item.desc}</div>
+            {(() => {
+              const riskTags = Array.isArray(enterprise.current_risk_tags) ? enterprise.current_risk_tags : [];
+              const riskDesc = (enterprise.risk_description && String(enterprise.risk_description).trim()) || '';
+              const palette = [
+                { icon: <AlertOutlined />, color: '#f5222d', gradient: 'rgba(245,34,45,0.08)' },
+                { icon: <WarningOutlined />, color: '#fa8c16', gradient: 'rgba(250,140,22,0.08)' },
+                { icon: <WarningOutlined />, color: '#faad14', gradient: 'rgba(250,173,20,0.08)' },
+              ];
+              if (riskTags.length === 0 && !riskDesc) {
+                return (
+                  <div style={{ textAlign: 'center', padding: '28px 0', color: '#999', fontSize: 13 }}>
+                    暂无记录，点击「编辑」维护当前面临风险
                   </div>
-                </div>
-              ))}
-            </Space>
+                );
+              }
+              return (
+                <Space direction="vertical" style={{ width: '100%' }} size={12}>
+                  {riskTags.map((title: string, idx: number) => {
+                    const item = palette[idx % palette.length];
+                    return (
+                      <div
+                        key={`${title}-${idx}`}
+                        style={{
+                          padding: '16px 20px',
+                          background: `linear-gradient(135deg, ${item.gradient} 0%, transparent 100%)`,
+                          borderRadius: 12,
+                          border: `1px solid ${item.color}20`,
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: 14,
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: 36,
+                            height: 36,
+                            borderRadius: 10,
+                            background: '#fff',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: 18,
+                            color: item.color,
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
+                            flexShrink: 0,
+                          }}
+                        >
+                          {item.icon}
+                        </div>
+                        <div>
+                          <Text strong style={{ color: item.color, fontSize: 14 }}>{title}</Text>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {riskDesc ? (
+                    <div style={{ padding: '14px 18px', background: '#fafafa', borderRadius: 10, border: '1px solid #f0f0f0' }}>
+                      <Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 8 }}>补充说明</Text>
+                      <div style={{ fontSize: 13, color: '#444', whiteSpace: 'pre-wrap' }}>{riskDesc}</div>
+                    </div>
+                  ) : null}
+                </Space>
+              );
+            })()}
           </Card>
           </div>
         </div>
@@ -3461,19 +4143,6 @@ function EnterpriseDetail() {
                 />
               </Form.Item>
             </Col>
-            <Form.Item noStyle shouldUpdate={(prev, cur) => prev.stage_after !== cur.stage_after}>
-              {({ getFieldValue }) => {
-                const stageAfter = getFieldValue('stage_after');
-                const signedStages = ['SIGNED', 'SETTLED', 'INCUBATING'];
-                return signedStages.includes(stageAfter) ? (
-                  <Col span={24}>
-                    <Form.Item name="service_provider" label="合作服务商">
-                      <Input placeholder="请输入合作服务商..." />
-                    </Form.Item>
-                  </Col>
-                ) : null;
-              }}
-            </Form.Item>
             <Col span={24}>
               <Form.Item name="next_step" label="下一步计划">
                 <Input placeholder="请输入下一步计划..." />
@@ -3588,13 +4257,24 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="domestic_revenue_id" label="国内营收(万元)">
-                <Select placeholder="请选择" options={domesticRevenueOptions} allowClear />
+              <Form.Item name="domestic_revenue_wan" label="国内营收(万元)">
+                <InputNumber min={0} style={{ width: '100%' }} placeholder="请输入具体金额（万元）" />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="crossborder_revenue_wan" label="跨境营收(万元)">
                 <InputNumber min={0} style={{ width: '100%' }} placeholder="请输入数字" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="hasImportExportLicense" label="进出口经营权">
+                <Select
+                  allowClear={false}
+                  options={[
+                    { label: '有', value: true },
+                    { label: '无', value: false },
+                  ]}
+                />
               </Form.Item>
             </Col>
             <Col span={12}>
@@ -3617,11 +4297,7 @@ function EnterpriseDetail() {
             </Col>
             <Col span={12}>
               <Form.Item name="aeo_certification" label="AEO认证等级">
-                <Select placeholder="请选择" allowClear options={[
-                  { label: '高级认证', value: '高级认证' },
-                  { label: '一般认证', value: '一般认证' },
-                  { label: '无', value: '无' },
-                ]} />
+                <Input placeholder="如：高级认证、一般认证" />
               </Form.Item>
             </Col>
             <Col span={24}>
@@ -3782,89 +4458,21 @@ function EnterpriseDetail() {
             </Col>
             <Col span={12}>
               <Form.Item name="category" label="产品品类">
-                <Cascader 
+                <Cascader
                   placeholder="请选择产品品类"
-                  options={[
-                    {
-                      value: 1,
-                      label: '园艺工具',
-                      children: [
-                        {
-                          value: 101,
-                          label: '园艺手工具',
-                          children: [
-                            { value: 10101, label: '铲子' },
-                            { value: 10102, label: '剪刀' },
-                            { value: 10103, label: '耙子' },
-                            { value: 10104, label: '锄头' },
-                          ]
-                        },
-                        { value: 102, label: '园艺电动工具' },
-                        { value: 103, label: '园艺装饰品' },
-                        { value: 104, label: '花盆花器' },
-                        { value: 105, label: '灌溉设备' },
-                      ]
-                    },
-                    {
-                      value: 2,
-                      label: '电动工具',
-                      children: [
-                        { value: 201, label: '电钻' },
-                        { value: 202, label: '电锯' },
-                        { value: 203, label: '角磨机' },
-                        { value: 204, label: '电动扳手' },
-                        { value: 205, label: '抛光机' },
-                      ]
-                    },
-                    {
-                      value: 3,
-                      label: '家居用品',
-                      children: [
-                        { value: 301, label: '厨房用品' },
-                        { value: 302, label: '卫浴用品' },
-                        { value: 303, label: '收纳整理' },
-                        { value: 304, label: '家居装饰' },
-                        { value: 305, label: '清洁用品' },
-                      ]
-                    },
-                    {
-                      value: 4,
-                      label: '户外运动',
-                      children: [
-                        { value: 401, label: '露营装备' },
-                        { value: 402, label: '运动器材' },
-                        { value: 403, label: '户外服装' },
-                        { value: 404, label: '登山装备' },
-                      ]
-                    },
-                    {
-                      value: 6,
-                      label: '电子产品',
-                      children: [
-                        { value: 601, label: '消费电子' },
-                        { value: 602, label: '智能硬件' },
-                        { value: 603, label: '电子配件' },
-                        { value: 604, label: '照明产品' },
-                      ]
-                    },
-                  ]}
+                  options={productCascaderOptions}
                   showSearch
+                  changeOnSelect
                 />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="certifications" label="产品认证">
+              <Form.Item name="certification_ids" label="产品认证">
                 <Select
                   mode="multiple"
-                  placeholder="请选择产品认证"
-                  options={[
-                    { label: 'CE认证', value: 'CE认证' },
-                    { label: 'SGS认证', value: 'SGS认证' },
-                    { label: 'ISO9001', value: 'ISO9001' },
-                    { label: 'FDA认证', value: 'FDA认证' },
-                    { label: 'UL认证', value: 'UL认证' },
-                    { label: 'RoHS认证', value: 'RoHS认证' },
-                  ]}
+                  placeholder="请选择产品认证（字典 certification，保存为选项 ID）"
+                  options={certificationOptions}
+                  allowClear
                 />
               </Form.Item>
             </Col>
@@ -3875,38 +4483,30 @@ function EnterpriseDetail() {
             </Col>
             <Col span={12}>
               <Form.Item name="export_ratio" label="出口占比">
-                <Input placeholder="如 60%" />
+                <Input placeholder="如 60" suffix="%" />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="profit_margin" label="利润率">
-                <Input placeholder="如 15-20%" />
+                <Input placeholder="如 15 或 15-20" suffix="%" />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="target_regions" label="主要销售区域">
+              <Form.Item name="target_region_ids" label="主要销售区域">
                 <Select
                   mode="multiple"
-                  placeholder="请选择销售区域"
-                  options={[
-                    { label: '北美', value: '北美' },
-                    { label: '欧洲', value: '欧洲' },
-                    { label: '东南亚', value: '东南亚' },
-                    { label: '东亚', value: '东亚' },
-                    { label: '南亚', value: '南亚' },
-                    { label: '中东', value: '中东' },
-                    { label: '非洲', value: '非洲' },
-                    { label: '南美', value: '南美' },
-                    { label: '大洋洲', value: '大洋洲' },
-                  ]}
+                  placeholder="请选择销售区域（字典 region）"
+                  options={regionOptions}
+                  allowClear
                 />
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="target_countries" label="主要销售国家">
+              <Form.Item name="target_country_ids" label="主要销售国家">
                 <Select
-                  mode="multiple"
-                  placeholder="请选择销售国家"
+                  mode="tags"
+                  placeholder="输入或选择国家/地区名称"
+                  allowClear
                   options={[
                     { label: '美国', value: '美国' },
                     { label: '加拿大', value: '加拿大' },
@@ -3935,15 +4535,11 @@ function EnterpriseDetail() {
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="automation_level" label="设备自动化程度">
+                <Form.Item name="automation_level_id" label="设备自动化程度">
                   <Select
-                    placeholder="请选择"
-                    options={[
-                      { label: '低（<30%）', value: '低（<30%）' },
-                      { label: '中（30%-60%）', value: '中（30%-60%）' },
-                      { label: '高（60%-80%）', value: '高（60%-80%）' },
-                      { label: '很高（>80%）', value: '很高（>80%）' },
-                    ]}
+                    placeholder="请选择（字典 automation_level）"
+                    options={automationLevelOptionsProduct}
+                    allowClear
                   />
                 </Form.Item>
               </Col>
@@ -3953,19 +4549,12 @@ function EnterpriseDetail() {
                 </Form.Item>
               </Col>
               <Col span={12}>
-                <Form.Item name="logistics_partners" label="物流合作方">
+                <Form.Item name="logistics_partner_ids" label="物流合作方">
                   <Select
                     mode="multiple"
-                    placeholder="请选择物流合作方"
-                    options={[
-                      { label: 'DHL', value: 'DHL' },
-                      { label: 'UPS', value: 'UPS' },
-                      { label: 'FedEx', value: 'FedEx' },
-                      { label: '顺丰', value: '顺丰' },
-                      { label: '中通', value: '中通' },
-                      { label: '圆通', value: '圆通' },
-                      { label: '韵达', value: '韵达' },
-                    ]}
+                    placeholder="请选择物流合作方（字典 logistics）"
+                    options={logisticsOptionsProduct}
+                    allowClear
                   />
                 </Form.Item>
               </Col>
@@ -3988,7 +4577,7 @@ function EnterpriseDetail() {
         width={500}
       >
         <Form form={brandForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item name="has_brand" label="是否有自主品牌" valuePropName="checked">
+          <Form.Item name="has_brand" label="是否有自主品牌">
             <Select
               options={[
                 { label: '是', value: true },
@@ -4027,59 +4616,90 @@ function EnterpriseDetail() {
           <Form.Item name="patent_no" label="专利号">
             <Input placeholder="如：ZL2023XXXXXXXX.X" />
           </Form.Item>
-          <Form.Item name="type" label="专利类型">
-            <Select
-              placeholder="请选择专利类型"
-              options={[
-                { label: '发明专利', value: '发明专利' },
-                { label: '实用新型', value: '实用新型' },
-                { label: '外观设计', value: '外观设计' },
-                { label: '核心技术', value: '核心技术' },
-              ]}
-            />
-          </Form.Item>
         </Form>
       </Modal>
 
-      {/* 产品信息编辑模态框（销售区域+国家+进出口资质） */}
+      {/* 产品信息编辑模态框（企业级销售区域/国家/进出口资质；品类与认证等见产品列表） */}
       <Modal
         title="编辑产品信息"
         open={isProductOverviewModalOpen}
         afterOpenChange={(open) => {
           if (open && enterprise) {
+            const regionIds =
+              Array.isArray(enterprise.target_region_ids) && enterprise.target_region_ids.length > 0
+                ? enterprise.target_region_ids
+                : Array.isArray(enterprise.targetRegionIds)
+                  ? enterprise.targetRegionIds
+                  : [];
+            const countryIds =
+              Array.isArray(enterprise.target_country_ids) && enterprise.target_country_ids.length > 0
+                ? enterprise.target_country_ids
+                : Array.isArray(enterprise.targetCountryIds)
+                  ? enterprise.targetCountryIds
+                  : [];
+            const lic = enterprise.has_import_export_license;
+            const hasLicense =
+              lic === true || lic === 1 || lic === '1' || enterprise.hasImportExportLicense === true || enterprise.hasImportExportLicense === 1;
             productOverviewForm.setFieldsValue({
-              targetRegionIds: enterprise.target_region_ids || [],
-              targetCountryIds: enterprise.target_country_ids || [],
-              hasImportExportLicense: enterprise.has_import_export_license === 1 || enterprise.has_import_export_license === true,
+              targetRegionIds: regionIds,
+              targetCountryIds: countryIds,
+              hasImportExportLicense: hasLicense,
             });
+          }
+          if (!open) {
+            productOverviewForm.resetFields();
           }
         }}
         onOk={async () => {
-          const values = productOverviewForm.getFieldsValue();
-          const ok = await saveEnterpriseFields({
-            targetRegionIds: values.targetRegionIds,
-            targetCountryIds: values.targetCountryIds,
-            hasImportExportLicense: values.hasImportExportLicense ? 1 : 0,
-          }, '产品信息更新成功');
+          const values = productOverviewForm.getFieldsValue(true);
+          const fallbackRegions = enterprise.target_region_ids || enterprise.targetRegionIds || [];
+          const fallbackCountries = enterprise.target_country_ids || enterprise.targetCountryIds || [];
+          const targetRegionIds = Array.isArray(values.targetRegionIds)
+            ? values.targetRegionIds
+            : fallbackRegions;
+          const targetCountryIds = Array.isArray(values.targetCountryIds)
+            ? values.targetCountryIds
+            : fallbackCountries;
+          let licVal = values.hasImportExportLicense;
+          if (licVal === undefined || licVal === null) {
+            const lic = enterprise.has_import_export_license;
+            licVal = lic === true || lic === 1 || lic === '1';
+          }
+          const ok = await saveEnterpriseFields(
+            {
+              targetRegionIds,
+              targetCountryIds,
+              hasImportExportLicense: licVal ? 1 : 0,
+            },
+            '产品信息更新成功'
+          );
           if (ok) setIsProductOverviewModalOpen(false);
         }}
         onCancel={() => setIsProductOverviewModalOpen(false)}
         okText="保存"
         cancelText="取消"
-        width={600}
+        width={640}
       >
         <Form form={productOverviewForm} layout="vertical" style={{ marginTop: 16 }}>
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message="说明"
+            description="本弹窗仅三项，与上方「产品总体概览」第一组字段一一对应：主要销售区域、主要销售国家、是否有进出口资质。产品数量、产品品类、年销售额合计、产品认证、物流合作方由下方「产品列表」自动汇总，请在列表中「添加产品」或「编辑」维护。"
+          />
           <Row gutter={16}>
-            <Col span={12}>
+            <Col span={24}>
               <Form.Item name="targetRegionIds" label="主要销售区域">
-                <Select mode="multiple" placeholder="请选择销售区域" options={regionOptions} />
+                <Select mode="multiple" placeholder="请选择销售区域" options={regionOptions} allowClear />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={24}>
               <Form.Item name="targetCountryIds" label="主要销售国家">
                 <Select
                   mode="multiple"
                   placeholder="请选择销售国家"
+                  allowClear
                   options={[
                     { label: '美国', value: '美国' }, { label: '加拿大', value: '加拿大' },
                     { label: '英国', value: '英国' }, { label: '德国', value: '德国' },
@@ -4092,9 +4712,12 @@ function EnterpriseDetail() {
                 />
               </Form.Item>
             </Col>
-            <Col span={12}>
+            <Col span={24}>
               <Form.Item name="hasImportExportLicense" label="是否有进出口资质">
-                <Select options={[{ label: '是', value: true }, { label: '否', value: false }]} />
+                <Select
+                  allowClear={false}
+                  options={[{ label: '是', value: true }, { label: '否', value: false }]}
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -4113,24 +4736,33 @@ function EnterpriseDetail() {
               tradeTeamModeId: enterprise.trade_team_mode_id,
               tradeTeamSize: enterprise.trade_team_size,
               hasDomesticEcommerce: enterprise.has_domestic_ecommerce === 1,
+              hasOverseasDistributors: !!enterprise.has_overseas_distributors,
             });
           }
         }}
         onOk={async () => {
           const values = tradeForm.getFieldsValue();
+          const rawSize = values.tradeTeamSize;
+          const tradeTeamSize =
+            rawSize === undefined || rawSize === null || rawSize === ''
+              ? null
+              : Number(rawSize);
           const ok = await saveEnterpriseFields({
             tradeModeId: values.tradeModeId,
             customsDeclarationMode: values.customsDeclarationMode,
             tradeTeamModeId: values.tradeTeamModeId,
-            tradeTeamSize: values.tradeTeamSize ? Number(values.tradeTeamSize) : null,
+            tradeTeamSize: Number.isFinite(tradeTeamSize as number) ? tradeTeamSize : null,
             hasDomesticEcommerce: values.hasDomesticEcommerce ? 1 : 0,
+            hasOverseasDistributors: values.hasOverseasDistributors ? 1 : 0,
             marketChanges: marketChanges,
             modeChanges: modeChanges,
             categoryChanges: categoryChanges,
             growthReasons: growthReasons,
             declineReasons: declineReasons,
           }, '外贸信息更新成功');
-          if (ok) setIsTradeModalOpen(false);
+          if (ok) {
+            setIsTradeModalOpen(false);
+          }
         }}
         onCancel={() => setIsTradeModalOpen(false)}
         okText="保存"
@@ -4161,6 +4793,11 @@ function EnterpriseDetail() {
             </Col>
             <Col span={12}>
               <Form.Item name="hasDomesticEcommerce" label="是否有国内电商经验">
+                <Select options={[{ label: '是', value: true }, { label: '否', value: false }]} />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="hasOverseasDistributors" label="是否有海外分销商">
                 <Select options={[{ label: '是', value: true }, { label: '否', value: false }]} />
               </Form.Item>
             </Col>
@@ -4281,43 +4918,49 @@ function EnterpriseDetail() {
       <Modal
         title={editingTradeChange ? '编辑' : '添加'}
         open={isTradeChangeModalOpen}
+        confirmLoading={tradeChangeSaving}
         onOk={() => {
-          tradeChangeForm.validateFields().then(values => {
+          tradeChangeForm.validateFields().then(async (values) => {
+            let nextM = marketChanges;
+            let nextMo = modeChanges;
+            let nextC = categoryChanges;
+            const dir = tradeChangeDirection;
+            const rateRaw = String(values.rate ?? '').trim();
+            const rateNormalized = rateRaw.endsWith('%') ? rateRaw : `${rateRaw}%`;
+
             if (tradeChangeType === 'market') {
-              const newItem = { type: values.type || 'region', name: values.name, rate: values.rate };
+              const newItem = { type: values.type || 'region', name: values.name, rate: rateNormalized };
               if (editingTradeChange) {
-                setMarketChanges(prev => ({
-                  ...prev,
-                  [tradeChangeDirection]: prev[tradeChangeDirection].map(item => 
-                    item.name === editingTradeChange.name ? newItem : item
-                  )
-                }));
+                nextM = {
+                  ...marketChanges,
+                  [dir]: marketChanges[dir].map((item) =>
+                    item.name === editingTradeChange.name ? newItem : item,
+                  ),
+                };
               } else {
-                setMarketChanges(prev => ({
-                  ...prev,
-                  [tradeChangeDirection]: [...prev[tradeChangeDirection], newItem]
-                }));
+                nextM = {
+                  ...marketChanges,
+                  [dir]: [...marketChanges[dir], newItem],
+                };
               }
             } else if (tradeChangeType === 'mode') {
-              const newItem = { name: values.name, rate: values.rate };
+              const newItem = { name: values.name, rate: rateNormalized };
               if (editingTradeChange) {
-                setModeChanges(prev => ({
-                  ...prev,
-                  [tradeChangeDirection]: prev[tradeChangeDirection].map(item => 
-                    item.name === editingTradeChange.name ? newItem : item
-                  )
-                }));
+                nextMo = {
+                  ...modeChanges,
+                  [dir]: modeChanges[dir].map((item) =>
+                    item.name === editingTradeChange.name ? newItem : item,
+                  ),
+                };
               } else {
-                setModeChanges(prev => ({
-                  ...prev,
-                  [tradeChangeDirection]: [...prev[tradeChangeDirection], newItem]
-                }));
+                nextMo = {
+                  ...modeChanges,
+                  [dir]: [...modeChanges[dir], newItem],
+                };
               }
             } else {
-              // 品类变化
               let categoryName = '';
               if (values.category) {
-                // 从级联选择器获取完整路径的标签
                 const findCategoryPath = (options, targetPath, currentPath = []) => {
                   for (const option of options) {
                     const newPath = [...currentPath, option.label];
@@ -4331,7 +4974,7 @@ function EnterpriseDetail() {
                   }
                   return null;
                 };
-                
+
                 const categoryOptions = [
                   {
                     value: 1,
@@ -4345,13 +4988,13 @@ function EnterpriseDetail() {
                           { value: 10102, label: '剪刀' },
                           { value: 10103, label: '耙子' },
                           { value: 10104, label: '锄头' },
-                        ]
+                        ],
                       },
                       { value: 102, label: '园艺电动工具' },
                       { value: 103, label: '园艺装饰品' },
                       { value: 104, label: '花盆花器' },
                       { value: 105, label: '灌溉设备' },
-                    ]
+                    ],
                   },
                   {
                     value: 2,
@@ -4362,7 +5005,7 @@ function EnterpriseDetail() {
                       { value: 203, label: '角磨机' },
                       { value: 204, label: '电动扳手' },
                       { value: 205, label: '抛光机' },
-                    ]
+                    ],
                   },
                   {
                     value: 3,
@@ -4373,7 +5016,7 @@ function EnterpriseDetail() {
                       { value: 303, label: '收纳整理' },
                       { value: 304, label: '家居装饰' },
                       { value: 305, label: '清洁用品' },
-                    ]
+                    ],
                   },
                   {
                     value: 4,
@@ -4383,7 +5026,7 @@ function EnterpriseDetail() {
                       { value: 402, label: '运动器材' },
                       { value: 403, label: '户外服装' },
                       { value: 404, label: '登山装备' },
-                    ]
+                    ],
                   },
                   {
                     value: 6,
@@ -4393,31 +5036,44 @@ function EnterpriseDetail() {
                       { value: 602, label: '智能硬件' },
                       { value: 603, label: '电子配件' },
                       { value: 604, label: '照明产品' },
-                    ]
+                    ],
                   },
                 ];
-                
+
                 categoryName = findCategoryPath(categoryOptions, values.category) || '未知品类';
               }
-              
-              const newItem = { name: categoryName, rate: values.rate };
+
+              const newItem = { name: categoryName, rate: rateNormalized };
               if (editingTradeChange) {
-                setCategoryChanges(prev => ({
-                  ...prev,
-                  [tradeChangeDirection]: prev[tradeChangeDirection].map(item => 
-                    item.name === editingTradeChange.name ? newItem : item
-                  )
-                }));
+                nextC = {
+                  ...categoryChanges,
+                  [dir]: categoryChanges[dir].map((item) =>
+                    item.name === editingTradeChange.name ? newItem : item,
+                  ),
+                };
               } else {
-                setCategoryChanges(prev => ({
-                  ...prev,
-                  [tradeChangeDirection]: [...prev[tradeChangeDirection], newItem]
-                }));
+                nextC = {
+                  ...categoryChanges,
+                  [dir]: [...categoryChanges[dir], newItem],
+                };
               }
             }
-            message.success(editingTradeChange ? '修改成功' : '添加成功');
-            setIsTradeChangeModalOpen(false);
-            tradeChangeForm.resetFields();
+
+            setTradeChangeSaving(true);
+            try {
+              const ok = await persistTradePerformanceJson(
+                nextM,
+                nextMo,
+                nextC,
+                editingTradeChange ? '修改成功' : '添加成功',
+              );
+              if (ok) {
+                setIsTradeChangeModalOpen(false);
+                tradeChangeForm.resetFields();
+              }
+            } finally {
+              setTradeChangeSaving(false);
+            }
           });
         }}
         onCancel={() => { setIsTradeChangeModalOpen(false); tradeChangeForm.resetFields(); }}
@@ -4551,7 +5207,7 @@ function EnterpriseDetail() {
             </Form.Item>
           )}
           <Form.Item name="rate" label="变化率" rules={[{ required: true, message: '请输入变化率' }]}>
-            <Input placeholder={tradeChangeDirection === 'up' ? '例如: +25%' : '例如: -8%'} />
+            <Input placeholder={tradeChangeDirection === 'up' ? '例如: +25' : '例如: -8'} addonAfter="%" />
           </Form.Item>
         </Form>
       </Modal>
@@ -4560,11 +5216,35 @@ function EnterpriseDetail() {
       <Modal
         title="编辑外贸业绩分析"
         open={isTradePerformanceModalOpen}
-        onOk={() => {
-          tradePerformanceForm.validateFields().then(values => {
-            message.success('外贸业绩分析更新成功');
-            setIsTradePerformanceModalOpen(false);
-          });
+        confirmLoading={tradePerformanceSaving}
+        onOk={async () => {
+          try {
+            await tradePerformanceForm.validateFields();
+          } catch {
+            return;
+          }
+          const values = tradePerformanceForm.getFieldsValue();
+          const toNum = (v: unknown) => {
+            if (v === '' || v === undefined || v === null) return undefined;
+            const n = Number(v);
+            return Number.isFinite(n) ? n : undefined;
+          };
+          const lastYearRevenue = toNum(values.lastYearRevenue);
+          const yearBeforeLastRevenue = toNum(values.yearBeforeLastRevenue);
+          if (lastYearRevenue === undefined || yearBeforeLastRevenue === undefined) {
+            message.warning('请填写两年外贸营业额');
+            return;
+          }
+          setTradePerformanceSaving(true);
+          try {
+            const ok = await saveEnterpriseFields(
+              { lastYearRevenue, yearBeforeLastRevenue },
+              '外贸业绩分析更新成功'
+            );
+            if (ok) setIsTradePerformanceModalOpen(false);
+          } finally {
+            setTradePerformanceSaving(false);
+          }
         }}
         onCancel={() => setIsTradePerformanceModalOpen(false)}
         width={800}
@@ -4592,9 +5272,6 @@ function EnterpriseDetail() {
               </Form.Item>
             </Col>
           </Row>
-          <Form.Item label="备注说明" name="remark">
-            <Input.TextArea rows={3} placeholder="可以添加业绩变化的说明..." />
-          </Form.Item>
         </Form>
       </Modal>
 
@@ -4655,29 +5332,56 @@ function EnterpriseDetail() {
         open={isCrossborderBasicModalOpen}
         afterOpenChange={(open) => {
           if (open && enterprise) {
+            const hasCb =
+              enterprise.has_cross_border === 1 ||
+              enterprise.has_cross_border === true;
+            const erpOn =
+              enterprise.using_erp === 1 || enterprise.using_erp === true;
             crossborderForm.setFieldsValue({
-              hasCrossBorder: enterprise.has_cross_border === 1,
-              crossBorderRatio: enterprise.cross_border_ratio,
+              hasCrossBorder: !!hasCb,
+              crossBorderRatio:
+                enterprise.cross_border_ratio != null &&
+                enterprise.cross_border_ratio !== ''
+                  ? String(enterprise.cross_border_ratio).replace(/%$/, '')
+                  : undefined,
               crossBorderLogistics: enterprise.cross_border_logistics,
               paymentSettlement: enterprise.payment_settlement,
               crossBorderTeamSize: enterprise.cross_border_team_size,
-              usingErp: enterprise.using_erp,
+              usingErp: erpOn ? 1 : 0,
               transformationWillingness: enterprise.transformation_willingness,
               investmentWillingness: enterprise.investment_willingness,
             });
           }
         }}
         onOk={async () => {
+          try {
+            await crossborderForm.validateFields();
+          } catch {
+            return;
+          }
           const values = crossborderForm.getFieldsValue();
+          const rawRatio = values.crossBorderRatio;
+          const crossBorderRatioStr =
+            rawRatio === undefined || rawRatio === null || String(rawRatio).trim() === ''
+              ? null
+              : String(rawRatio).trim();
+          const rawTeam = values.crossBorderTeamSize;
+          const crossBorderTeamSize =
+            rawTeam === undefined || rawTeam === null || rawTeam === ''
+              ? null
+              : Number(rawTeam);
           const ok = await saveEnterpriseFields({
             hasCrossBorder: values.hasCrossBorder ? 1 : 0,
-            crossBorderRatio: values.crossBorderRatio ? Number(values.crossBorderRatio) : null,
-            crossBorderLogistics: values.crossBorderLogistics,
-            paymentSettlement: values.paymentSettlement,
-            crossBorderTeamSize: values.crossBorderTeamSize ? Number(values.crossBorderTeamSize) : null,
-            usingErp: values.usingErp,
-            transformationWillingness: values.transformationWillingness,
-            investmentWillingness: values.investmentWillingness,
+            crossBorderRatio: crossBorderRatioStr,
+            crossBorderLogistics: values.crossBorderLogistics ?? null,
+            paymentSettlement: values.paymentSettlement ?? null,
+            crossBorderTeamSize:
+              crossBorderTeamSize != null && Number.isFinite(crossBorderTeamSize)
+                ? crossBorderTeamSize
+                : null,
+            usingErp: values.usingErp === 1 || values.usingErp === true ? 1 : 0,
+            transformationWillingness: values.transformationWillingness ?? null,
+            investmentWillingness: values.investmentWillingness ?? null,
           }, '跨境基本信息更新成功');
           if (ok) setIsCrossborderBasicModalOpen(false);
         }}
@@ -4751,21 +5455,12 @@ function EnterpriseDetail() {
             </Col>
             <Col span={12}>
               <Form.Item name="usingErp" label="是否在用ERP">
-                <Select 
+                <Select
                   placeholder="请选择"
                   options={[
-                    { label: '是（用友U8）', value: '是（用友U8）' },
-                    { label: '是（金蝶K3）', value: '是（金蝶K3）' },
-                    { label: '是（SAP）', value: '是（SAP）' },
-                    { label: '是（Oracle）', value: '是（Oracle）' },
-                    { label: '是（浪潮）', value: '是（浪潮）' },
-                    { label: '是（鼎捷）', value: '是（鼎捷）' },
-                    { label: '是（管家婆）', value: '是（管家婆）' },
-                    { label: '是（速达）', value: '是（速达）' },
-                    { label: '是（其他ERP）', value: '是（其他ERP）' },
-                    { label: '否', value: '否' },
+                    { label: '是', value: 1 },
+                    { label: '否', value: 0 },
                   ]}
-                  showSearch
                 />
               </Form.Item>
             </Col>
@@ -5134,18 +5829,26 @@ function EnterpriseDetail() {
         afterOpenChange={(open) => {
           if (open && enterprise) {
             policyForm.setFieldsValue({
-              hasPolicySupport: enterprise.has_policy_support === 1,
+              hasPolicySupport:
+                enterprise.has_policy_support === 1 || enterprise.has_policy_support === true,
               enjoyedPolicies: enterprise.enjoyed_policies || [],
             });
           }
         }}
         onOk={async () => {
-          const values = policyForm.getFieldsValue();
-          const ok = await saveEnterpriseFields({
-            hasPolicySupport: values.hasPolicySupport ? 1 : 0,
-            enjoyedPolicies: values.enjoyedPolicies,
-          }, '政策支持情况更新成功');
-          if (ok) setIsPolicySupportModalOpen(false);
+          try {
+            const values = await policyForm.validateFields();
+            const ok = await saveEnterpriseFields(
+              {
+                hasPolicySupport: values.hasPolicySupport ? 1 : 0,
+                enjoyedPolicies: values.enjoyedPolicies ?? [],
+              },
+              '政策支持情况更新成功',
+            );
+            if (ok) setIsPolicySupportModalOpen(false);
+          } catch {
+            /* 表单校验未通过，保持弹窗打开 */
+          }
         }}
         onCancel={() => setIsPolicySupportModalOpen(false)}
         okText="保存"
@@ -5157,24 +5860,7 @@ function EnterpriseDetail() {
             <Select options={[{ label: '是', value: true }, { label: '否', value: false }]} />
           </Form.Item>
           <Form.Item name="enjoyedPolicies" label="已享受政策">
-            <Select
-              mode="multiple"
-              options={[
-                { label: '跨境电商扶持资金', value: 'cross_border_fund' },
-                { label: '外贸稳增长补贴', value: 'trade_growth_subsidy' },
-                { label: '品牌出海补贴', value: 'brand_overseas_subsidy' },
-                { label: '人才引进补贴', value: 'talent_subsidy' },
-                { label: '跨境电商出口退税', value: 'export_tax_rebate' },
-                { label: '海外仓补贴', value: 'overseas_warehouse_subsidy' },
-                { label: '产品认证补贴', value: 'certification_subsidy' },
-                { label: '展会补贴', value: 'exhibition_subsidy' },
-                { label: '物流补贴', value: 'logistics_subsidy' },
-                { label: '培训补贴', value: 'training_subsidy' },
-                { label: '创新研发资金', value: 'innovation_fund' },
-                { label: '中小企业扶持', value: 'sme_support' },
-                { label: '其他', value: 'other' },
-              ]}
-            />
+            <Select mode="multiple" options={ENJOYED_POLICY_OPTIONS} />
           </Form.Item>
         </Form>
       </Modal>
@@ -5220,38 +5906,6 @@ function EnterpriseDetail() {
         </Form>
       </Modal>
 
-      {/* 主要竞争对手编辑模态框 */}
-      <Modal
-        title="编辑主要竞争对手"
-        open={isCompetitorModalOpen}
-        onOk={() => { message.success('主要竞争对手更新成功'); setIsCompetitorModalOpen(false); }}
-        onCancel={() => setIsCompetitorModalOpen(false)}
-        okText="保存"
-        cancelText="取消"
-        width={600}
-      >
-        <Form layout="vertical" style={{ marginTop: 16 }}>
-          <Space direction="vertical" style={{ width: '100%' }} size={12}>
-            {[1, 2, 3].map(idx => (
-              <Card key={idx} size="small" title={`竞争对手 ${idx}`}>
-                <Row gutter={16}>
-                  <Col span={12}>
-                    <Form.Item label="企业名称">
-                      <Input placeholder="请输入企业名称" />
-                    </Form.Item>
-                  </Col>
-                  <Col span={12}>
-                    <Form.Item label="竞争程度">
-                      <Select options={[{ label: '强竞争', value: '强竞争' }, { label: '中等竞争', value: '中等竞争' }, { label: '潜在竞争', value: '潜在竞争' }]} />
-                    </Form.Item>
-                  </Col>
-                </Row>
-              </Card>
-            ))}
-          </Space>
-        </Form>
-      </Modal>
-
       {/* 当前面临风险编辑模态框 */}
       <Modal
         title="编辑当前面临风险"
@@ -5259,17 +5913,20 @@ function EnterpriseDetail() {
         afterOpenChange={(open) => {
           if (open && enterprise) {
             riskForm.setFieldsValue({
-              risks: enterprise.risks || [],
-              riskDescription: enterprise.risk_description,
+              risks: Array.isArray(enterprise.current_risk_tags) ? enterprise.current_risk_tags : [],
+              riskDescription: enterprise.risk_description || '',
             });
           }
         }}
         onOk={async () => {
           const values = riskForm.getFieldsValue();
-          const ok = await saveEnterpriseFields({
-            risks: values.risks,
-            riskDescription: values.riskDescription,
-          }, '当前面临风险更新成功');
+          const ok = await saveEnterpriseFields(
+            {
+              currentRiskTags: Array.isArray(values.risks) ? values.risks : [],
+              riskDescription: (values.riskDescription && String(values.riskDescription).trim()) || '',
+            },
+            '当前面临风险更新成功'
+          );
           if (ok) setIsRiskModalOpen(false);
         }}
         onCancel={() => setIsRiskModalOpen(false)}

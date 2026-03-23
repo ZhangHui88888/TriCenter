@@ -7,6 +7,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tricenter.common.exception.BusinessException;
 import com.tricenter.dto.excel.*;
 import com.tricenter.dto.response.ImportResultResponse;
+import com.tricenter.dto.response.RequirementConfigResponse;
 import com.tricenter.entity.*;
 import com.tricenter.mapper.*;
 import com.tricenter.service.SurveyExcelService;
@@ -19,7 +20,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.tricenter.config.SurveyExcelStyleHandler;
-import com.tricenter.config.RequirementsConfig;
+import com.tricenter.service.OptionsService;
 
 import java.math.BigDecimal;
 import java.net.URLEncoder;
@@ -41,6 +42,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     private final IndustryCategoryMapper industryCategoryMapper;
     private final ProductCategoryMapper productCategoryMapper;
     private final SystemOptionMapper systemOptionMapper;
+    private final OptionsService optionsService;
 
     // ==================== 导出 ====================
 
@@ -295,6 +297,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             cbHint.setPaymentSettlement("多选用顿号分隔");
             cbHint.setCrossBorderTeamSize("填数字");
             cbHint.setUsingErp("填：是/否");
+            cbHint.setHasOverseasDistributors("填：是/否");
             cbHint.setTransformationWillingness("可选：高/中/低");
             cbHint.setInvestmentWillingness("可选：高/中/低");
             cbHint.setTargetMarkets("格式：市场名 占比%，多个用顿号分隔");
@@ -311,6 +314,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             cbExample.setPaymentSettlement(payLabels.size() >= 2 ? payLabels.get(0) + "、" + payLabels.get(1) : "T/T电汇、PayPal");
             cbExample.setCrossBorderTeamSize("5");
             cbExample.setUsingErp("是（用友U8）");
+            cbExample.setHasOverseasDistributors("否");
             cbExample.setTransformationWillingness("高");
             cbExample.setInvestmentWillingness("高");
             cbExample.setTargetMarkets("北美 40%、欧洲 30%、东南亚 20%、其他 10%");
@@ -368,14 +372,18 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             coopData.add(1, coopExample);
             writer.write(coopData, sheet6);
 
-            // Sheet7: 需求分析（动态列头，按阶段分组）
-            List<RequirementsConfig.RequirementItem> allReqs = RequirementsConfig.ALL_REQUIREMENTS;
+            // Sheet7: 需求分析（动态列头，与数据库 requirements + 字典阶段/类别一致）
+            RequirementConfigResponse reqConfig = optionsService.getRequirementConfig();
+            List<RequirementConfigResponse.RequirementItemDTO> allReqs = reqConfig.getRequirements() != null
+                    ? reqConfig.getRequirements()
+                    : List.of();
             // 构建四级表头：第一级=阶段名，第二级=类别，第三级=需求项ID+名称，第四级=描述
             List<List<String>> reqHead = new ArrayList<>();
             reqHead.add(Arrays.asList("企业信息", "企业信息", "企业ID", "企业ID"));
             reqHead.add(Arrays.asList("企业信息", "企业信息", "企业名称", "企业名称"));
-            for (RequirementsConfig.RequirementItem req : allReqs) {
-                reqHead.add(Arrays.asList(req.phase, req.category, "[" + req.id + "]" + req.name, req.description));
+            for (RequirementConfigResponse.RequirementItemDTO req : allReqs) {
+                String desc = req.getDescription() != null ? req.getDescription() : "";
+                reqHead.add(Arrays.asList(req.getPhase(), req.getCategory(), "[" + req.getId() + "]" + req.getName(), desc));
             }
             // 自定义需求列
             reqHead.add(Arrays.asList("自定义需求", "自定义需求", "自定义需求", "用顿号分隔多个自定义需求"));
@@ -551,8 +559,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         // ── 需求分析 ──
         data.add(Arrays.asList("── 需求分析 ──", "", "", ""));
         data.add(Arrays.asList("需求分析说明", "需求分析",
-                "按阶段分组，每列对应一个需求项，填\"是\"或\"否\"",
-                "4个阶段：战略规划与资源准备、渠道搭建与商品上线、营销推广与规模增长、品牌深耕与持续优化"));
+                "列与系统「需求配置」一致（来自数据库 requirements 表），每列对应一条标准需求，填\"是\"或\"否\"",
+                "阶段、类别、需求名称以模板表头为准；修改标准需求请在后台维护后重新下载模板"));
         data.add(Arrays.asList("自定义需求", "需求分析", "自由填写，多个用顿号分隔", "填写企业的个性化需求"));
 
         return data;
@@ -793,14 +801,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
             data.setCrossBorderTeamSize(e.getCrossBorderTeamSize() != null ? String.valueOf(e.getCrossBorderTeamSize()) : "");
             data.setUsingErp(e.getUsingErp() != null && e.getUsingErp() == 1 ? "是" : "否");
-
-            // 社交媒体
-            if (e.getSocialMediaAccounts() != null) {
-                data.setSocialMediaAccounts(e.getSocialMediaAccounts().toString());
-            }
-            data.setExhibitionHistory(e.getExhibitionHistory());
-            data.setOverseasDistributors(e.getOverseasDistributors());
-            data.setUsingCrm(e.getUsingCrm() != null && e.getUsingCrm() == 1 ? "是" : "否");
+            data.setHasOverseasDistributors(e.getHasOverseasDistributors() != null && e.getHasOverseasDistributors() == 1 ? "是" : "否");
 
             data.setTransformationWillingness(e.getTransformationWillingness());
             data.setInvestmentWillingness(e.getInvestmentWillingness());
@@ -854,6 +855,11 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             data.setCompetitionPosition(e.getCompetitionPosition());
             data.setCompetitionDescription(e.getCompetitionDescription());
             data.setAdditionalNotes(e.getAdditionalNotes());
+
+            if (e.getCurrentRiskTags() != null && !e.getCurrentRiskTags().isEmpty()) {
+                data.setCurrentRisks(String.join("、", e.getCurrentRiskTags()));
+            }
+            data.setRiskDescription(e.getRiskDescription());
 
             return data;
         }).collect(Collectors.toList());
@@ -1360,17 +1366,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 if (StringUtils.hasText(data.getUsingErp())) {
                     enterprise.setUsingErp("是".equals(data.getUsingErp().trim()) ? 1 : 0);
                 }
-                if (StringUtils.hasText(data.getSocialMediaAccounts())) {
-                    enterprise.setSocialMediaAccounts(data.getSocialMediaAccounts().trim());
-                }
-                if (StringUtils.hasText(data.getExhibitionHistory())) {
-                    enterprise.setExhibitionHistory(data.getExhibitionHistory().trim());
-                }
-                if (StringUtils.hasText(data.getOverseasDistributors())) {
-                    enterprise.setOverseasDistributors(data.getOverseasDistributors().trim());
-                }
-                if (StringUtils.hasText(data.getUsingCrm())) {
-                    enterprise.setUsingCrm("是".equals(data.getUsingCrm().trim()) ? 1 : 0);
+                if (StringUtils.hasText(data.getHasOverseasDistributors())) {
+                    enterprise.setHasOverseasDistributors("是".equals(data.getHasOverseasDistributors().trim()) ? 1 : 0);
                 }
                 if (StringUtils.hasText(data.getTransformationWillingness())) {
                     enterprise.setTransformationWillingness(data.getTransformationWillingness().trim());
@@ -1431,7 +1428,21 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 if (StringUtils.hasText(data.getCompetitionDescription())) {
                     enterprise.setCompetitionDescription(data.getCompetitionDescription().trim());
                 }
-                // currentRisks, riskDescription, suggestions, surveyDate, surveyStaff 为新增Excel字段，暂无对应数据库字段
+                if (StringUtils.hasText(data.getCurrentRisks())) {
+                    String[] parts = data.getCurrentRisks().split("[、,，]");
+                    List<String> tags = new ArrayList<>();
+                    for (String p : parts) {
+                        String t = p.trim();
+                        if (!t.isEmpty()) {
+                            tags.add(t);
+                        }
+                    }
+                    enterprise.setCurrentRiskTags(tags);
+                }
+                if (StringUtils.hasText(data.getRiskDescription())) {
+                    enterprise.setRiskDescription(data.getRiskDescription().trim());
+                }
+                // suggestions、surveyDate、surveyStaff 暂无对应库字段
                 if (StringUtils.hasText(data.getAdditionalNotes())) {
                     enterprise.setAdditionalNotes(data.getAdditionalNotes().trim());
                 }
