@@ -903,7 +903,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                         validateBasicInfoForInsert(data);
                         enterprise = new Enterprise();
                         enterprise.setName(StringUtils.hasText(data.getName()) ? data.getName().trim() : "未命名企业");
-                        enterprise.setStage("potential"); // 默认漏斗阶段：潜在企业
+                        enterprise.setStage("POTENTIAL"); // 与字典 enterprises.stage 约定一致
                         enterprise.setIsDeleted(0);
                         updateBasicInfo(enterprise, data);
                         enterpriseMapper.insert(enterprise);

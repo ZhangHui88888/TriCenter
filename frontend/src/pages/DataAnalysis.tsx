@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
-import { Select, Row, Col, Spin, Button, Space, Modal, Form, Tabs, Badge, message, Tooltip, InputNumber } from 'antd';
+import { useState, useEffect, useRef } from 'react';
+import { Select, Row, Col, Button, Space, Modal, Form, Tabs, Badge, message, Tooltip, InputNumber } from 'antd';
+import NeonLoader from '@/components/NeonLoader';
 import { ReloadOutlined, FilterOutlined, SearchOutlined, ClearOutlined } from '@ant-design/icons';
 import EnterpriseSearch from '@/components/EnterpriseSearch';
 import WorldMap from '@/components/WorldMap';
@@ -111,22 +112,29 @@ function DataAnalysis() {
     const reqIds = filters.requirements && typeof filters.requirements === 'object'
       ? Array.from(new Set(Object.values(filters.requirements).flatMap((v) => Array.isArray(v) ? v : [])))
       : [];
+    const positiveId = (v: unknown) => (typeof v === 'number' && v > 0 ? v : undefined);
     return {
       keyword: keyword || undefined,
       stage: filters.funnel_stage || stageFilter || undefined,
       district: filters.district || districtFilter || undefined,
-      industryId,
+      industryId: positiveId(industryId),
       enterpriseType: filters.enterprise_type || undefined,
-      staffSizeId: filters.employee_scale || undefined,
-      domesticRevenueId: filters.domestic_revenue || undefined,
+      staffSizeId: positiveId(filters.employee_scale),
+      domesticRevenueId: positiveId(filters.domestic_revenue),
       crossBorderRevenueMinWan: filters.crossborder_revenue_min_wan != null ? Number(filters.crossborder_revenue_min_wan) : undefined,
       crossBorderRevenueMaxWan: filters.crossborder_revenue_max_wan != null ? Number(filters.crossborder_revenue_max_wan) : undefined,
-      sourceId: filters.source || undefined,
+      sourceId: positiveId(filters.source),
       hasCrossBorder: typeof filters.has_crossborder === 'boolean' ? (filters.has_crossborder ? 1 : 0) : undefined,
       transformationWillingness: filters.transformation_willingness || undefined,
+      usingErp: typeof filters.has_erp === 'boolean' ? (filters.has_erp ? 1 : 0) : undefined,
+      automationLevelId: positiveId(filters.automation_level),
+      localProcurementRatio: filters.local_procurement_ratio || undefined,
+      logisticsPartnerIds: Array.isArray(filters.logistics_partners) && filters.logistics_partners.length > 0
+        ? filters.logistics_partners.join(',')
+        : undefined,
       mainPlatforms: Array.isArray(filters.main_platforms) && filters.main_platforms.length > 0 ? filters.main_platforms.join(',') : undefined,
       targetMarkets: Array.isArray(filters.target_markets) && filters.target_markets.length > 0 ? filters.target_markets.join(',') : undefined,
-      lastFollowupDays: filters.last_followup_days || undefined,
+      lastFollowupDays: typeof filters.last_followup_days === 'number' ? filters.last_followup_days : undefined,
       requirementIds: reqIds.length > 0 ? reqIds.join(',') : undefined,
     };
   };
@@ -139,14 +147,32 @@ function DataAnalysis() {
         dashboardApi.getAnalysisStats(params),
         dashboardApi.getMonthlyTrend(),
       ]);
-      setAnalysisStats(statsRes.data || null);
-      setMonthlyTrend(trendRes.data || []);
+      const unwrap = (res: any) => {
+        if (res == null || typeof res !== 'object') return null;
+        return 'data' in res && res.data !== undefined ? res.data : res;
+      };
+      const statsPayload = unwrap(statsRes);
+      setAnalysisStats(statsPayload != null && typeof statsPayload === 'object' ? statsPayload : null);
+      const trendPayload = unwrap(trendRes);
+      setMonthlyTrend(Array.isArray(trendPayload) ? trendPayload : []);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
   };
+
+  /** 顶部漏斗/区域/行业变更后自动刷新，避免仍显示旧图而被误认为「全库统计」 */
+  const skipTopFilterAutoFetch = useRef(true);
+  useEffect(() => {
+    if (skipTopFilterAutoFetch.current) {
+      skipTopFilterAutoFetch.current = false;
+      return;
+    }
+    fetchData();
+    // 仅响应顶部三项；关键词仍用「查询分析」
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stageFilter, districtFilter, industryId]);
 
   const handleClearCache = async () => {
     setClearingCache(true);
@@ -203,6 +229,8 @@ function DataAnalysis() {
   const marketStats: { name: string; count: number }[] = analysisStats?.marketStats ?? [];
   const industryStats: { name: string; count: number }[] = analysisStats?.industryStats ?? [];
   const funnelStats: { code: string; name: string; count: number }[] = analysisStats?.funnelStats ?? [];
+  const funnelMaxCount = funnelStats.length ? Math.max(...funnelStats.map(s => Number(s.count) || 0), 0) : 0;
+  const funnelYAxisMax = Math.max(5, funnelMaxCount);
 
   /* ── 图表配置 ── */
 
@@ -219,6 +247,9 @@ function DataAnalysis() {
     },
     yAxis: {
       type: 'value',
+      min: 0,
+      max: funnelYAxisMax,
+      minInterval: 1,
       axisLine: { show: false },
       axisTick: { show: false },
       splitLine: { lineStyle: { color: D.grid, type: 'dashed' } },
@@ -314,7 +345,10 @@ function DataAnalysis() {
       </div>
 
       {loading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: 100 }}><Spin size="large" /></div>
+        <NeonLoader
+          text="正在加载数据分析"
+          subText="正在汇总当前筛选条件下的统计指标与图表数据..."
+        />
       ) : (
         <>
           {/* ── 顶部指标卡 ── */}
@@ -341,7 +375,7 @@ function DataAnalysis() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={titleStyle}>全球客户分布</div>
-                    <div style={subStyle}>企业目标市场地理分布 · 飞线源点：常州</div>
+                    <div style={subStyle}>当前筛选结果内的目标市场分布 · 飞线源点：常州</div>
                   </div>
                   <div style={{ display: 'flex', gap: 16 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: D.sub }}>
@@ -362,7 +396,7 @@ function DataAnalysis() {
             <Col xs={24} lg={9}>
               <div style={cardStyle}>
                 <div style={titleStyle}>漏斗阶段分布</div>
-                <div style={subStyle}>各阶段企业数量统计</div>
+                <div style={subStyle}>当前筛选条件下各阶段企业数（与「筛选企业数」同源）</div>
                 <ReactECharts option={funnelBarOption} style={{ height: 320 }} />
               </div>
             </Col>
@@ -380,14 +414,14 @@ function DataAnalysis() {
             <Col xs={24} lg={15}>
               <div style={cardStyle}>
                 <div style={titleStyle}>行业分布</div>
-                <div style={subStyle}>各行业企业数量统计</div>
+                <div style={subStyle}>当前筛选结果内的一级行业企业数</div>
                 <ReactECharts option={industryBarOption} style={{ height: 300 }} />
               </div>
             </Col>
             <Col xs={24} lg={9}>
               <div style={cardStyle}>
                 <div style={titleStyle}>区域分布</div>
-                <div style={subStyle}>各区域企业数量</div>
+                <div style={subStyle}>当前筛选结果内的区县企业数</div>
                 <ReactECharts option={districtBarOption} style={{ height: 300 }} />
               </div>
             </Col>
@@ -398,7 +432,7 @@ function DataAnalysis() {
             <Col xs={24} lg={12}>
               <div style={cardStyle}>
                 <div style={titleStyle}>跨境平台分布</div>
-                <div style={subStyle}>企业使用的跨境电商平台</div>
+                <div style={subStyle}>当前筛选结果内企业填报的主要平台（多选字段拆分统计）</div>
                 {platformStats.length > 0 ? (
                   <>
                     <ReactECharts option={platformPieOption} style={{ height: 280 }} />
@@ -419,7 +453,11 @@ function DataAnalysis() {
             <Col xs={24} lg={12}>
               <div style={cardStyle}>
                 <div style={titleStyle}>企业类型分布</div>
-                <div style={subStyle}>9类企业类型分布</div>
+                <div style={subStyle}>
+                  {totalCount > 0
+                    ? `当前筛选结果内共 ${totalCount.toLocaleString('zh-CN')} 家 · 饼图为该集合中的类型结构（非独立全库统计）`
+                    : '调整筛选条件或点击「查询分析」后展示；无匹配企业时不显示占比'}
+                </div>
                 <ReactECharts option={typeDonutOption} style={{ height: 320 }} />
               </div>
             </Col>

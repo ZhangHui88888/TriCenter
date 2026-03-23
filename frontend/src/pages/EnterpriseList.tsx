@@ -812,8 +812,9 @@ function EnterpriseList() {
   const activeFilterCount = Object.values(advancedFilters).filter(hasActiveFilterValue).length;
 
   const getStageInfo = (code: string) => {
-    const stage = FUNNEL_STAGES.find(s => s.code === code);
-    if (!stage) return { name: code, color: '#718EBF', gradient: '#718EBF' };
+    const key = (code || '').trim().toUpperCase();
+    const stage = FUNNEL_STAGES.find(s => s.code === key);
+    if (!stage) return { name: code?.trim() || '—', color: '#718EBF', gradient: '#718EBF' };
     
     return { ...stage, gradient: stage.color };
   };

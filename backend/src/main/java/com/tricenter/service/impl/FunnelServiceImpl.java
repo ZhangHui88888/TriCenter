@@ -6,6 +6,7 @@ import com.tricenter.dto.response.FunnelTrendResponse;
 import com.tricenter.mapper.EnterpriseMapper;
 import com.tricenter.mapper.StageChangeLogMapper;
 import com.tricenter.service.FunnelService;
+import com.tricenter.util.StageCodeUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -64,8 +65,9 @@ public class FunnelServiceImpl implements FunnelService {
         for (Map<String, Object> item : stageCounts) {
             String stage = (String) item.get("stage");
             Long count = (Long) item.get("count");
-            if (stage != null) {
-                stageMap.put(stage, count.intValue());
+            if (stage != null && count != null) {
+                String key = StageCodeUtil.normalize(stage);
+                stageMap.merge(key, count.intValue(), Integer::sum);
             }
         }
         
@@ -89,8 +91,9 @@ public class FunnelServiceImpl implements FunnelService {
         for (Map<String, Object> item : stageCounts) {
             String stage = (String) item.get("stage");
             Long count = (Long) item.get("count");
-            if (stage != null) {
-                stageMap.put(stage, count.intValue());
+            if (stage != null && count != null) {
+                String key = StageCodeUtil.normalize(stage);
+                stageMap.merge(key, count.intValue(), Integer::sum);
             }
         }
         
@@ -192,8 +195,9 @@ public class FunnelServiceImpl implements FunnelService {
         for (Map<String, Object> item : counts) {
             String stage = (String) item.get("stage");
             Long count = (Long) item.get("count");
-            if (stage != null) {
-                result.put(stage, count.intValue());
+            if (stage != null && count != null) {
+                String key = StageCodeUtil.normalize(stage);
+                result.merge(key, count.intValue(), Integer::sum);
             }
         }
         

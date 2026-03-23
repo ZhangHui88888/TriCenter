@@ -18,6 +18,7 @@ import com.tricenter.service.DashboardService;
 import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.service.EnterpriseService;
 import com.tricenter.service.RequirementMatchEngine;
+import com.tricenter.util.StageCodeUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,6 +41,13 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class EnterpriseServiceImpl implements EnterpriseService {
+
+    /** 数据分析漏斗图固定顺序（code, 中文名） */
+    private static final String[][] FUNNEL_STAGE_DEFS = {
+            {"POTENTIAL", "潜在企业"}, {"NO_DEMAND", "无明确需求"},
+            {"NO_INTENTION", "没有合作意向"}, {"HAS_DEMAND", "有明确需求"},
+            {"SIGNED", "已签约"}, {"SETTLED", "已入驻"}, {"INCUBATING", "重点孵化"}
+    };
 
     private final EnterpriseMapper enterpriseMapper;
     private final EnterpriseContactMapper contactMapper;
@@ -78,11 +86,13 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         Set<Integer> matchedIds = resolveExternalFilters(request);
         if (matchedIds != null && matchedIds.isEmpty()) {
             AnalysisStatsResponse empty = new AnalysisStatsResponse();
+            empty.setTotalCount(0);
             empty.setDistrictStats(Collections.emptyList());
             empty.setTypeStats(Collections.emptyList());
             empty.setPlatformStats(Collections.emptyList());
             empty.setMarketStats(Collections.emptyList());
             empty.setIndustryStats(buildFullIndustryStats(Collections.emptyMap()));
+            empty.setFunnelStats(toFunnelItems(Collections.emptyMap()));
             return empty;
         }
 
@@ -116,7 +126,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             String industryName = dictionaryCache.resolveLevel1IndustryName(e.getIndustryId());
             industryMap.merge(industryName, 1, Integer::sum);
 
-            String stage = StringUtils.hasText(e.getStage()) ? e.getStage() : "POTENTIAL";
+            String stage = StageCodeUtil.normalize(e.getStage());
             stageMap.merge(stage, 1, Integer::sum);
         }
 
@@ -126,19 +136,17 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setMarketStats(toSortedNameCountList(marketMap));
         response.setIndustryStats(buildFullIndustryStats(industryMap));
 
-        // 漏斗统计：按固定顺序输出
-        String[][] stages = {
-            {"POTENTIAL", "潜在企业"}, {"NO_DEMAND", "无明确需求"},
-            {"NO_INTENTION", "没有合作意向"}, {"HAS_DEMAND", "有明确需求"},
-            {"SIGNED", "已签约"}, {"SETTLED", "已入驻"}, {"INCUBATING", "重点孵化"}
-        };
-        List<AnalysisStatsResponse.FunnelItem> funnelList = new java.util.ArrayList<>();
-        for (String[] s : stages) {
-            funnelList.add(new AnalysisStatsResponse.FunnelItem(s[0], s[1], stageMap.getOrDefault(s[0], 0)));
-        }
-        response.setFunnelStats(funnelList);
+        response.setFunnelStats(toFunnelItems(stageMap));
 
         return response;
+    }
+
+    private List<AnalysisStatsResponse.FunnelItem> toFunnelItems(Map<String, Integer> stageMap) {
+        List<AnalysisStatsResponse.FunnelItem> funnelList = new ArrayList<>();
+        for (String[] s : FUNNEL_STAGE_DEFS) {
+            funnelList.add(new AnalysisStatsResponse.FunnelItem(s[0], s[1], stageMap.getOrDefault(s[0], 0)));
+        }
+        return funnelList;
     }
 
     @Override
@@ -159,11 +167,11 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         out.setTotalCount(enterpriseMapper.selectCount(base));
 
         LambdaQueryWrapper<Enterprise> demandWrapper = buildFilterWrapper(request, matchedIds);
-        demandWrapper.eq(Enterprise::getStage, "HAS_DEMAND");
+        demandWrapper.in(Enterprise::getStage, StageCodeUtil.variantsForDbMatch("HAS_DEMAND"));
         out.setHasDemandCount(enterpriseMapper.selectCount(demandWrapper));
 
         LambdaQueryWrapper<Enterprise> signedWrapper = buildFilterWrapper(request, matchedIds);
-        signedWrapper.eq(Enterprise::getStage, "SIGNED");
+        signedWrapper.in(Enterprise::getStage, StageCodeUtil.variantsForDbMatch("SIGNED"));
         out.setSignedCount(enterpriseMapper.selectCount(signedWrapper));
 
         LambdaQueryWrapper<Enterprise> revenueWrapper = buildFilterWrapper(request, matchedIds);
@@ -212,22 +220,37 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             wrapper.in(Enterprise::getId, matchedIds);
         }
         if (StringUtils.hasText(request.getKeyword())) wrapper.like(Enterprise::getName, request.getKeyword());
-        if (StringUtils.hasText(request.getStage())) wrapper.eq(Enterprise::getStage, request.getStage());
+        if (StringUtils.hasText(request.getStage())) {
+            List<String> stageVariants = StageCodeUtil.variantsForDbMatch(request.getStage());
+            if (!stageVariants.isEmpty()) {
+                wrapper.in(Enterprise::getStage, stageVariants);
+            }
+        }
         if (StringUtils.hasText(request.getDistrict())) wrapper.eq(Enterprise::getDistrict, request.getDistrict());
         if (StringUtils.hasText(request.getProvince())) wrapper.eq(Enterprise::getProvince, request.getProvince());
         if (StringUtils.hasText(request.getCity())) wrapper.eq(Enterprise::getCity, request.getCity());
-        if (request.getIndustryId() != null) wrapper.eq(Enterprise::getIndustryId, request.getIndustryId());
+        if (request.getIndustryId() != null && request.getIndustryId() > 0) {
+            wrapper.eq(Enterprise::getIndustryId, request.getIndustryId());
+        }
         if (StringUtils.hasText(request.getEnterpriseType())) wrapper.eq(Enterprise::getEnterpriseType, request.getEnterpriseType());
-        if (request.getStaffSizeId() != null) wrapper.eq(Enterprise::getStaffSizeId, request.getStaffSizeId());
-        if (request.getDomesticRevenueId() != null) wrapper.eq(Enterprise::getDomesticRevenueId, request.getDomesticRevenueId());
-        if (request.getCrossBorderRevenueId() != null) wrapper.eq(Enterprise::getCrossBorderRevenueId, request.getCrossBorderRevenueId());
+        if (request.getStaffSizeId() != null && request.getStaffSizeId() > 0) {
+            wrapper.eq(Enterprise::getStaffSizeId, request.getStaffSizeId());
+        }
+        if (request.getDomesticRevenueId() != null && request.getDomesticRevenueId() > 0) {
+            wrapper.eq(Enterprise::getDomesticRevenueId, request.getDomesticRevenueId());
+        }
+        if (request.getCrossBorderRevenueId() != null && request.getCrossBorderRevenueId() > 0) {
+            wrapper.eq(Enterprise::getCrossBorderRevenueId, request.getCrossBorderRevenueId());
+        }
         if (request.getCrossBorderRevenueMinWan() != null) {
             wrapper.ge(Enterprise::getCrossBorderRevenueWan, request.getCrossBorderRevenueMinWan());
         }
         if (request.getCrossBorderRevenueMaxWan() != null) {
             wrapper.le(Enterprise::getCrossBorderRevenueWan, request.getCrossBorderRevenueMaxWan());
         }
-        if (request.getSourceId() != null) wrapper.eq(Enterprise::getSourceId, request.getSourceId());
+        if (request.getSourceId() != null && request.getSourceId() > 0) {
+            wrapper.eq(Enterprise::getSourceId, request.getSourceId());
+        }
         if (request.getHasCrossBorder() != null) wrapper.eq(Enterprise::getHasCrossBorder, request.getHasCrossBorder());
         if (request.getUsingErp() != null) wrapper.eq(Enterprise::getUsingErp, request.getUsingErp());
         if (StringUtils.hasText(request.getTransformationWillingness())) wrapper.eq(Enterprise::getTransformationWillingness, request.getTransformationWillingness());
@@ -246,9 +269,13 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             if (request.getHasForeignTrade() == 1) wrapper.isNotNull(Enterprise::getTradeModeId);
             else wrapper.isNull(Enterprise::getTradeModeId);
         }
-        if (request.getTradeModeId() != null) wrapper.eq(Enterprise::getTradeModeId, request.getTradeModeId());
+        if (request.getTradeModeId() != null && request.getTradeModeId() > 0) {
+            wrapper.eq(Enterprise::getTradeModeId, request.getTradeModeId());
+        }
         if (request.getHasExportQualification() != null) wrapper.eq(Enterprise::getHasImportExportLicense, request.getHasExportQualification());
-        if (request.getTradeTeamModeId() != null) wrapper.eq(Enterprise::getTradeTeamModeId, request.getTradeTeamModeId());
+        if (request.getTradeTeamModeId() != null && request.getTradeTeamModeId() > 0) {
+            wrapper.eq(Enterprise::getTradeTeamModeId, request.getTradeTeamModeId());
+        }
         applyIntRangeFilter(wrapper, Enterprise::getTradeTeamSize, request.getTradeTeamSize());
         applyIntRangeFilter(wrapper, Enterprise::getCrossBorderTeamSize, request.getCrossBorderTeamSize());
         if (StringUtils.hasText(request.getLogisticsMode())) {
@@ -353,7 +380,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     }
 
     private Set<Integer> findEnterpriseIdsByProductFilters(EnterpriseQueryRequest request) {
-        boolean hasProductFilters = request.getAutomationLevelId() != null
+        // automationLevelId==0 常见于未绑定/误传，不得当作有效「产品筛选」，否则易得到空 ID 集导致整页统计全 0
+        boolean hasProductFilters = (request.getAutomationLevelId() != null && request.getAutomationLevelId() > 0)
                 || StringUtils.hasText(request.getLocalProcurementRatio())
                 || StringUtils.hasText(request.getLogisticsPartnerIds());
         if (!hasProductFilters) {
@@ -367,7 +395,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 EnterpriseProduct::getLocalProcurementRatio,
                 EnterpriseProduct::getLogisticsPartnerIds
         );
-        if (request.getAutomationLevelId() != null) {
+        if (request.getAutomationLevelId() != null && request.getAutomationLevelId() > 0) {
             productWrapper.eq(EnterpriseProduct::getAutomationLevelId, request.getAutomationLevelId());
         }
 
@@ -875,13 +903,14 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             response.setName(enterprise.getName());
             response.setDistrict(enterprise.getDistrict());
             response.setEnterpriseType(enterprise.getEnterpriseType());
-            response.setStage(enterprise.getStage());
+            String stageCode = StageCodeUtil.normalize(enterprise.getStage());
+            response.setStage(stageCode);
             response.setHasCrossBorder(enterprise.getHasCrossBorder());
             response.setCreatedAt(enterprise.getCreatedAt());
 
             response.setIndustryName(dictionaryCache.getIndustryName(enterprise.getIndustryId()));
 
-            SystemOption stageOption = dictionaryCache.getOptionByValue("stage", enterprise.getStage());
+            SystemOption stageOption = dictionaryCache.getOptionByValue("stage", stageCode);
             if (stageOption != null) {
                 response.setStageName(stageOption.getLabel());
                 response.setStageColor(stageOption.getColor());
@@ -928,10 +957,11 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setCrossBorderRevenueId(enterprise.getCrossBorderRevenueId());
         response.setCrossBorderRevenueWan(enterprise.getCrossBorderRevenueWan());
         response.setSourceId(enterprise.getSourceId());
-        response.setStage(enterprise.getStage());
+        String stageCode = StageCodeUtil.normalize(enterprise.getStage());
+        response.setStage(stageCode);
         response.setIndustryName(dictionaryCache.getIndustryName(enterprise.getIndustryId()));
 
-        SystemOption stageOption = dictionaryCache.getOptionByValue("stage", enterprise.getStage());
+        SystemOption stageOption = dictionaryCache.getOptionByValue("stage", stageCode);
         if (stageOption != null) {
             response.setStageName(stageOption.getLabel());
             response.setStageColor(stageOption.getColor());
@@ -1246,8 +1276,9 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             data.setStaffSize(dictionaryCache.getOptionLabel(e.getStaffSizeId()));
             data.setWebsite(e.getWebsite());
 
-            SystemOption stageOpt = dictionaryCache.getOptionByValue("stage", e.getStage());
-            data.setStageName(stageOpt != null ? stageOpt.getLabel() : e.getStage());
+            String stageCode = StageCodeUtil.normalize(e.getStage());
+            SystemOption stageOpt = dictionaryCache.getOptionByValue("stage", stageCode);
+            data.setStageName(stageOpt != null ? stageOpt.getLabel() : stageCode);
             data.setHasCrossBorder(e.getHasCrossBorder() != null && e.getHasCrossBorder() == 1 ? "是" : "否");
 
             // 联系人

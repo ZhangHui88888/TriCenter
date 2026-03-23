@@ -10,6 +10,7 @@ import com.tricenter.mapper.EnterpriseMapper;
 import com.tricenter.mapper.FollowUpRecordMapper;
 import com.tricenter.service.DashboardService;
 import com.tricenter.service.DictionaryCacheService;
+import com.tricenter.util.StageCodeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -85,9 +86,11 @@ public class DashboardServiceImpl implements DashboardService {
         for (Map<String, Object> item : stageCounts) {
             String stage = (String) item.get("stage");
             Long count = (Long) item.get("count");
-            if (stage != null) {
-                stageMap.put(stage, count.intValue());
-                total += count.intValue();
+            if (stage != null && count != null) {
+                String key = StageCodeUtil.normalize(stage);
+                int n = count.intValue();
+                stageMap.merge(key, n, Integer::sum);
+                total += n;
             }
         }
         
@@ -110,22 +113,25 @@ public class DashboardServiceImpl implements DashboardService {
         totalQuery.ge(Enterprise::getCreatedAt, monthStart);
         monthlyChange.setTotal(Math.toIntExact(enterpriseMapper.selectCount(totalQuery)));
         
-        // 本月新增潜在
+        // 本月新增潜在（兼容库中小写 stage）
         LambdaQueryWrapper<Enterprise> potentialQuery = new LambdaQueryWrapper<>();
         potentialQuery.ge(Enterprise::getCreatedAt, monthStart)
-            .eq(Enterprise::getStage, "POTENTIAL");
+            .in(Enterprise::getStage, StageCodeUtil.variantsForDbMatch("POTENTIAL"));
         monthlyChange.setPotential(Math.toIntExact(enterpriseMapper.selectCount(potentialQuery)));
         
         // 本月新增有需求
         LambdaQueryWrapper<Enterprise> demandQuery = new LambdaQueryWrapper<>();
         demandQuery.ge(Enterprise::getCreatedAt, monthStart)
-            .eq(Enterprise::getStage, "HAS_DEMAND");
+            .in(Enterprise::getStage, StageCodeUtil.variantsForDbMatch("HAS_DEMAND"));
         monthlyChange.setHasDemand(Math.toIntExact(enterpriseMapper.selectCount(demandQuery)));
         
         // 本月新增签约入驻
         LambdaQueryWrapper<Enterprise> signedQuery = new LambdaQueryWrapper<>();
         signedQuery.ge(Enterprise::getCreatedAt, monthStart)
-            .in(Enterprise::getStage, Arrays.asList("SIGNED", "SETTLED", "INCUBATING"));
+            .in(Enterprise::getStage, java.util.stream.Stream.of("SIGNED", "SETTLED", "INCUBATING")
+                .flatMap(s -> StageCodeUtil.variantsForDbMatch(s).stream())
+                .distinct()
+                .collect(Collectors.toList()));
         monthlyChange.setSignedSettled(Math.toIntExact(enterpriseMapper.selectCount(signedQuery)));
         
         response.setMonthlyChange(monthlyChange);
@@ -151,8 +157,9 @@ public class DashboardServiceImpl implements DashboardService {
         for (Map<String, Object> item : stageCounts) {
             String stage = (String) item.get("stage");
             Long count = (Long) item.get("count");
-            if (stage != null) {
-                stageMap.put(stage, count.intValue());
+            if (stage != null && count != null) {
+                String key = StageCodeUtil.normalize(stage);
+                stageMap.merge(key, count.intValue(), Integer::sum);
             }
         }
         
