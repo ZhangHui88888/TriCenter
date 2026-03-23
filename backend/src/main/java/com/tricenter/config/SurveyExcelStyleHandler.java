@@ -41,16 +41,16 @@ public class SurveyExcelStyleHandler implements CellWriteHandler {
             headStyle.setWrapText(true);
             setBorders(headStyle, BorderStyle.THIN, IndexedColors.WHITE.getIndex());
             cell.setCellStyle(headStyle);
-            // 需求分析Sheet有4行表头，使用不同行高
+            // 需求分析Sheet有4行表头，压低行高避免顶部区域过高
             String sheetName = cell.getSheet().getSheetName();
             if ("需求分析".equals(sheetName)) {
                 int rowIdx = cell.getRowIndex();
                 if (rowIdx == 0 || rowIdx == 1) {
-                    cell.getRow().setHeightInPoints(25);
+                    cell.getRow().setHeightInPoints(18);
                 } else if (rowIdx == 2) {
-                    cell.getRow().setHeightInPoints(50);
+                    cell.getRow().setHeightInPoints(28);
                 } else if (rowIdx == 3) {
-                    cell.getRow().setHeightInPoints(120);
+                    cell.getRow().setHeightInPoints(44);
                 }
             } else {
                 cell.getRow().setHeightInPoints(40);

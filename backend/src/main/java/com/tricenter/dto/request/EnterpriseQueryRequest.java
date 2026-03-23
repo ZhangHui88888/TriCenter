@@ -1,8 +1,10 @@
 package com.tricenter.dto.request;
 
 import lombok.Data;
+import org.springframework.format.annotation.DateTimeFormat;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 /**
  * 企业查询请求
@@ -12,6 +14,24 @@ public class EnterpriseQueryRequest {
     
     /** 关键词（企业名称模糊搜索） */
     private String keyword;
+
+    /** 统一社会信用代码（模糊） */
+    private String creditCodeKeyword;
+
+    /** 详细地址（模糊） */
+    private String addressKeyword;
+
+    /** 官网 URL（模糊） */
+    private String websiteKeyword;
+
+    /** ISO 认证（模糊） */
+    private String isoCertificationsKeyword;
+
+    /** AEO 认证等级（模糊） */
+    private String aeoCertificationKeyword;
+
+    /** 其他资质证书（模糊） */
+    private String otherCertificationsKeyword;
     
     /** 漏斗阶段 */
     private String stage;
@@ -102,6 +122,14 @@ public class EnterpriseQueryRequest {
 
     /** 支付结算方式，多个逗号分隔 */
     private String paymentMethod;
+
+    /** 录入日期开始（含） */
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    private LocalDate createdDateStart;
+
+    /** 录入日期结束（含） */
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    private LocalDate createdDateEnd;
 
     /** 页码 */
     private Integer page = 1;

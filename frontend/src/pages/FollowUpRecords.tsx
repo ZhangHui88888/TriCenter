@@ -171,18 +171,23 @@ function FollowUpRecords() {
     }
   };
 
+  /** 六列等分表宽（tableLayout=fixed 下按百分比生效） */
+  const colPct = `${(100 / 6).toFixed(2)}%`;
+
   const columns: ColumnsType<FollowUpRecord> = [
     {
       title: '企业名称',
       dataIndex: 'enterprise_name',
       key: 'enterprise_name',
+      width: colPct,
+      ellipsis: true,
       render: (text) => <span style={{ fontWeight: 500 }}>{text}</span>,
     },
     {
       title: '跟进类型',
       dataIndex: 'follow_up_type',
       key: 'follow_up_type',
-      width: 100,
+      width: colPct,
       render: (type: string) => (
         <Tag icon={getTypeIcon(type)}>{type}</Tag>
       ),
@@ -191,24 +196,26 @@ function FollowUpRecords() {
       title: '跟进内容',
       dataIndex: 'content',
       key: 'content',
+      width: colPct,
       ellipsis: true,
     },
     {
       title: '跟进日期',
       dataIndex: 'follow_up_date',
       key: 'follow_up_date',
-      width: 120,
+      width: colPct,
     },
     {
       title: '跟进人',
       dataIndex: 'follow_up_person',
       key: 'follow_up_person',
-      width: 80,
+      width: colPct,
+      ellipsis: true,
     },
     {
       title: '阶段变化',
       key: 'stage_change',
-      width: 320,
+      width: colPct,
       render: (_, record) => {
         if (record.stage_before && record.stage_after && record.stage_before !== record.stage_after) {
           const stageBefore = getStageInfo(record.stage_before);
@@ -221,12 +228,15 @@ function FollowUpRecords() {
           return (
             <div
               style={{
-                display: 'inline-flex',
+                display: 'flex',
+                flexWrap: 'wrap',
                 alignItems: 'center',
                 gap: 8,
                 padding: '6px 12px',
                 borderRadius: 12,
                 background: '#F5F7FA',
+                maxWidth: '100%',
+                boxSizing: 'border-box',
               }}
             >
               <Tag style={{ margin: 0, border: 'none', background: `${stageBefore.color}20`, color: stageBefore.color }}>
@@ -352,6 +362,7 @@ function FollowUpRecords() {
       <Card style={cardStyle}>
         <Spin spinning={loading}>
           <Table
+            tableLayout="fixed"
             columns={columns}
             dataSource={filteredRecords}
             rowKey="id"

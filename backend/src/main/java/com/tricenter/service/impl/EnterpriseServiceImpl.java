@@ -17,7 +17,10 @@ import com.tricenter.mapper.*;
 import com.tricenter.service.DashboardService;
 import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.service.EnterpriseService;
+import com.tricenter.service.OptionsService;
 import com.tricenter.service.RequirementMatchEngine;
+import com.tricenter.util.EnterpriseExportListSheetPoi;
+import com.tricenter.util.EnterpriseExportRequirementMatrixSheet;
 import com.tricenter.util.StageCodeUtil;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -27,6 +30,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
+
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.math.BigDecimal;
 import java.net.URLEncoder;
@@ -59,6 +64,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     private final DashboardService dashboardService;
     private final DictionaryCacheService dictionaryCache;
     private final RequirementMatchEngine requirementMatchEngine;
+    private final OptionsService optionsService;
 
     @Override
     public PageResult<EnterpriseListResponse> getEnterpriseList(EnterpriseQueryRequest request) {
@@ -220,6 +226,24 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             wrapper.in(Enterprise::getId, matchedIds);
         }
         if (StringUtils.hasText(request.getKeyword())) wrapper.like(Enterprise::getName, request.getKeyword());
+        if (StringUtils.hasText(request.getCreditCodeKeyword())) {
+            wrapper.like(Enterprise::getCreditCode, request.getCreditCodeKeyword());
+        }
+        if (StringUtils.hasText(request.getAddressKeyword())) {
+            wrapper.like(Enterprise::getAddress, request.getAddressKeyword());
+        }
+        if (StringUtils.hasText(request.getWebsiteKeyword())) {
+            wrapper.like(Enterprise::getWebsite, request.getWebsiteKeyword());
+        }
+        if (StringUtils.hasText(request.getIsoCertificationsKeyword())) {
+            wrapper.like(Enterprise::getIsoCertifications, request.getIsoCertificationsKeyword());
+        }
+        if (StringUtils.hasText(request.getAeoCertificationKeyword())) {
+            wrapper.like(Enterprise::getAeoCertification, request.getAeoCertificationKeyword());
+        }
+        if (StringUtils.hasText(request.getOtherCertificationsKeyword())) {
+            wrapper.like(Enterprise::getOtherCertifications, request.getOtherCertificationsKeyword());
+        }
         if (StringUtils.hasText(request.getStage())) {
             List<String> stageVariants = StageCodeUtil.variantsForDbMatch(request.getStage());
             if (!stageVariants.isEmpty()) {
@@ -278,6 +302,12 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         }
         applyIntRangeFilter(wrapper, Enterprise::getTradeTeamSize, request.getTradeTeamSize());
         applyIntRangeFilter(wrapper, Enterprise::getCrossBorderTeamSize, request.getCrossBorderTeamSize());
+        if (request.getCreatedDateStart() != null) {
+            wrapper.ge(Enterprise::getCreatedAt, request.getCreatedDateStart().atStartOfDay());
+        }
+        if (request.getCreatedDateEnd() != null) {
+            wrapper.lt(Enterprise::getCreatedAt, request.getCreatedDateEnd().plusDays(1).atStartOfDay());
+        }
         if (StringUtils.hasText(request.getLogisticsMode())) {
             for (String mode : request.getLogisticsMode().split(",")) {
                 if (StringUtils.hasText(mode)) wrapper.like(Enterprise::getCrossBorderLogistics, mode.trim());
@@ -1234,16 +1264,33 @@ public class EnterpriseServiceImpl implements EnterpriseService {
 
     @Override
     public void exportEnterprises(EnterpriseQueryRequest request, HttpServletResponse response) {
-        // 直接查询 Enterprise 实体以获取全部字段
-        Set<Integer> matchedIds = null;
-        if (StringUtils.hasText(request.getKeyword())) {
-            LambdaQueryWrapper<EnterpriseContact> cw = new LambdaQueryWrapper<>();
-            cw.and(w2 -> w2.like(EnterpriseContact::getName, request.getKeyword())
-                    .or().like(EnterpriseContact::getPhone, request.getKeyword()));
-            List<EnterpriseContact> matchContacts = contactMapper.selectList(cw);
-            matchedIds = matchContacts.stream().map(EnterpriseContact::getEnterpriseId).collect(java.util.stream.Collectors.toSet());
+        Set<Integer> matchedIds = resolveExternalFilters(request);
+        if (matchedIds != null && matchedIds.isEmpty()) {
+            try {
+                response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+                response.setCharacterEncoding("utf-8");
+                String fileName = URLEncoder.encode("企业列表", "UTF-8").replaceAll("\\+", "%20");
+                response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
+                try (XSSFWorkbook wb = new XSSFWorkbook()) {
+                    EnterpriseExportListSheetPoi.writeSheet(wb, Collections.emptyList());
+                    EnterpriseExportRequirementMatrixSheet.append(
+                            wb,
+                            Collections.emptyList(),
+                            optionsService.getRequirementConfig(),
+                            requirementMatchEngine,
+                            request,
+                            dictionaryCache);
+                    wb.write(response.getOutputStream());
+                    response.getOutputStream().flush();
+                }
+            } catch (Exception e) {
+                log.error("导出企业失败", e);
+                throw new BusinessException("导出失败: " + e.getMessage());
+            }
+            return;
         }
         LambdaQueryWrapper<Enterprise> wrapper = buildFilterWrapper(request, matchedIds);
+        wrapper.orderByDesc(Enterprise::getCreatedAt);
         wrapper.last("LIMIT 10000");
         List<Enterprise> enterprises = enterpriseMapper.selectList(wrapper);
 
@@ -1299,16 +1346,24 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             return data;
         }).collect(Collectors.toList());
         
-        // 导出Excel
         try {
             response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
             response.setCharacterEncoding("utf-8");
             String fileName = URLEncoder.encode("企业列表", "UTF-8").replaceAll("\\+", "%20");
             response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
-            
-            EasyExcel.write(response.getOutputStream(), EnterpriseExcelData.class)
-                    .sheet("企业列表")
-                    .doWrite(excelDataList);
+
+            try (XSSFWorkbook wb = new XSSFWorkbook()) {
+                EnterpriseExportListSheetPoi.writeSheet(wb, excelDataList);
+                EnterpriseExportRequirementMatrixSheet.append(
+                        wb,
+                        enterprises,
+                        optionsService.getRequirementConfig(),
+                        requirementMatchEngine,
+                        request,
+                        dictionaryCache);
+                wb.write(response.getOutputStream());
+                response.getOutputStream().flush();
+            }
         } catch (Exception e) {
             log.error("导出企业失败", e);
             throw new BusinessException("导出失败: " + e.getMessage());

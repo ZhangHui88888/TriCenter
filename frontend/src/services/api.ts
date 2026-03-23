@@ -30,6 +30,8 @@ export const enterpriseApi = {
     requirementIds?: string;
     mainPlatforms?: string;
     targetMarkets?: string;
+    createdDateStart?: string;
+    createdDateEnd?: string;
   }) => request.get('/enterprises', { params }),
 
   /** 与列表相同筛选条件下的概览统计（全量匹配企业，不受分页影响） */
@@ -61,8 +63,8 @@ export const enterpriseApi = {
     });
   },
 
-  // 导出企业
-  export: (params?: { stage?: string; district?: string }) =>
+  // 导出企业（与列表相同查询参数；双 Sheet：企业列表 + 需求分析矩阵）
+  export: (params?: Record<string, unknown>) =>
     request.get('/enterprises/export', { params, responseType: 'blob', timeout: 0 }),
 
   // 下载导入模板

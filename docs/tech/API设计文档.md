@@ -250,7 +250,7 @@ NODE_ENV=production npm start
 | 项 | 值 |
 |-----|-----|
 | 路径 | `GET /api/enterprises` |
-| 参数 | `?keyword=&stage=&district=&industryId=&province=&city=&enterpriseType=&staffSizeId=&domesticRevenueId=&crossBorderRevenueId=&crossBorderRevenueMinWan=&crossBorderRevenueMaxWan=&sourceId=&hasCrossBorder=&usingErp=&transformationWillingness=&automationLevelId=&localProcurementRatio=&logisticsPartnerIds=&lastFollowupDays=&requirementIds=&mainPlatforms=&targetMarkets=&page=1&pageSize=10` |
+| 参数 | `?keyword=&stage=&district=&industryId=&province=&city=&enterpriseType=&staffSizeId=&domesticRevenueId=&crossBorderRevenueId=&crossBorderRevenueMinWan=&crossBorderRevenueMaxWan=&sourceId=&hasCrossBorder=&usingErp=&transformationWillingness=&automationLevelId=&localProcurementRatio=&logisticsPartnerIds=&lastFollowupDays=&requirementIds=&mainPlatforms=&targetMarkets=&createdDateStart=&createdDateEnd=&page=1&pageSize=10` |
 | 响应 | `{ list: Enterprise[], total: number, page: number, pageSize: number }` |
 | 说明 | 支持搜索、多条件筛选、分页；每条 `contacts` 已按主要联系人优先（`is_primary` 降序、`id` 升序）批量返回，含 `email` 供列表在电话为空时展示 |
 
@@ -263,6 +263,8 @@ NODE_ENV=production npm start
 | industryId | number | 所属行业ID |
 | province | string | 省份 |
 | city | string | 城市 |
+| createdDateStart | string | 录入日期开始，格式 `yyyy-MM-dd`，按 `created_at >= 当日 00:00:00` 过滤 |
+| createdDateEnd | string | 录入日期结束，格式 `yyyy-MM-dd`，按 `created_at < 次日 00:00:00` 过滤 |
 | enterpriseType | string | 企业类型 |
 | staffSizeId | number | 人员规模ID |
 | domesticRevenueId | number | 国内营收档位ID |
@@ -499,9 +501,9 @@ interface CreateEnterpriseRequest {
 | 项 | 值 |
 |-----|-----|
 | 路径 | `GET /api/enterprises/export` |
-| 参数 | 与 `GET /api/enterprises` 保持一致，复用同一套筛选条件 |
-| 响应 | Excel文件流 (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet) |
-| 说明 | 导出企业列表为Excel |
+| 参数 | 与 `GET /api/enterprises` 保持一致（含高级筛选、需求/产品/跟进等外部条件），`page`/`pageSize` 可忽略；数据量上限 10000 条 |
+| 响应 | Excel 文件流 (application/vnd.openxmlformats-officedocument.spreadsheetml.sheet) |
+| 说明 | 双 Sheet：① **企业列表**（与导入模板列结构一致）；② **需求分析矩阵**——行为标准需求（阶段、分类、名称、ID），列为企业（名称+ID），格为「是/否」；左上合并区展示筛选条件摘要，冻结前 4 列及前 4 行（筛选区+表头），便于横向查看企业列 |
 
 ### 3.9 获取导入模板
 | 项 | 值 |

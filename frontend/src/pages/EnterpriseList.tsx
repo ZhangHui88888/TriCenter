@@ -7,6 +7,7 @@ import {
   Input,
   Select,
   InputNumber,
+  DatePicker,
   Space,
   Modal,
   Form,
@@ -32,6 +33,7 @@ import {
 } from '@ant-design/icons';
 import { Upload, Tabs, Badge, Radio } from 'antd';
 import type { ColumnsType } from 'antd/es/table';
+import dayjs, { type Dayjs } from 'dayjs';
 import { requirements } from '@/data/requirementsData';
 import {
   ENTERPRISE_TYPE_OPTIONS,
@@ -44,7 +46,6 @@ import {
 import ReactECharts from 'echarts-for-react';
 import { enterpriseApi, optionsApi, surveyExcelApi, dashboardApi } from '@/services/api';
 import EnterpriseSearch from '@/components/EnterpriseSearch';
-import { exportEnterpriseListExcel } from '@/utils/exportEnterpriseListExcel';
 import type { Enterprise } from '@/types';
 
 const { Text } = Typography;
@@ -70,6 +71,12 @@ type EnterpriseListQueryParams = {
   crossBorderRevenueMinWan?: number;
   crossBorderRevenueMaxWan?: number;
   sourceId?: number;
+  creditCodeKeyword?: string;
+  addressKeyword?: string;
+  websiteKeyword?: string;
+  isoCertificationsKeyword?: string;
+  aeoCertificationKeyword?: string;
+  otherCertificationsKeyword?: string;
   hasCrossBorder?: number;
   transformationWillingness?: string;
   usingErp?: number;
@@ -88,7 +95,11 @@ type EnterpriseListQueryParams = {
   crossBorderTeamSize?: string;
   logisticsMode?: string;
   paymentMethod?: string;
+  createdDateStart?: string;
+  createdDateEnd?: string;
 };
+
+type EntryDateRange = [Dayjs, Dayjs];
 
 // 漏斗阶段配置
 const FUNNEL_STAGES = [
@@ -132,6 +143,33 @@ function getEnterpriseListContactSubline(contacts: ListContactRaw[] | undefined 
   const phone = String(first?.phone ?? '').trim();
   const email = String(first?.email ?? '').trim();
   return phone || email || '';
+}
+
+function toEntryDateRange(value: unknown): EntryDateRange | undefined {
+  if (!Array.isArray(value) || value.length !== 2) {
+    return undefined;
+  }
+  const [start, end] = value;
+  if (typeof start !== 'string' || typeof end !== 'string') {
+    return undefined;
+  }
+  const startDate = dayjs(start);
+  const endDate = dayjs(end);
+  if (!startDate.isValid() || !endDate.isValid()) {
+    return undefined;
+  }
+  return [startDate, endDate];
+}
+
+function normalizeEntryDateRange(value: unknown): [string, string] | undefined {
+  if (!Array.isArray(value) || value.length !== 2) {
+    return undefined;
+  }
+  const [start, end] = value;
+  if (!dayjs.isDayjs(start) || !dayjs.isDayjs(end)) {
+    return undefined;
+  }
+  return [start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD')];
 }
 
 type EnterpriseOverviewStats = {
@@ -326,13 +364,22 @@ function EnterpriseList() {
         ))
       : [];
 
+    const nameKw =
+      typeof filters.enterprise_name === 'string' && filters.enterprise_name.trim() !== ''
+        ? filters.enterprise_name.trim()
+        : searchTerm || undefined;
+    const entryDateRange = normalizeEntryDateRange(filters.entry_date_range);
+
     return ({
     page: currentPage,
     pageSize: currentPageSize,
-    keyword: searchTerm || undefined,
+    keyword: nameKw,
     stage: filters.funnel_stage || stageFilter || undefined,
     district: filters.district || districtFilter || undefined,
-    industryId: industryFilter,
+    industryId:
+      filters.industry_id != null && filters.industry_id !== ''
+        ? Number(filters.industry_id)
+        : industryFilter,
     province: filters.province || undefined,
     city: filters.city || undefined,
     enterpriseType: filters.enterprise_type || undefined,
@@ -341,6 +388,30 @@ function EnterpriseList() {
     crossBorderRevenueMinWan: filters.crossborder_revenue_min_wan != null ? Number(filters.crossborder_revenue_min_wan) : undefined,
     crossBorderRevenueMaxWan: filters.crossborder_revenue_max_wan != null ? Number(filters.crossborder_revenue_max_wan) : undefined,
     sourceId: filters.source || undefined,
+    creditCodeKeyword:
+      typeof filters.unified_credit_code === 'string' && filters.unified_credit_code.trim() !== ''
+        ? filters.unified_credit_code.trim()
+        : undefined,
+    addressKeyword:
+      typeof filters.detailed_address === 'string' && filters.detailed_address.trim() !== ''
+        ? filters.detailed_address.trim()
+        : undefined,
+    websiteKeyword:
+      typeof filters.website === 'string' && filters.website.trim() !== ''
+        ? filters.website.trim()
+        : undefined,
+    isoCertificationsKeyword:
+      typeof filters.iso_certifications === 'string' && filters.iso_certifications.trim() !== ''
+        ? filters.iso_certifications.trim()
+        : undefined,
+    aeoCertificationKeyword:
+      typeof filters.aeo_certification === 'string' && filters.aeo_certification.trim() !== ''
+        ? filters.aeo_certification.trim()
+        : undefined,
+    otherCertificationsKeyword:
+      typeof filters.other_certifications === 'string' && filters.other_certifications.trim() !== ''
+        ? filters.other_certifications.trim()
+        : undefined,
     hasCrossBorder: typeof filters.has_crossborder === 'boolean'
       ? (filters.has_crossborder ? 1 : 0)
       : undefined,
@@ -379,6 +450,8 @@ function EnterpriseList() {
     paymentMethod: Array.isArray(filters.payment_method) && filters.payment_method.length > 0
       ? filters.payment_method.join(',')
       : undefined,
+    createdDateStart: entryDateRange?.[0],
+    createdDateEnd: entryDateRange?.[1],
     });
   };
 
@@ -627,6 +700,17 @@ function EnterpriseList() {
     fetchEnterprises(1, pageSize, {});
     fetchOverviewStats({});
   }, []);
+
+  /** 打开高级筛选时合并工具栏「关键词 / 所属行业」与已保存的高级条件，避免与列表顶部条件脱节 */
+  useEffect(() => {
+    if (!isFilterModalOpen) return;
+    filterForm.setFieldsValue({
+      ...advancedFilters,
+      industry_id: advancedFilters.industry_id ?? industryFilter,
+      enterprise_name: advancedFilters.enterprise_name ?? (searchTerm || undefined),
+      entry_date_range: toEntryDateRange(advancedFilters.entry_date_range),
+    });
+  }, [isFilterModalOpen, advancedFilters, industryFilter, searchTerm, filterForm]);
   
   // 搜索
   const handleSearch = () => {
@@ -715,9 +799,19 @@ function EnterpriseList() {
   };
 
   const supportedAdvancedFilterKeys = new Set([
+    'enterprise_name',
+    'unified_credit_code',
+    'entry_date_range',
+    'industry_id',
     'province',
     'city',
     'district',
+    'detailed_address',
+    'website',
+    'export_qualification',
+    'iso_certifications',
+    'aeo_certification',
+    'other_certifications',
     'enterprise_type',
     'employee_scale',
     'domestic_revenue',
@@ -737,7 +831,6 @@ function EnterpriseList() {
     'has_erp',
     'has_foreign_trade',
     'trade_mode',
-    'export_qualification',
     'trade_team_mode',
     'trade_team_size',
     'crossborder_team_size',
@@ -746,6 +839,16 @@ function EnterpriseList() {
   ]);
 
   const advancedFilterLabels: Record<string, string> = {
+    enterprise_name: '企业名称',
+    unified_credit_code: '统一社会信用代码',
+    entry_date_range: '录入时间',
+    industry_id: '所属行业',
+    detailed_address: '详细地址',
+    website: '官网',
+    export_qualification: '进出口经营权',
+    iso_certifications: 'ISO认证',
+    aeo_certification: 'AEO认证等级',
+    other_certifications: '其他资质证书',
     province: '省份',
     city: '城市',
     district: '区县',
@@ -766,7 +869,6 @@ function EnterpriseList() {
     has_erp: '是否在用ERP',
     has_foreign_trade: '是否开展外贸',
     trade_mode: '外贸模式',
-    export_qualification: '是否有进出口资质',
     trade_team_mode: '外贸业务团队模式',
     trade_team_size: '外贸团队人数',
     crossborder_team_size: '跨境团队规模',
@@ -843,7 +945,11 @@ function EnterpriseList() {
   // 应用高级筛选
   const handleApplyFilters = () => {
     const values = filterForm.getFieldsValue();
-    const { supported, ignoredKeys } = splitAdvancedFilters(values);
+    const normalizedValues = {
+      ...values,
+      entry_date_range: normalizeEntryDateRange(values.entry_date_range),
+    };
+    const { supported, ignoredKeys } = splitAdvancedFilters(normalizedValues);
     if (ignoredKeys.length > 0) {
       const sanitizedValues = { ...values };
       ignoredKeys.forEach((key) => {
@@ -852,6 +958,12 @@ function EnterpriseList() {
       filterForm.setFieldsValue(sanitizedValues);
     }
     setAdvancedFilters(supported);
+    setIndustryFilter(
+      normalizedValues.industry_id != null && normalizedValues.industry_id !== '' ? Number(normalizedValues.industry_id) : undefined
+    );
+    if (typeof normalizedValues.enterprise_name === 'string') {
+      setSearchTerm(normalizedValues.enterprise_name.trim());
+    }
     setIsFilterModalOpen(false);
     setPage(1);
     void fetchEnterprises(1, pageSize, supported);
@@ -1552,25 +1664,46 @@ function EnterpriseList() {
           setExporting(true);
           try {
             if (exportType === 'list') {
-              // 列表导出：获取所有匹配企业数据
-              const response = await enterpriseApi.getList(buildListParams(1, 99999));
-              const list = (response.data?.list || []).map((item: any) => ({
-                id: item.id,
-                enterprise_name: item.name,
-                district: item.district,
-                industry: item.industryName,
-                enterprise_type: item.enterpriseType,
-                funnel_stage: item.stage,
-                contacts: item.contacts || [],
-                has_crossborder: item.hasCrossBorder,
-                created_at: item.createdAt,
-              }));
-              if (list.length === 0) {
-                message.warning('没有可导出的企业');
+              const params = buildListParams(1, 99999) as Record<string, unknown>;
+              const response = await enterpriseApi.export(params);
+              const raw = response.data as Blob;
+              const hdrs = response.headers || {};
+              const ct = String(
+                hdrs['content-type'] ?? (hdrs as Record<string, string>)['Content-Type'] ?? ''
+              ).toLowerCase();
+              if (ct.includes('application/json') || ct.includes('application/problem')) {
+                const text = await raw.text();
+                let msg = '导出失败';
+                try {
+                  const j = JSON.parse(text) as { message?: string; detail?: string };
+                  msg = j.message || j.detail || msg;
+                } catch {
+                  if (text) msg = text.slice(0, 200);
+                }
+                message.error(msg);
                 return;
               }
-              await exportEnterpriseListExcel(list);
-              message.success(`导出成功，共 ${list.length} 家企业`);
+              const head = new Uint8Array(await raw.slice(0, 4).arrayBuffer());
+              const isZip = head[0] === 0x50 && head[1] === 0x4b;
+              if (!isZip) {
+                const text = await raw.text();
+                message.error(
+                  text?.slice(0, 200) || '返回内容不是 Excel（.xlsx 应为 ZIP 头），请确认已登录且请求到达 TriCenter 后端'
+                );
+                return;
+              }
+              const blob = new Blob([raw], {
+                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+              });
+              const url = window.URL.createObjectURL(blob);
+              const link = document.createElement('a');
+              link.href = url;
+              link.download = `企业列表_${new Date().toISOString().slice(0, 10)}.xlsx`;
+              document.body.appendChild(link);
+              link.click();
+              document.body.removeChild(link);
+              window.URL.revokeObjectURL(url);
+              message.success('导出成功（含企业列表与需求分析矩阵）');
             } else {
               // 调研表导出
               const ids = selectedRowKeys.length > 0
@@ -1614,12 +1747,12 @@ function EnterpriseList() {
           </div>
           {exportType === 'list' ? (
             <>
-              <Text>将导出当前筛选条件下的所有企业为列表 Excel</Text>
+              <Text>将导出当前筛选条件下的企业（与列表统计口径一致，最多 10000 条）</Text>
               <div style={{ marginTop: 12 }}>
-                <Text type="secondary">导出格式：Excel (.xlsx)，单 Sheet 表格</Text>
-              </div>
-              <div style={{ marginTop: 8 }}>
-                <Text type="secondary">包含字段：企业名称、区域、行业、类型、漏斗阶段、联系人、联系电话、是否跨境、主要平台、录入时间</Text>
+                <Text type="secondary">
+                  Excel（.xlsx）双 Sheet：① 企业列表（导入模板同结构字段）；②
+                  需求分析矩阵——行为标准需求（阶段/分类/名称），列为企业，单元格为是/否；左上为筛选条件说明，已冻结左侧与表头便于横向浏览。
+                </Text>
               </div>
             </>
           ) : (
@@ -1654,7 +1787,7 @@ function EnterpriseList() {
         }
         open={isFilterModalOpen}
         onCancel={() => setIsFilterModalOpen(false)}
-        width={800}
+        width={920}
         footer={
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <Button onClick={handleResetFilters}>重置全部</Button>
@@ -1683,6 +1816,37 @@ function EnterpriseList() {
                 label: '基本信息',
                 children: (
                   <Row gutter={16}>
+                    <Col span={8}>
+                      <Form.Item name="enterprise_name" label="企业名称">
+                        <Input allowClear placeholder="支持模糊匹配" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="unified_credit_code" label="统一社会信用代码">
+                        <Input allowClear placeholder="支持模糊匹配" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="entry_date_range" label="录入时间">
+                        <DatePicker.RangePicker
+                          allowClear
+                          style={{ width: '100%' }}
+                          placeholder={['开始日期', '结束日期']}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="industry_id" label="所属行业">
+                        <Select
+                          placeholder="请选择"
+                          allowClear
+                          options={industries.map((o: { id: number; name: string }) => ({
+                            label: o.name,
+                            value: o.id,
+                          }))}
+                        />
+                      </Form.Item>
+                    </Col>
                     <Col span={8}>
                       <Form.Item name="province" label="省份">
                         <Select 
@@ -1751,6 +1915,43 @@ function EnterpriseList() {
                         <Select placeholder="请选择" allowClear options={sourceOptions} />
                       </Form.Item>
                     </Col>
+                    <Col span={8}>
+                      <Form.Item name="detailed_address" label="详细地址">
+                        <Input allowClear placeholder="支持模糊匹配" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="website" label="官网">
+                        <Input allowClear placeholder="支持模糊匹配" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="export_qualification" label="进出口经营权">
+                        <Select
+                          placeholder="请选择"
+                          allowClear
+                          options={[
+                            { label: '有', value: true },
+                            { label: '无', value: false },
+                          ]}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="iso_certifications" label="ISO认证">
+                        <Input allowClear placeholder="包含关键词即可" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="aeo_certification" label="AEO认证等级">
+                        <Input allowClear placeholder="包含关键词即可" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="other_certifications" label="其他资质证书">
+                        <Input allowClear placeholder="包含关键词即可" />
+                      </Form.Item>
+                    </Col>
                   </Row>
                 ),
               },
@@ -1815,18 +2016,6 @@ function EnterpriseList() {
                           placeholder="请选择" 
                           allowClear 
                           options={tradeModeOptions} 
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item name="export_qualification" label="是否有进出口资质">
-                        <Select 
-                          placeholder="请选择" 
-                          allowClear 
-                          options={[
-                            { label: '有', value: true },
-                            { label: '无', value: false },
-                          ]} 
                         />
                       </Form.Item>
                     </Col>

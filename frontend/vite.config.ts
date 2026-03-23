@@ -13,7 +13,8 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8081',
+        // 使用 127.0.0.1，避免 Windows 上 localhost 解析到 ::1 而后端只监听 IPv4 导致 ECONNREFUSED
+        target: 'http://127.0.0.1:8081',
         changeOrigin: true,
       },
     },

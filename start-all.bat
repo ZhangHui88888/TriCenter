@@ -1,5 +1,8 @@
 @echo off
 chcp 65001 >nul
+REM 双击运行时保证在项目根目录（与原逻辑一致，仅补这一行）
+cd /d "%~dp0"
+
 echo ============================================================
 echo   常州跨境电商三中心 - 企业信息管理系统
 echo   一键启动脚本
@@ -37,24 +40,22 @@ if %errorlevel% neq 0 (
 echo [√] Node.js 已安装
 
 echo.
-echo [2/3] 启动后端服务 (端口 8080)...
+echo [2/3] 启动后端服务...
 echo.
 
-REM 设置环境变量
 set DB_PASSWORD=root
 set JWT_SECRET=tricenter-enterprise-management-system-jwt-secret-key-2026
 
-REM 在新窗口启动后端
-start "TriCenter Backend" cmd /k "cd backend && mvn spring-boot:run -Dspring-boot.run.profiles=dev"
+REM 与原逻辑相同：子窗口内 cd backend 后 spring-boot:run；端口以 application.yml 为准，默认 8081
+start "TriCenter Backend" cmd /k "cd backend && set DB_PASSWORD=root&& set JWT_SECRET=tricenter-enterprise-management-system-jwt-secret-key-2026&& mvn spring-boot:run -Dspring-boot.run.profiles=dev"
 
 echo [√] 后端启动中，请等待...
 timeout /t 10 /nobreak >nul
 
 echo.
-echo [3/3] 启动前端服务 (端口 3000)...
+echo [3/3] 启动前端服务...
 echo.
 
-REM 在新窗口启动前端
 start "TriCenter Frontend" cmd /k "cd frontend && npm run dev"
 
 echo.
@@ -62,9 +63,7 @@ echo ============================================================
 echo   启动完成！
 echo.
 echo   前端地址: http://localhost:3000
-echo   后端地址: http://localhost:8080
-echo   API文档:  http://localhost:8080/doc.html
-echo.
+echo   后端默认端口 8081，与 vite 代理一致；API 文档见 doc.html
 echo   默认账号: admin / admin123
 echo ============================================================
 echo.

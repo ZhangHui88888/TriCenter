@@ -372,41 +372,35 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             coopData.add(1, coopExample);
             writer.write(coopData, sheet6);
 
-            // Sheet7: 需求分析（动态列头，与数据库 requirements + 字典阶段/类别一致）
+            // Sheet7: 需求分析（转置矩阵：每行一条需求、每列一个企业）
             RequirementConfigResponse reqConfig = optionsService.getRequirementConfig();
             List<RequirementConfigResponse.RequirementItemDTO> allReqs = reqConfig.getRequirements() != null
                     ? reqConfig.getRequirements()
                     : List.of();
-            // 构建四级表头：第一级=阶段名，第二级=类别，第三级=需求项ID+名称，第四级=描述
+            // 构建四级表头：左侧固定为需求信息，右侧每列一个企业
             List<List<String>> reqHead = new ArrayList<>();
-            reqHead.add(Arrays.asList("企业信息", "企业信息", "企业ID", "企业ID"));
-            reqHead.add(Arrays.asList("企业信息", "企业信息", "企业名称", "企业名称"));
-            for (RequirementConfigResponse.RequirementItemDTO req : allReqs) {
-                String desc = req.getDescription() != null ? req.getDescription() : "";
-                reqHead.add(Arrays.asList(req.getPhase(), req.getCategory(), "[" + req.getId() + "]" + req.getName(), desc));
+            reqHead.add(Arrays.asList("需求信息", "需求信息", "需求阶段", "需求阶段"));
+            reqHead.add(Arrays.asList("需求信息", "需求信息", "需求分类", "需求分类"));
+            reqHead.add(Arrays.asList("需求信息", "需求信息", "需求ID", "需求ID"));
+            reqHead.add(Arrays.asList("需求信息", "需求信息", "需求名称", "需求名称"));
+            for (Enterprise e : enterprises) {
+                reqHead.add(Arrays.asList("企业信息", "企业信息", "企业名称", e.getName()));
             }
-            // 自定义需求列
-            reqHead.add(Arrays.asList("自定义需求", "自定义需求", "自定义需求", "用顿号分隔多个自定义需求"));
 
             // 需求分析Sheet专用样式处理器：设置列宽和表头行高
             com.alibaba.excel.write.handler.SheetWriteHandler reqSheetHandler = new com.alibaba.excel.write.handler.SheetWriteHandler() {
                 @Override
                 public void afterSheetCreate(com.alibaba.excel.write.metadata.holder.WriteWorkbookHolder wbh, com.alibaba.excel.write.metadata.holder.WriteSheetHolder wsh) {
                     org.apache.poi.ss.usermodel.Sheet sheet = wsh.getSheet();
-                    // 隐藏企业ID列
-                    sheet.setColumnHidden(0, true);
-                    // 企业名称列宽30字符
-                    sheet.setColumnWidth(1, 30 * 256);
-                    // 需求项列宽18字符
-                    for (int i = 2; i < 2 + allReqs.size(); i++) {
-                        sheet.setColumnWidth(i, 60 * 256);
+                    sheet.setColumnWidth(0, 16 * 256);
+                    sheet.setColumnWidth(1, 18 * 256);
+                    sheet.setColumnWidth(2, 14 * 256);
+                    sheet.setColumnWidth(3, 40 * 256);
+                    for (int i = 4; i < 4 + enterprises.size(); i++) {
+                        sheet.setColumnWidth(i, 24 * 256);
                     }
-                    // 自定义需求列宽25字符
-                    sheet.setColumnWidth(2 + allReqs.size(), 25 * 256);
-                    // 设置表头行高（4行表头）
-                    // 第1行（阶段）和第2行（类别）正常高度
-                    // 第3行（需求项名称）稍高
-                    // 第4行（描述）最高，容纳长文本
+                    // 仅冻结前4列（需求维度），横向滚动时保持左侧需求信息可见
+                    sheet.createFreezePane(4, 0);
                 }
             };
 
@@ -418,33 +412,46 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             List<List<Object>> reqData = new ArrayList<>();
             // 提示行
             List<Object> reqHint = new ArrayList<>();
-            reqHint.add(null); // 企业ID
-            reqHint.add("【请勿修改企业ID】");
-            for (int i = 0; i < allReqs.size(); i++) {
+            reqHint.add("填写说明");
+            reqHint.add("");
+            reqHint.add("");
+            reqHint.add("每行一条需求；企业列填写“是/否”；最后一行“自定义需求”可自由填写");
+            for (int i = 0; i < enterprises.size(); i++) {
                 reqHint.add("填：是/否");
             }
-            reqHint.add("自由填写");
             reqData.add(reqHint);
             // 示例行
             List<Object> reqExample = new ArrayList<>();
-            reqExample.add(null); // 企业ID
-            reqExample.add("示例：常州XX科技有限公司");
-            for (int i = 0; i < allReqs.size(); i++) {
+            reqExample.add("品牌规划");
+            reqExample.add("品牌建设");
+            reqExample.add("R-DEMO");
+            reqExample.add("示例需求");
+            for (int i = 0; i < enterprises.size(); i++) {
                 reqExample.add(i % 3 == 0 ? "是" : "否"); // 交替填写示例
             }
-            reqExample.add("定制化包装设计、海外仓选址咨询");
             reqData.add(reqExample);
-            // 企业数据行（空白，待填写）
-            for (Enterprise e : enterprises) {
+            // 需求数据行（空白待填写）
+            for (RequirementConfigResponse.RequirementItemDTO req : allReqs) {
                 List<Object> row = new ArrayList<>();
-                row.add(e.getId());
-                row.add(e.getName());
-                for (int i = 0; i < allReqs.size(); i++) {
+                row.add(req.getPhase());
+                row.add(req.getCategory());
+                row.add(req.getId());
+                row.add(req.getName());
+                for (int i = 0; i < enterprises.size(); i++) {
                     row.add(""); // 空白待填写
                 }
-                row.add(""); // 自定义需求
                 reqData.add(row);
             }
+            // 自定义需求单独占一行，便于各企业横向填写
+            List<Object> customReqRow = new ArrayList<>();
+            customReqRow.add("");
+            customReqRow.add("");
+            customReqRow.add("");
+            customReqRow.add("自定义需求（自由填写）");
+            for (int i = 0; i < enterprises.size(); i++) {
+                customReqRow.add("");
+            }
+            reqData.add(customReqRow);
             writer.write(reqData, sheet7);
 
             writer.finish();
@@ -559,9 +566,9 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         // ── 需求分析 ──
         data.add(Arrays.asList("── 需求分析 ──", "", "", ""));
         data.add(Arrays.asList("需求分析说明", "需求分析",
-                "列与系统「需求配置」一致（来自数据库 requirements 表），每列对应一条标准需求，填\"是\"或\"否\"",
-                "阶段、类别、需求名称以模板表头为准；修改标准需求请在后台维护后重新下载模板"));
-        data.add(Arrays.asList("自定义需求", "需求分析", "自由填写，多个用顿号分隔", "填写企业的个性化需求"));
+                "每行对应一条标准需求，左侧为阶段/分类/需求ID/需求名称；每列对应一个企业，填写\"是\"或\"否\"",
+                "已冻结前4列与前6行；修改标准需求请在后台维护后重新下载模板"));
+        data.add(Arrays.asList("自定义需求", "需求分析", "最后一行按企业列自由填写", "填写企业的个性化需求"));
 
         return data;
     }

@@ -22,7 +22,7 @@ export default function FollowUpTab({
     { title: '日期', dataIndex: 'follow_up_date', key: 'date', width: 120 },
     { title: '类型', dataIndex: 'follow_up_type', key: 'type', width: 80 },
     { title: '跟进内容', dataIndex: 'content', key: 'content' },
-    { title: '跟进人', dataIndex: 'follow_up_person', key: 'person', width: 80 },
+    { title: '跟进人', dataIndex: 'follow_up_person', key: 'person', width: 120, ellipsis: true },
     {
       title: '阶段变化',
       key: 'stage_change',

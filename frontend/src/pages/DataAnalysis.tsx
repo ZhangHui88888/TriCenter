@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Select, Row, Col, Button, Space, Modal, Form, Tabs, Badge, message, Tooltip, InputNumber } from 'antd';
+import { Select, Row, Col, Button, Space, Modal, Form, Tabs, Badge, message, Tooltip, InputNumber, DatePicker } from 'antd';
 import NeonLoader from '@/components/NeonLoader';
 import { ReloadOutlined, FilterOutlined, SearchOutlined, ClearOutlined } from '@ant-design/icons';
 import EnterpriseSearch from '@/components/EnterpriseSearch';
@@ -7,6 +7,7 @@ import WorldMap from '@/components/WorldMap';
 import ReactECharts from 'echarts-for-react';
 import { optionsApi, dashboardApi } from '@/services/api';
 import { requirements } from '@/data/requirementsData';
+import dayjs, { type Dayjs } from 'dayjs';
 import {
   CROSSBORDER_PLATFORMS,
   ENTERPRISE_TYPE_OPTIONS,
@@ -49,6 +50,7 @@ const subStyle: React.CSSProperties = {
 };
 
 type SelectOption = { label: string; value: any };
+type EntryDateRange = [Dayjs, Dayjs];
 
 const FUNNEL_STAGES = [
   { code: 'POTENTIAL', name: '潜在企业', color: D.blue },
@@ -59,6 +61,33 @@ const FUNNEL_STAGES = [
   { code: 'SETTLED', name: '已入驻', color: D.teal },
   { code: 'INCUBATING', name: '重点孵化', color: D.orange },
 ];
+
+function toEntryDateRange(value: unknown): EntryDateRange | undefined {
+  if (!Array.isArray(value) || value.length !== 2) {
+    return undefined;
+  }
+  const [start, end] = value;
+  if (typeof start !== 'string' || typeof end !== 'string') {
+    return undefined;
+  }
+  const startDate = dayjs(start);
+  const endDate = dayjs(end);
+  if (!startDate.isValid() || !endDate.isValid()) {
+    return undefined;
+  }
+  return [startDate, endDate];
+}
+
+function normalizeEntryDateRange(value: unknown): [string, string] | undefined {
+  if (!Array.isArray(value) || value.length !== 2) {
+    return undefined;
+  }
+  const [start, end] = value;
+  if (!dayjs.isDayjs(start) || !dayjs.isDayjs(end)) {
+    return undefined;
+  }
+  return [start.format('YYYY-MM-DD'), end.format('YYYY-MM-DD')];
+}
 
 function DataAnalysis() {
   const [loading, setLoading] = useState(true);
@@ -108,11 +137,22 @@ function DataAnalysis() {
     fetchData({});
   }, []);
 
+  useEffect(() => {
+    if (!isFilterModalOpen) {
+      return;
+    }
+    filterForm.setFieldsValue({
+      ...advancedFilters,
+      entry_date_range: toEntryDateRange(advancedFilters.entry_date_range),
+    });
+  }, [isFilterModalOpen, advancedFilters, filterForm]);
+
   const buildParams = (filters: Record<string, any> = advancedFilters) => {
     const reqIds = filters.requirements && typeof filters.requirements === 'object'
       ? Array.from(new Set(Object.values(filters.requirements).flatMap((v) => Array.isArray(v) ? v : [])))
       : [];
     const positiveId = (v: unknown) => (typeof v === 'number' && v > 0 ? v : undefined);
+    const entryDateRange = normalizeEntryDateRange(filters.entry_date_range);
     return {
       keyword: keyword || undefined,
       stage: filters.funnel_stage || stageFilter || undefined,
@@ -136,6 +176,8 @@ function DataAnalysis() {
       targetMarkets: Array.isArray(filters.target_markets) && filters.target_markets.length > 0 ? filters.target_markets.join(',') : undefined,
       lastFollowupDays: typeof filters.last_followup_days === 'number' ? filters.last_followup_days : undefined,
       requirementIds: reqIds.length > 0 ? reqIds.join(',') : undefined,
+      createdDateStart: entryDateRange?.[0],
+      createdDateEnd: entryDateRange?.[1],
     };
   };
 
@@ -208,8 +250,12 @@ function DataAnalysis() {
   };
   const handleApplyFilters = () => {
     const values = filterForm.getFieldsValue();
+    const normalizedValues = {
+      ...values,
+      entry_date_range: normalizeEntryDateRange(values.entry_date_range),
+    };
     const supported: Record<string, any> = {};
-    Object.entries(values).forEach(([k, v]) => { if (hasActiveValue(v)) supported[k] = v; });
+    Object.entries(normalizedValues).forEach(([k, v]) => { if (hasActiveValue(v)) supported[k] = v; });
     setAdvancedFilters(supported);
     setIsFilterModalOpen(false);
     fetchData(supported);
@@ -484,6 +530,7 @@ function DataAnalysis() {
           <Tabs items={[
             { key: 'basic', label: '基本信息', children: (
               <Row gutter={16}>
+                <Col span={8}><Form.Item name="entry_date_range" label="录入时间"><DatePicker.RangePicker allowClear style={{ width: '100%' }} placeholder={['开始日期', '结束日期']} /></Form.Item></Col>
                 <Col span={8}><Form.Item name="enterprise_type" label="企业类型"><Select placeholder="请选择" allowClear options={ENTERPRISE_TYPE_OPTIONS} /></Form.Item></Col>
                 <Col span={8}><Form.Item name="employee_scale" label="人员规模"><Select placeholder="请选择" allowClear options={staffSizeOptions} /></Form.Item></Col>
                 <Col span={8}><Form.Item name="domestic_revenue" label="国内营收(万元)"><Select placeholder="请选择" allowClear options={domesticRevenueOptions} /></Form.Item></Col>
