@@ -1,0 +1,14 @@
+HTTP/1.1 200 OK
+vary: Origin, Access-Control-Request-Method, Access-Control-Request-Headers
+content-disposition: attachment;filename*=utf-8''%E8%B0%83%E7%A0%94%E5%AF%BC%E5%85%A5%E6%A8%A1%E6%9D%BF.xlsx
+x-content-type-options: nosniff
+x-xss-protection: 0
+cache-control: no-cache, no-store, max-age=0, must-revalidate
+pragma: no-cache
+expires: 0
+x-frame-options: DENY
+content-type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;charset=utf-8
+content-length: 284330
+date: Mon, 23 Mar 2026 09:01:26 GMT
+connection: close
+

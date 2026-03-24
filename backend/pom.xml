@@ -19,6 +19,12 @@
 
     <properties>
         <java.version>17</java.version>
+        <!-- SonarQube / SonarCloud：分析时通过 -Dsonar.host.url、-Dsonar.token 传入，勿将 Token 写入仓库 -->
+        <sonar.projectKey>com.tricenter:tricenter-backend</sonar.projectKey>
+        <sonar.projectName>TriCenter Backend</sonar.projectName>
+        <sonar.sources>src/main/java</sonar.sources>
+        <sonar.tests>src/test/java</sonar.tests>
+        <sonar.java.binaries>target/classes</sonar.java.binaries>
         <mybatis-plus.version>3.5.5</mybatis-plus.version>
         <jjwt.version>0.12.3</jjwt.version>
         <knife4j.version>4.3.0</knife4j.version>
@@ -144,6 +150,12 @@
                         </exclude>
                     </excludes>
                 </configuration>
+            </plugin>
+            <!-- 终端/CI：对接 SonarQube 或 SonarCloud 后执行 mvn clean verify sonar:sonar -->
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>4.0.0.4121</version>
             </plugin>
         </plugins>
     </build>

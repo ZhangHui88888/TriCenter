@@ -1,6 +1,15 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { message } from 'antd';
 
+type RequestLogMeta = {
+  requestId: number;
+  startedAt: number;
+};
+
+type RequestConfigWithMeta = InternalAxiosRequestConfig & {
+  metadata?: RequestLogMeta;
+};
+
 const request: AxiosInstance = axios.create({
   baseURL: (import.meta as any).env?.VITE_API_BASE_URL || '/api',
   timeout: 10000,
@@ -9,13 +18,39 @@ const request: AxiosInstance = axios.create({
   },
 });
 
+let requestSequence = 0;
+
+function buildRequestUrl(config?: RequestConfigWithMeta) {
+  const baseURL = config?.baseURL || '';
+  const url = config?.url || '';
+  if (!baseURL) return url;
+  if (/^https?:\/\//.test(url)) return url;
+  return `${baseURL}${url}`;
+}
+
+function getDurationMs(config?: RequestConfigWithMeta) {
+  if (!config?.metadata?.startedAt) return undefined;
+  return Math.round(performance.now() - config.metadata.startedAt);
+}
+
 request.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    const nextConfig = config as RequestConfigWithMeta;
+    nextConfig.metadata = {
+      requestId: ++requestSequence,
+      startedAt: performance.now(),
+    };
     const token = localStorage.getItem('token');
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
+    if (token && nextConfig.headers) {
+      nextConfig.headers.Authorization = `Bearer ${token}`;
     }
-    return config;
+    console.info('[HTTP][start]', {
+      id: nextConfig.metadata.requestId,
+      method: (nextConfig.method || 'get').toUpperCase(),
+      url: buildRequestUrl(nextConfig),
+      params: nextConfig.params,
+    });
+    return nextConfig;
   },
   (error) => {
     return Promise.reject(error);
@@ -37,6 +72,14 @@ function showErrorOnce(msg: string) {
 
 request.interceptors.response.use(
   (response: AxiosResponse) => {
+    const config = response.config as RequestConfigWithMeta;
+    console.info('[HTTP][success]', {
+      id: config.metadata?.requestId,
+      method: (config.method || 'get').toUpperCase(),
+      url: buildRequestUrl(config),
+      status: response.status,
+      durationMs: getDurationMs(config),
+    });
     const { data } = response;
     if (response.config.responseType === 'blob') {
       return response;
@@ -48,6 +91,15 @@ request.interceptors.response.use(
     return data;
   },
   (error) => {
+    const config = error.config as RequestConfigWithMeta | undefined;
+    console.error('[HTTP][error]', {
+      id: config?.metadata?.requestId,
+      method: (config?.method || 'get').toUpperCase(),
+      url: buildRequestUrl(config),
+      status: error.response?.status,
+      durationMs: getDurationMs(config),
+      message: error.message,
+    });
     if (error.response) {
       const { status } = error.response;
       switch (status) {

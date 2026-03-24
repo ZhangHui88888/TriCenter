@@ -120,6 +120,16 @@ public class EnterpriseDetailResponse {
     private Object removedRequirements;
     private Object customRequirements;
     
+    /**
+     * 「产品总体概览」用：企业级 targetRegionIds + 全部产品主要销售区域，按字典解析为名称后去重（顺序：先企业再产品）
+     */
+    private List<String> overviewMergedTargetRegionNames;
+
+    /**
+     * 「产品总体概览」用：企业级 targetCountryIds + 全部产品主要销售国家/地区，去重（顺序：先企业再产品）
+     */
+    private List<String> overviewMergedTargetCountryNames;
+
     // ========== 产品列表 ==========
     private List<ProductInfo> products;
     

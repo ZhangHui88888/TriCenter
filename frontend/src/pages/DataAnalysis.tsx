@@ -3,7 +3,7 @@ import { Select, Row, Col, Button, Space, Modal, Form, Tabs, Badge, message, Too
 import NeonLoader from '@/components/NeonLoader';
 import { ReloadOutlined, FilterOutlined, SearchOutlined, ClearOutlined } from '@ant-design/icons';
 import EnterpriseSearch from '@/components/EnterpriseSearch';
-import WorldMap from '@/components/WorldMap';
+import WorldMap, { worldMapDataKey } from '@/components/WorldMap';
 import ReactECharts from 'echarts-for-react';
 import { optionsApi, dashboardApi } from '@/services/api';
 import { requirements } from '@/data/requirementsData';
@@ -51,6 +51,9 @@ const subStyle: React.CSSProperties = {
 
 type SelectOption = { label: string; value: any };
 type EntryDateRange = [Dayjs, Dayjs];
+
+/** 全球地图：仅「区域 / 国家」，已移除「目标市场及占比」 */
+type MapDisplayMode = 'region' | 'country';
 
 const FUNNEL_STAGES = [
   { code: 'POTENTIAL', name: '潜在企业', color: D.blue },
@@ -108,6 +111,7 @@ function DataAnalysis() {
   const [logisticsOptions, setLogisticsOptions] = useState<SelectOption[]>([]);
 
   const [analysisStats, setAnalysisStats] = useState<any>(null);
+  const [mapDisplayMode, setMapDisplayMode] = useState<MapDisplayMode>('region');
   const [monthlyTrend, setMonthlyTrend] = useState<any[]>([]);
   const [clearingCache, setClearingCache] = useState(false);
 
@@ -173,7 +177,6 @@ function DataAnalysis() {
         ? filters.logistics_partners.join(',')
         : undefined,
       mainPlatforms: Array.isArray(filters.main_platforms) && filters.main_platforms.length > 0 ? filters.main_platforms.join(',') : undefined,
-      targetMarkets: Array.isArray(filters.target_markets) && filters.target_markets.length > 0 ? filters.target_markets.join(',') : undefined,
       lastFollowupDays: typeof filters.last_followup_days === 'number' ? filters.last_followup_days : undefined,
       requirementIds: reqIds.length > 0 ? reqIds.join(',') : undefined,
       createdDateStart: entryDateRange?.[0],
@@ -272,7 +275,9 @@ function DataAnalysis() {
   const districtStats: { name: string; count: number }[] = analysisStats?.districtStats ?? [];
   const typeStats: { name: string; count: number }[] = analysisStats?.typeStats ?? [];
   const platformStats: { name: string; count: number }[] = analysisStats?.platformStats ?? [];
-  const marketStats: { name: string; count: number }[] = analysisStats?.marketStats ?? [];
+  const salesCountryMapStats: { name: string; count: number }[] = analysisStats?.salesCountryStats ?? [];
+  const salesRegionStats: { name: string; count: number }[] = analysisStats?.salesRegionStats ?? [];
+  const worldMapData = mapDisplayMode === 'country' ? salesCountryMapStats : salesRegionStats;
   const industryStats: { name: string; count: number }[] = analysisStats?.industryStats ?? [];
   const funnelStats: { code: string; name: string; count: number }[] = analysisStats?.funnelStats ?? [];
   const funnelMaxCount = funnelStats.length ? Math.max(...funnelStats.map(s => Number(s.count) || 0), 0) : 0;
@@ -368,7 +373,7 @@ function DataAnalysis() {
   return (
     <div className="dark-analysis" style={{ background: D.bg, minHeight: '100vh', margin: '-28px -40px', padding: '28px 40px' }}>
       {/* ── 筛选区 ── */}
-      <div style={{ ...cardStyle, marginBottom: 24 }}>
+      <div style={{ ...cardStyle, marginBottom: 24 }} data-tour="data-analysis-filters">
         <div style={{ fontSize: 18, fontWeight: 600, color: D.white, marginBottom: 14 }}>基于筛选条件生成企业数据统计</div>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
           <EnterpriseSearch value={keyword} onChange={setKeyword} onSearch={handleSearch} style={{ width: 220 }} />
@@ -397,117 +402,138 @@ function DataAnalysis() {
         />
       ) : (
         <>
-          {/* ── 顶部指标卡 ── */}
-          <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
-            {[
-              { label: '筛选企业数', value: totalCount, unit: '家', color: D.cyan },
-              { label: '已签约企业', value: funnelStats.find(s => s.code === 'SIGNED')?.count || 0, unit: '家', color: D.pink },
-              { label: '覆盖行业', value: industryStats.filter(s => s.count > 0).length, unit: '个', color: D.purple },
-              { label: '跨境平台', value: platformStats.length, unit: '个', color: D.teal },
-            ].map(m => (
-              <Col xs={12} lg={6} key={m.label}>
-                <div style={{ ...cardStyle, textAlign: 'center' }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: D.sub, marginBottom: 8, letterSpacing: 1 }}>{m.label}</div>
-                  <div style={{ fontSize: 32, fontWeight: 700, color: m.color }}>{m.value}<span style={{ fontSize: 14, fontWeight: 400, color: D.sub, marginLeft: 4 }}>{m.unit}</span></div>
+          <div data-tour="data-analysis-summary">
+            {/* ── 顶部指标卡 ── */}
+            <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+              {[
+                { label: '筛选企业数', value: totalCount, unit: '家', color: D.cyan },
+                { label: '已签约企业', value: funnelStats.find(s => s.code === 'SIGNED')?.count || 0, unit: '家', color: D.pink },
+                { label: '覆盖行业', value: industryStats.filter(s => s.count > 0).length, unit: '个', color: D.purple },
+                { label: '跨境平台', value: platformStats.length, unit: '个', color: D.teal },
+              ].map(m => (
+                <Col xs={12} lg={6} key={m.label}>
+                  <div style={{ ...cardStyle, textAlign: 'center' }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: D.sub, marginBottom: 8, letterSpacing: 1 }}>{m.label}</div>
+                    <div style={{ fontSize: 32, fontWeight: 700, color: m.color }}>{m.value}<span style={{ fontSize: 14, fontWeight: 400, color: D.sub, marginLeft: 4 }}>{m.unit}</span></div>
+                  </div>
+                </Col>
+              ))}
+            </Row>
+
+            {/* ── 全球客户分布地图 ── */}
+            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+              <Col span={24}>
+                <div style={cardStyle}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
+                    <div style={{ flex: '1 1 200px' }}>
+                      <div style={titleStyle}>全球客户分布</div>
+                      <div style={subStyle}>
+                        {mapDisplayMode === 'region'
+                          ? '按企业主表「主要销售区域」汇总（字典大区，每家企业在同一区域计 1 次）· 飞线源点：常州'
+                          : '按企业主表「主要销售国家」汇总（每家企业在同一国家计 1 次）· 飞线源点：常州'}
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+                      <Select<MapDisplayMode>
+                        value={mapDisplayMode}
+                        onSelect={(v) => setMapDisplayMode(v)}
+                        style={{ minWidth: 180 }}
+                        options={[
+                          { label: '主要销售区域', value: 'region' },
+                          { label: '主要销售国家', value: 'country' },
+                        ]}
+                      />
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: D.sub }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 5, background: '#F72585', boxShadow: '0 0 6px rgba(247,37,133,0.6)' }} />常州（起点）
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: D.sub }}>
+                        <span style={{ width: 10, height: 10, borderRadius: 5, background: '#00FAFF', boxShadow: '0 0 6px rgba(0,250,255,0.5)' }} />
+                        {mapDisplayMode === 'region' ? '销售区域' : '销售国家'}
+                      </div>
+                    </div>
+                  </div>
+                  <WorldMap
+                    key={`${mapDisplayMode}-${worldMapDataKey(worldMapData)}`}
+                    data={worldMapData}
+                  />
                 </div>
               </Col>
-            ))}
-          </Row>
+            </Row>
+          </div>
 
-          {/* ── 全球客户分布地图 ── */}
-          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col span={24}>
-              <div style={cardStyle}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div>
-                    <div style={titleStyle}>全球客户分布</div>
-                    <div style={subStyle}>当前筛选结果内的目标市场分布 · 飞线源点：常州</div>
-                  </div>
-                  <div style={{ display: 'flex', gap: 16 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: D.sub }}>
-                      <span style={{ width: 10, height: 10, borderRadius: 5, background: '#F72585', boxShadow: '0 0 6px rgba(247,37,133,0.6)' }} />常州（起点）
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: D.sub }}>
-                      <span style={{ width: 10, height: 10, borderRadius: 5, background: '#00FAFF', boxShadow: '0 0 6px rgba(0,250,255,0.5)' }} />客户市场
-                    </div>
-                  </div>
+          <div data-tour="data-analysis-charts">
+            {/* ── 漏斗阶段柱状图 + 月度趋势 ── */}
+            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+              <Col xs={24} lg={9}>
+                <div style={cardStyle}>
+                  <div style={titleStyle}>漏斗阶段分布</div>
+                  <div style={subStyle}>当前筛选条件下各阶段企业数（与「筛选企业数」同源）</div>
+                  <ReactECharts option={funnelBarOption} style={{ height: 320 }} />
                 </div>
-                <WorldMap data={marketStats} />
-              </div>
-            </Col>
-          </Row>
-
-          {/* ── 漏斗阶段柱状图 + 月度趋势 ── */}
-          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col xs={24} lg={9}>
-              <div style={cardStyle}>
-                <div style={titleStyle}>漏斗阶段分布</div>
-                <div style={subStyle}>当前筛选条件下各阶段企业数（与「筛选企业数」同源）</div>
-                <ReactECharts option={funnelBarOption} style={{ height: 320 }} />
-              </div>
-            </Col>
-            <Col xs={24} lg={15}>
-              <div style={cardStyle}>
-                <div style={titleStyle}>月度新增趋势</div>
-                <div style={subStyle}>最近12个月新增企业与签约数</div>
-                <ReactECharts option={trendOption} style={{ height: 320 }} />
-              </div>
-            </Col>
-          </Row>
-
-          {/* ── 第二行：行业分布 + 区域分布 ── */}
-          <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-            <Col xs={24} lg={15}>
-              <div style={cardStyle}>
-                <div style={titleStyle}>行业分布</div>
-                <div style={subStyle}>当前筛选结果内的一级行业企业数</div>
-                <ReactECharts option={industryBarOption} style={{ height: 300 }} />
-              </div>
-            </Col>
-            <Col xs={24} lg={9}>
-              <div style={cardStyle}>
-                <div style={titleStyle}>区域分布</div>
-                <div style={subStyle}>当前筛选结果内的区县企业数</div>
-                <ReactECharts option={districtBarOption} style={{ height: 300 }} />
-              </div>
-            </Col>
-          </Row>
-
-          {/* ── 平台分布 + 企业类型 ── */}
-          <Row gutter={[16, 16]}>
-            <Col xs={24} lg={12}>
-              <div style={cardStyle}>
-                <div style={titleStyle}>跨境平台分布</div>
-                <div style={subStyle}>当前筛选结果内企业填报的主要平台（多选字段拆分统计）</div>
-                {platformStats.length > 0 ? (
-                  <>
-                    <ReactECharts option={platformPieOption} style={{ height: 280 }} />
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px' }}>
-                      {platformStats.map((s, i) => (
-                        <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: D.sub }}>
-                          <span style={{ width: 8, height: 8, borderRadius: 4, background: chartColors[i % chartColors.length], flexShrink: 0 }} />
-                          {s.name}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                ) : (
-                  <div style={{ textAlign: 'center', padding: 60, color: D.muted }}>暂无跨境平台数据</div>
-                )}
-              </div>
-            </Col>
-            <Col xs={24} lg={12}>
-              <div style={cardStyle}>
-                <div style={titleStyle}>企业类型分布</div>
-                <div style={subStyle}>
-                  {totalCount > 0
-                    ? `当前筛选结果内共 ${totalCount.toLocaleString('zh-CN')} 家 · 饼图为该集合中的类型结构（非独立全库统计）`
-                    : '调整筛选条件或点击「查询分析」后展示；无匹配企业时不显示占比'}
+              </Col>
+              <Col xs={24} lg={15}>
+                <div style={cardStyle}>
+                  <div style={titleStyle}>月度新增趋势</div>
+                  <div style={subStyle}>最近12个月新增企业与签约数</div>
+                  <ReactECharts option={trendOption} style={{ height: 320 }} />
                 </div>
-                <ReactECharts option={typeDonutOption} style={{ height: 320 }} />
-              </div>
-            </Col>
-          </Row>
+              </Col>
+            </Row>
+
+            {/* ── 第二行：行业分布 + 区域分布 ── */}
+            <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+              <Col xs={24} lg={15}>
+                <div style={cardStyle}>
+                  <div style={titleStyle}>行业分布</div>
+                  <div style={subStyle}>当前筛选结果内的一级行业企业数</div>
+                  <ReactECharts option={industryBarOption} style={{ height: 300 }} />
+                </div>
+              </Col>
+              <Col xs={24} lg={9}>
+                <div style={cardStyle}>
+                  <div style={titleStyle}>区域分布</div>
+                  <div style={subStyle}>当前筛选结果内的区县企业数</div>
+                  <ReactECharts option={districtBarOption} style={{ height: 300 }} />
+                </div>
+              </Col>
+            </Row>
+
+            {/* ── 平台分布 + 企业类型 ── */}
+            <Row gutter={[16, 16]}>
+              <Col xs={24} lg={12}>
+                <div style={cardStyle}>
+                  <div style={titleStyle}>跨境平台分布</div>
+                  <div style={subStyle}>当前筛选结果内企业填报的主要平台（多选字段拆分统计）</div>
+                  {platformStats.length > 0 ? (
+                    <>
+                      <ReactECharts option={platformPieOption} style={{ height: 280 }} />
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px' }}>
+                        {platformStats.map((s, i) => (
+                          <div key={s.name} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: D.sub }}>
+                            <span style={{ width: 8, height: 8, borderRadius: 4, background: chartColors[i % chartColors.length], flexShrink: 0 }} />
+                            {s.name}
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: 60, color: D.muted }}>暂无跨境平台数据</div>
+                  )}
+                </div>
+              </Col>
+              <Col xs={24} lg={12}>
+                <div style={cardStyle}>
+                  <div style={titleStyle}>企业类型分布</div>
+                  <div style={subStyle}>
+                    {totalCount > 0
+                      ? `当前筛选结果内共 ${totalCount.toLocaleString('zh-CN')} 家 · 饼图为该集合中的类型结构（非独立全库统计）`
+                      : '调整筛选条件或点击「查询分析」后展示；无匹配企业时不显示占比'}
+                  </div>
+                  <ReactECharts option={typeDonutOption} style={{ height: 320 }} />
+                </div>
+              </Col>
+            </Row>
+          </div>
         </>
       )}
       {/* ── 高级筛选弹窗 ── */}
@@ -553,7 +579,6 @@ function DataAnalysis() {
                 <Col span={8}><Form.Item name="main_platforms" label="主要跨境平台"><Select mode="multiple" placeholder="请选择" allowClear options={CROSSBORDER_PLATFORMS.map(p => ({ label: p, value: p }))} /></Form.Item></Col>
                 <Col span={8}><Form.Item name="transformation_willingness" label="跨境转型意愿"><Select placeholder="请选择" allowClear options={TRANSFORMATION_WILLINGNESS.map(w => ({ label: w, value: w }))} /></Form.Item></Col>
                 <Col span={8}><Form.Item name="has_erp" label="是否在用ERP"><Select placeholder="请选择" allowClear options={[{ label: '是', value: true }, { label: '否', value: false }]} /></Form.Item></Col>
-                <Col span={8}><Form.Item name="target_markets" label="目标市场"><Select mode="multiple" placeholder="请选择" allowClear options={['北美', '欧洲', '东南亚', '中东', '南美', '日韩', '澳新', '非洲'].map(v => ({ label: v, value: v }))} /></Form.Item></Col>
               </Row>
             )},
             { key: 'followup', label: '跟进记录', children: (

@@ -15,7 +15,10 @@ public class AnalysisStatsResponse {
     private List<NameCount> districtStats;
     private List<NameCount> typeStats;
     private List<NameCount> platformStats;
-    private List<NameCount> marketStats;
+    /** 全球地图用：企业主表「主要销售国家」汇总（每家企业在同一国家仅计 1 次） */
+    private List<NameCount> salesCountryStats;
+    /** 全球地图用：企业主表「主要销售区域」汇总（字典标签，每家企业在同一区域仅计 1 次） */
+    private List<NameCount> salesRegionStats;
     private List<NameCount> industryStats;
     private List<FunnelItem> funnelStats;
 

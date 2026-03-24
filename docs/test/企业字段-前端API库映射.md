@@ -59,7 +59,7 @@
 | `source_id` | 基本信息 Modal | `sourceId` | |
 | `stage` | 页头阶段 Select | （非 PUT）`PATCH .../stage` | |
 | `has_own_brand` `brand_names` | 品牌 Modal | `hasOwnBrand` `brandNames` | |
-| `target_region_ids` `target_country_ids` `has_import_export_license` | 产品总体概览 Modal | `targetRegionIds` `targetCountryIds` `hasImportExportLicense` | |
+| `target_region_ids` `target_country_ids` `has_import_export_license` | 产品总体概览 Modal | `targetRegionIds` `targetCountryIds` `hasImportExportLicense` | 详情 GET 另返回 `overviewMergedTargetRegionNames` / `overviewMergedTargetCountryNames`（后端按库合并，与概览展示一致）；落库仍分主表与产品表 |
 | `iso_certifications` `aeo_certification` `other_certifications` | 基本信息 Modal | `isoCertifications` `aeoCertification` `otherCertifications` | |
 | `trade_mode_id` `customs_declaration_mode` `trade_team_mode_id` `trade_team_size` `has_domestic_ecommerce` `has_overseas_distributors` | 外贸信息 Tab 网格只读展示；**编辑** 打开外贸信息 Modal 一并保存 | `tradeModeId` 等 | `market_changes` 等仍可在该 Modal 保存时一并写入 |
 | `market_changes` `mode_changes` `category_changes` | 外贸 Tab 市场/模式/品类 **添加/编辑 Modal** 与 **Tag 关闭** | `marketChanges` `modeChanges` `categoryChanges` | **`persistTradePerformanceJson` 立即 `PUT`** |

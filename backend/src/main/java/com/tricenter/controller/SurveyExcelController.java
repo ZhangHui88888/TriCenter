@@ -50,7 +50,7 @@ public class SurveyExcelController {
         return Result.success(result);
     }
 
-    @Operation(summary = "下载调研导入模板", description = "下载包含所有现有企业的调研Excel模板，供线下填写后导入")
+    @Operation(summary = "下载调研导入模板", description = "下载空白调研Excel模板（表头+填写说明+示例行），不含库内企业数据，供线下填写后导入")
     @GetMapping("/template")
     public void downloadTemplate(HttpServletResponse response) {
         surveyExcelService.downloadTemplate(response);

@@ -96,7 +96,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             empty.setDistrictStats(Collections.emptyList());
             empty.setTypeStats(Collections.emptyList());
             empty.setPlatformStats(Collections.emptyList());
-            empty.setMarketStats(Collections.emptyList());
+            empty.setSalesCountryStats(Collections.emptyList());
+            empty.setSalesRegionStats(Collections.emptyList());
             empty.setIndustryStats(buildFullIndustryStats(Collections.emptyMap()));
             empty.setFunnelStats(toFunnelItems(Collections.emptyMap()));
             return empty;
@@ -104,8 +105,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
 
         LambdaQueryWrapper<Enterprise> wrapper = buildFilterWrapper(request, matchedIds);
         wrapper.select(
+                Enterprise::getId,
                 Enterprise::getDistrict, Enterprise::getEnterpriseType,
-                Enterprise::getCrossBorderPlatforms, Enterprise::getTargetMarkets,
+                Enterprise::getCrossBorderPlatforms,
+                Enterprise::getTargetRegionIds, Enterprise::getTargetCountryIds,
                 Enterprise::getIndustryId, Enterprise::getStage
         );
         List<Enterprise> enterprises = enterpriseMapper.selectList(wrapper);
@@ -116,7 +119,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         Map<String, Integer> districtMap = new LinkedHashMap<>();
         Map<String, Integer> typeMap = new LinkedHashMap<>();
         Map<String, Integer> platformMap = new LinkedHashMap<>();
-        Map<String, Integer> marketMap = new LinkedHashMap<>();
+        Map<String, Integer> salesCountryMap = new LinkedHashMap<>();
+        Map<String, Integer> salesRegionMap = new LinkedHashMap<>();
         Map<String, Integer> industryMap = new LinkedHashMap<>();
         Map<String, Integer> stageMap = new LinkedHashMap<>();
 
@@ -127,7 +131,15 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             String type = StringUtils.hasText(e.getEnterpriseType()) ? e.getEnterpriseType() : "未分类";
             typeMap.merge(type, 1, Integer::sum);
             aggregateMultiValueField(e.getCrossBorderPlatforms(), platformMap);
-            aggregateMultiValueField(e.getTargetMarkets(), marketMap);
+
+            LinkedHashSet<String> regionNames = collectSalesRegionNames(e);
+            for (String rn : regionNames) {
+                salesRegionMap.merge(rn, 1, Integer::sum);
+            }
+            LinkedHashSet<String> countryNames = collectSalesCountryNames(e);
+            for (String cn : countryNames) {
+                salesCountryMap.merge(cn, 1, Integer::sum);
+            }
 
             String industryName = dictionaryCache.resolveLevel1IndustryName(e.getIndustryId());
             industryMap.merge(industryName, 1, Integer::sum);
@@ -139,7 +151,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setDistrictStats(toSortedNameCountList(districtMap));
         response.setTypeStats(toSortedNameCountList(typeMap));
         response.setPlatformStats(toSortedNameCountList(platformMap));
-        response.setMarketStats(toSortedNameCountList(marketMap));
+        response.setSalesCountryStats(toSortedNameCountList(salesCountryMap));
+        response.setSalesRegionStats(toSortedNameCountList(salesRegionMap));
         response.setIndustryStats(buildFullIndustryStats(industryMap));
 
         response.setFunnelStats(toFunnelItems(stageMap));
@@ -277,6 +290,15 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         }
         if (request.getHasCrossBorder() != null) wrapper.eq(Enterprise::getHasCrossBorder, request.getHasCrossBorder());
         if (request.getUsingErp() != null) wrapper.eq(Enterprise::getUsingErp, request.getUsingErp());
+        if (request.getTargetRegionId() != null && request.getTargetRegionId() > 0) {
+            String rid = request.getTargetRegionId().toString();
+            // 与数据分析地图统计一致：仅企业主表 target_region_ids
+            wrapper.apply("JSON_CONTAINS(target_region_ids, CAST({0} AS JSON))", rid);
+        }
+        if (StringUtils.hasText(request.getTargetCountryCode())) {
+            String cc = request.getTargetCountryCode().trim();
+            wrapper.apply("JSON_CONTAINS(target_country_ids, JSON_QUOTE({0}))", cc);
+        }
         if (StringUtils.hasText(request.getTransformationWillingness())) wrapper.eq(Enterprise::getTransformationWillingness, request.getTransformationWillingness());
 
         if (StringUtils.hasText(request.getMainPlatforms())) {
@@ -301,7 +323,12 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             wrapper.eq(Enterprise::getTradeTeamModeId, request.getTradeTeamModeId());
         }
         applyIntRangeFilter(wrapper, Enterprise::getTradeTeamSize, request.getTradeTeamSize());
+        if (StringUtils.hasText(request.getCustomsDeclarationMode())) wrapper.eq(Enterprise::getCustomsDeclarationMode, request.getCustomsDeclarationMode());
+        if (request.getHasDomesticEcommerce() != null) wrapper.eq(Enterprise::getHasDomesticEcommerce, request.getHasDomesticEcommerce());
+        if (request.getHasOverseasDistributors() != null) wrapper.eq(Enterprise::getHasOverseasDistributors, request.getHasOverseasDistributors());
         applyIntRangeFilter(wrapper, Enterprise::getCrossBorderTeamSize, request.getCrossBorderTeamSize());
+        if (StringUtils.hasText(request.getCrossBorderRatio())) wrapper.eq(Enterprise::getCrossBorderRatio, request.getCrossBorderRatio());
+        if (StringUtils.hasText(request.getInvestmentWillingness())) wrapper.eq(Enterprise::getInvestmentWillingness, request.getInvestmentWillingness());
         if (request.getCreatedDateStart() != null) {
             wrapper.ge(Enterprise::getCreatedAt, request.getCreatedDateStart().atStartOfDay());
         }
@@ -344,6 +371,83 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             return v != null ? v.toString().trim() : null;
         }
         return null;
+    }
+
+    /** 企业主表「主要销售区域」名称（字典标签）；同一企业内多 ID 去重。 */
+    private LinkedHashSet<String> collectSalesRegionNames(Enterprise e) {
+        LinkedHashSet<Integer> regionIds = new LinkedHashSet<>();
+        mergeRegionIds(e.getTargetRegionIds(), regionIds);
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        for (Integer id : regionIds) {
+            String lab = dictionaryCache.getOptionLabel(id);
+            if (StringUtils.hasText(lab)) {
+                names.add(lab);
+            }
+        }
+        return names;
+    }
+
+    private static void mergeRegionIds(List<Integer> ids, Set<Integer> out) {
+        if (ids == null) {
+            return;
+        }
+        for (Integer id : ids) {
+            if (id != null && id > 0) {
+                out.add(id);
+            }
+        }
+    }
+
+    /** 企业主表「主要销售国家」显示名（字典 value→label，缺省则用原串），同一企业内去重。 */
+    private LinkedHashSet<String> collectSalesCountryNames(Enterprise e) {
+        LinkedHashSet<String> names = new LinkedHashSet<>();
+        addCountryCodeLabels(e.getTargetCountryIds(), names);
+        return names;
+    }
+
+    private void addCountryCodeLabels(List<String> codes, Set<String> out) {
+        if (codes == null) {
+            return;
+        }
+        for (String raw : codes) {
+            if (!StringUtils.hasText(raw)) {
+                continue;
+            }
+            for (String piece : raw.split("[,，、;；]+")) {
+                String lab = resolveCountryDisplayLabel(piece);
+                if (StringUtils.hasText(lab)) {
+                    out.add(lab);
+                }
+            }
+        }
+    }
+
+    /**
+     * 主要销售国家：支持中文名、字典 value、字典选项 ID（数字字符串）、以及逗号/顿号分隔的多国串。
+     */
+    private String resolveCountryDisplayLabel(String raw) {
+        if (!StringUtils.hasText(raw)) {
+            return null;
+        }
+        String c = raw.trim();
+        if (c.isEmpty()) {
+            return null;
+        }
+        if (c.matches("^-?\\d+$")) {
+            try {
+                String lab = dictionaryCache.getOptionLabel(Integer.parseInt(c));
+                if (StringUtils.hasText(lab)) {
+                    return lab.trim();
+                }
+            } catch (NumberFormatException ignored) {
+                // fall through
+            }
+        }
+        SystemOption opt = dictionaryCache.getOptionByValue("country", c);
+        if (opt != null && StringUtils.hasText(opt.getLabel())) {
+            return opt.getLabel().trim();
+        }
+        return c;
     }
 
     /**
@@ -410,10 +514,11 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     }
 
     private Set<Integer> findEnterpriseIdsByProductFilters(EnterpriseQueryRequest request) {
-        // automationLevelId==0 常见于未绑定/误传，不得当作有效「产品筛选」，否则易得到空 ID 集导致整页统计全 0
         boolean hasProductFilters = (request.getAutomationLevelId() != null && request.getAutomationLevelId() > 0)
                 || StringUtils.hasText(request.getLocalProcurementRatio())
-                || StringUtils.hasText(request.getLogisticsPartnerIds());
+                || StringUtils.hasText(request.getLogisticsPartnerIds())
+                || (request.getProductCategoryId() != null && request.getProductCategoryId() > 0)
+                || (request.getProductCertificationId() != null && request.getProductCertificationId() > 0);
         if (!hasProductFilters) {
             return null;
         }
@@ -423,10 +528,17 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 EnterpriseProduct::getEnterpriseId,
                 EnterpriseProduct::getAutomationLevelId,
                 EnterpriseProduct::getLocalProcurementRatio,
-                EnterpriseProduct::getLogisticsPartnerIds
+                EnterpriseProduct::getLogisticsPartnerIds,
+                EnterpriseProduct::getCategoryId
         );
         if (request.getAutomationLevelId() != null && request.getAutomationLevelId() > 0) {
             productWrapper.eq(EnterpriseProduct::getAutomationLevelId, request.getAutomationLevelId());
+        }
+        if (request.getProductCategoryId() != null && request.getProductCategoryId() > 0) {
+            productWrapper.eq(EnterpriseProduct::getCategoryId, request.getProductCategoryId());
+        }
+        if (request.getProductCertificationId() != null && request.getProductCertificationId() > 0) {
+            productWrapper.apply("JSON_CONTAINS(certification_ids, CAST({0} AS JSON))", request.getProductCertificationId().toString());
         }
 
         Set<Integer> selectedLogisticsIds = parseIntegerSet(request.getLogisticsPartnerIds());
@@ -1092,12 +1204,12 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setRemovedRequirements(enterprise.getRemovedRequirements());
         response.setCustomRequirements(enterprise.getCustomRequirements());
         
-        // 产品列表
+        // 产品列表 + 概览合并字段（与前端「产品总体概览」一致，不依赖前端字典加载时机）
         LambdaQueryWrapper<EnterpriseProduct> productWrapper = new LambdaQueryWrapper<>();
         productWrapper.eq(EnterpriseProduct::getEnterpriseId, enterprise.getId());
-        List<EnterpriseProduct> products = productMapper.selectList(productWrapper);
-        if (products != null && !products.isEmpty()) {
-            response.setProducts(products.stream().map(p -> {
+        List<EnterpriseProduct> productRows = productMapper.selectList(productWrapper);
+        if (productRows != null && !productRows.isEmpty()) {
+            response.setProducts(productRows.stream().map(p -> {
                 EnterpriseDetailResponse.ProductInfo info = new EnterpriseDetailResponse.ProductInfo();
                 info.setId(p.getId());
                 info.setName(p.getName());
@@ -1128,6 +1240,45 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 return info;
             }).collect(Collectors.toList()));
         }
+
+        LinkedHashSet<String> mergedRegionNames = new LinkedHashSet<>();
+        LinkedHashSet<String> mergedCountryNames = new LinkedHashSet<>();
+        if (enterprise.getTargetRegionIds() != null) {
+            for (Integer rid : enterprise.getTargetRegionIds()) {
+                String lab = dictionaryCache.getOptionLabel(rid);
+                if (StringUtils.hasText(lab)) {
+                    mergedRegionNames.add(lab);
+                }
+            }
+        }
+        if (enterprise.getTargetCountryIds() != null) {
+            for (String c : enterprise.getTargetCountryIds()) {
+                if (StringUtils.hasText(c)) {
+                    mergedCountryNames.add(c);
+                }
+            }
+        }
+        if (productRows != null) {
+            for (EnterpriseProduct p : productRows) {
+                if (p.getTargetRegionIds() != null) {
+                    for (Integer rid : p.getTargetRegionIds()) {
+                        String lab = dictionaryCache.getOptionLabel(rid);
+                        if (StringUtils.hasText(lab)) {
+                            mergedRegionNames.add(lab);
+                        }
+                    }
+                }
+                if (p.getTargetCountryIds() != null) {
+                    for (String c : p.getTargetCountryIds()) {
+                        if (StringUtils.hasText(c)) {
+                            mergedCountryNames.add(c);
+                        }
+                    }
+                }
+            }
+        }
+        response.setOverviewMergedTargetRegionNames(new ArrayList<>(mergedRegionNames));
+        response.setOverviewMergedTargetCountryNames(new ArrayList<>(mergedCountryNames));
         
         // 专利列表
         LambdaQueryWrapper<EnterprisePatent> patentWrapper = new LambdaQueryWrapper<>();

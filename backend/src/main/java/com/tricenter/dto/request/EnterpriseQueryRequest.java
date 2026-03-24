@@ -87,6 +87,18 @@ public class EnterpriseQueryRequest {
     /** 物流合作方ID，多个逗号分隔 */
     private String logisticsPartnerIds;
 
+    /** 产品品类ID（关联 product_categories 表） */
+    private Integer productCategoryId;
+
+    /** 主要销售区域ID：企业主表 target_region_ids 含该 ID（与数据分析地图统计口径一致） */
+    private Integer targetRegionId;
+
+    /** 主要销售国家：企业主表 target_country_ids 含该值（与数据分析地图统计口径一致） */
+    private String targetCountryCode;
+
+    /** 产品认证ID（JSON_CONTAINS 匹配 enterprise_products.certification_ids） */
+    private Integer productCertificationId;
+
     /** 最近跟进时间筛选，正数表示X天内，负数表示超过X天 */
     private Integer lastFollowupDays;
 
@@ -122,6 +134,21 @@ public class EnterpriseQueryRequest {
 
     /** 支付结算方式，多个逗号分隔 */
     private String paymentMethod;
+
+    /** 报关申报主体模式（自营/代理） */
+    private String customsDeclarationMode;
+
+    /** 是否有国内电商经验（1=是，0=否） */
+    private Integer hasDomesticEcommerce;
+
+    /** 是否有海外分销商（1=是，0=否） */
+    private Integer hasOverseasDistributors;
+
+    /** 跨境业务占比 */
+    private String crossBorderRatio;
+
+    /** 愿意投入转型程度（高/中/低） */
+    private String investmentWillingness;
 
     /** 录入日期开始（含） */
     @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)

@@ -293,7 +293,7 @@ function FollowUpRecords() {
 
   return (
     <div style={{ background: '#F5F7FA', minHeight: '100%', padding: 24, fontFamily: 'Inter, sans-serif' }}>
-      <Row gutter={16} style={{ marginBottom: 16 }}>
+      <Row gutter={16} style={{ marginBottom: 16 }} data-tour="follow-up-stats">
         {statsDisplay.map((stat, index) => (
           <Col xs={12} sm={6} key={index}>
             <Card style={{ ...cardStyle, background: '#FFFFFF' }}>
@@ -311,75 +311,79 @@ function FollowUpRecords() {
         ))}
       </Row>
 
-      <Card style={{ marginBottom: 16, ...cardStyle, background: '#FFFFFF' }}>
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            gap: 16,
-            justifyContent: 'space-between',
-          }}
-        >
-          <Space wrap size={16} style={{ flex: '1 1 auto', minWidth: 0 }}>
-            <Input
-              placeholder="搜索企业名称或跟进内容..."
-              prefix={<SearchOutlined style={{ color: '#718EBF' }} />}
-              style={{ width: 300, borderRadius: 40, background: '#F5F7FA', border: 'none' }}
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              allowClear
-            />
-            <Select
-              placeholder="全部类型"
-              style={{ width: 120, borderRadius: 12, background: '#F5F7FA' }}
-              allowClear
-              value={typeFilter || undefined}
-              onChange={(value) => setTypeFilter(value || '')}
-              options={FOLLOW_UP_TYPES.map(t => ({ label: t, value: t }))}
-              popupMatchSelectWidth={false}
-            />
-          </Space>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            onClick={() => setIsModalOpen(true)}
+      <div data-tour="follow-up-toolbar">
+        <Card style={{ marginBottom: 16, ...cardStyle, background: '#FFFFFF' }}>
+          <div
             style={{
-              flexShrink: 0,
-              marginLeft: 'auto',
-              background: '#396AFF',
-              borderRadius: 12,
-              borderColor: '#396AFF',
-              height: 40,
-              fontWeight: 500,
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 16,
+              justifyContent: 'space-between',
             }}
           >
-            新增跟进
-          </Button>
-        </div>
-      </Card>
+            <Space wrap size={16} style={{ flex: '1 1 auto', minWidth: 0 }}>
+              <Input
+                placeholder="搜索企业名称或跟进内容..."
+                prefix={<SearchOutlined style={{ color: '#718EBF' }} />}
+                style={{ width: 300, borderRadius: 40, background: '#F5F7FA', border: 'none' }}
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                allowClear
+              />
+              <Select
+                placeholder="全部类型"
+                style={{ width: 120, borderRadius: 12, background: '#F5F7FA' }}
+                allowClear
+                value={typeFilter || undefined}
+                onChange={(value) => setTypeFilter(value || '')}
+                options={FOLLOW_UP_TYPES.map(t => ({ label: t, value: t }))}
+                popupMatchSelectWidth={false}
+              />
+            </Space>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => setIsModalOpen(true)}
+              style={{
+                flexShrink: 0,
+                marginLeft: 'auto',
+                background: '#396AFF',
+                borderRadius: 12,
+                borderColor: '#396AFF',
+                height: 40,
+                fontWeight: 500,
+              }}
+            >
+              新增跟进
+            </Button>
+          </div>
+        </Card>
+      </div>
 
-      <Card style={cardStyle}>
-        <Spin spinning={loading}>
-          <Table
-            tableLayout="fixed"
-            columns={columns}
-            dataSource={filteredRecords}
-            rowKey="id"
-            pagination={{
-              total: total,
-              current: page,
-              pageSize: pageSize,
-              showTotal: (total) => `共 ${total} 条记录`,
-              showSizeChanger: true,
-              onChange: (p, ps) => {
-                setPage(p);
-                setPageSize(ps);
-              },
-            }}
-          />
-        </Spin>
-      </Card>
+      <div data-tour="follow-up-table">
+        <Card style={cardStyle}>
+          <Spin spinning={loading}>
+            <Table
+              tableLayout="fixed"
+              columns={columns}
+              dataSource={filteredRecords}
+              rowKey="id"
+              pagination={{
+                total: total,
+                current: page,
+                pageSize: pageSize,
+                showTotal: (total) => `共 ${total} 条记录`,
+                showSizeChanger: true,
+                onChange: (p, ps) => {
+                  setPage(p);
+                  setPageSize(ps);
+                },
+              }}
+            />
+          </Spin>
+        </Card>
+      </div>
 
       <Modal
         title="新增跟进记录"

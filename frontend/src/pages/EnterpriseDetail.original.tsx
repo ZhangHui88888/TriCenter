@@ -53,6 +53,11 @@ import { FOLLOW_UP_TYPES } from '@/utils/constants';
 import { dimensions, groupRequirementsByPhase, type RequirementItem } from '@/data/requirementsData';
 import { enterpriseApi, contactApi, optionsApi, dictionaryApi, surveyExcelApi, serviceRecordApi, followUpApi, productApi, patentApi } from '@/services/api';
 import type { RequirementConfigData } from '@/services/api';
+import {
+  EnterpriseDetailSectionHint,
+  enterpriseDetailCardTitle,
+} from '@/components/enterpriseDetail/EnterpriseDetailSectionHint';
+import { ENTERPRISE_GUIDE_TAB_EVENT } from '@/components/appGuideConfig';
 
 // 漏斗阶段配置
 const FUNNEL_STAGES = [
@@ -108,6 +113,14 @@ function findProductCategoryPath(nodes, targetId, path = []) {
   return null;
 }
 
+function logEnterpriseDetail(step: string, payload?: Record<string, unknown>) {
+  if (payload) {
+    console.info(`[EnterpriseDetail] ${step}`, payload);
+    return;
+  }
+  console.info(`[EnterpriseDetail] ${step}`);
+}
+
 /** 行业 Cascader：根据叶子 id 解析从根到叶的 value 路径 */
 function findIndustryCascaderPath(nodes: any[], targetId: unknown, path: number[] = []): number[] | null {
   if (targetId == null || targetId === '') return null;
@@ -126,6 +139,11 @@ function findIndustryCascaderPath(nodes: any[], targetId: unknown, path: number[
 }
 
 const { Title, Text } = Typography;
+
+/** Tabs 文案 + data-tour，供顶栏 Tour 逐标签高亮 */
+function enterpriseDetailTabLabel(text: string, tourKey: string) {
+  return <span data-tour={`enterprise-detail-tab-${tourKey}`}>{text}</span>;
+}
 
 // 阶段顺序映射，用于判断升级/降级
 const stageOrder: Record<string, number> = {
@@ -269,6 +287,16 @@ function EnterpriseDetail() {
     loadTradeReasonOptions();
   }, [loadTradeReasonOptions]);
 
+  useEffect(() => {
+    const onGuideTab = (e: Event) => {
+      const ce = e as CustomEvent<{ key?: string }>;
+      const k = ce.detail?.key;
+      if (k && typeof k === 'string') setActiveTab(k);
+    };
+    globalThis.addEventListener(ENTERPRISE_GUIDE_TAB_EVENT, onGuideTab);
+    return () => globalThis.removeEventListener(ENTERPRISE_GUIDE_TAB_EVENT, onGuideTab);
+  }, []);
+
   const [customRequirementForm] = Form.useForm();
   const [followUpForm] = Form.useForm();
   const [editForm] = Form.useForm();
@@ -301,6 +329,8 @@ function EnterpriseDetail() {
 
   const loadEnterpriseFollowUps = useCallback(async (enterpriseId) => {
     if (!enterpriseId) return;
+    const startedAt = performance.now();
+    logEnterpriseDetail('start follow-up load', { enterpriseId });
     try {
       const res = await followUpApi.getByEnterprise(enterpriseId);
       const list = (res.data || []).map((item) => ({
@@ -317,9 +347,18 @@ function EnterpriseDetail() {
         stage_after: item.stageTo,
       }));
       setEnterpriseRecords(list);
+      logEnterpriseDetail('follow-up load success', {
+        enterpriseId,
+        count: list.length,
+        durationMs: Math.round(performance.now() - startedAt),
+      });
     } catch (e) {
       console.error(e);
       setEnterpriseRecords([]);
+      logEnterpriseDetail('follow-up load failed', {
+        enterpriseId,
+        durationMs: Math.round(performance.now() - startedAt),
+      });
     }
   }, []);
   const [industryCategories, setIndustryCategories] = useState<any[]>([]);
@@ -337,6 +376,8 @@ function EnterpriseDetail() {
   // 加载行业分类
   useEffect(() => {
     const fetchIndustries = async () => {
+      const startedAt = performance.now();
+      logEnterpriseDetail('start industry tree load');
       try {
         const response = await optionsApi.getIndustries();
         if (response.data) {
@@ -350,8 +391,15 @@ function EnterpriseDetail() {
           };
           setIndustryCategories(convertToOptions(response.data));
         }
+        logEnterpriseDetail('industry tree load success', {
+          durationMs: Math.round(performance.now() - startedAt),
+          count: response.data?.length || 0,
+        });
       } catch (error) {
         console.error('Failed to fetch industries:', error);
+        logEnterpriseDetail('industry tree load failed', {
+          durationMs: Math.round(performance.now() - startedAt),
+        });
       }
     };
     fetchIndustries();
@@ -360,6 +408,8 @@ function EnterpriseDetail() {
   // 加载选项数据
   useEffect(() => {
     const fetchOptions = async () => {
+      const startedAt = performance.now();
+      logEnterpriseDetail('start dictionary options load');
       try {
         const [staffSize, source, region, tradeMode, tradeTeamMode, certification, automationLevel, logistics] =
           await Promise.all([
@@ -386,8 +436,17 @@ function EnterpriseDetail() {
         if (logistics.data) {
           setLogisticsOptionsProduct(logistics.data.map((o: any) => ({ label: o.label, value: o.id })));
         }
+        logEnterpriseDetail('dictionary options load success', {
+          durationMs: Math.round(performance.now() - startedAt),
+          staffSizeCount: staffSize.data?.length || 0,
+          sourceCount: source.data?.length || 0,
+          regionCount: region.data?.length || 0,
+        });
       } catch (error) {
         console.error('Failed to fetch options:', error);
+        logEnterpriseDetail('dictionary options load failed', {
+          durationMs: Math.round(performance.now() - startedAt),
+        });
       }
     };
     fetchOptions();
@@ -397,6 +456,8 @@ function EnterpriseDetail() {
   useEffect(() => {
     const fetchEnterprise = async () => {
       if (!id) return;
+      const startedAt = performance.now();
+      logEnterpriseDetail('start enterprise detail load', { id: Number(id) });
       setLoading(true);
       try {
         const response = await enterpriseApi.getDetail(Number(id));
@@ -486,28 +547,56 @@ function EnterpriseDetail() {
             removed_requirements: data.removedRequirements,
             custom_requirements: data.customRequirements,
             products: data.products || [],
+            overviewMergedTargetRegionNames: data.overviewMergedTargetRegionNames,
+            overviewMergedTargetCountryNames: data.overviewMergedTargetCountryNames,
             patents: data.patents || [],
             created_at: data.createdAt,
             updated_at: data.updatedAt,
           });
+          logEnterpriseDetail('enterprise detail load success', {
+            id: data.id,
+            durationMs: Math.round(performance.now() - startedAt),
+            contactCount: data.contacts?.length || 0,
+            productCount: data.products?.length || 0,
+            patentCount: data.patents?.length || 0,
+            stage: data.stage,
+          });
         }
       } catch (error: any) {
         console.error('Failed to fetch enterprise:', error);
+        logEnterpriseDetail('enterprise detail load failed', {
+          id: Number(id),
+          durationMs: Math.round(performance.now() - startedAt),
+          message: error?.message || 'unknown error',
+        });
         message.error('获取企业详情失败');
       } finally {
         setLoading(false);
+        logEnterpriseDetail('enterprise detail load finished', {
+          id: Number(id),
+          durationMs: Math.round(performance.now() - startedAt),
+        });
       }
     };
     fetchEnterprise();
   }, [id]);
 
   useEffect(() => {
+    const startedAt = performance.now();
     optionsApi
       .getProductCategories()
       .then((res) => {
         if (res.data) setProductCategoryTree(res.data);
+        logEnterpriseDetail('product category load success', {
+          durationMs: Math.round(performance.now() - startedAt),
+          count: res.data?.length || 0,
+        });
       })
-      .catch(() => {});
+      .catch(() => {
+        logEnterpriseDetail('product category load failed', {
+          durationMs: Math.round(performance.now() - startedAt),
+        });
+      });
   }, []);
 
   useEffect(() => {
@@ -595,11 +684,19 @@ function EnterpriseDetail() {
   // 从数据库加载需求配置（需求列表 + 通用/增强标记 + 维度映射）
   useEffect(() => {
     (async () => {
+      const startedAt = performance.now();
+      logEnterpriseDetail('start requirement config load');
       try {
         const res = await optionsApi.getRequirementConfig();
         setReqConfig((res as any).data || res);
+        logEnterpriseDetail('requirement config load success', {
+          durationMs: Math.round(performance.now() - startedAt),
+        });
       } catch {
         console.error('加载需求配置失败');
+        logEnterpriseDetail('requirement config load failed', {
+          durationMs: Math.round(performance.now() - startedAt),
+        });
       }
     })();
   }, []);
@@ -645,9 +742,11 @@ function EnterpriseDetail() {
         // 与详情页初始映射一致：PUT 常用 camelCase，界面状态多为 snake_case，避免保存后弹窗/概览读错字段
         if (Object.prototype.hasOwnProperty.call(fields, 'targetRegionIds')) {
           next.target_region_ids = fields.targetRegionIds;
+          delete (next as any).overviewMergedTargetRegionNames;
         }
         if (Object.prototype.hasOwnProperty.call(fields, 'targetCountryIds')) {
           next.target_country_ids = fields.targetCountryIds;
+          delete (next as any).overviewMergedTargetCountryNames;
         }
         if (Object.prototype.hasOwnProperty.call(fields, 'hasImportExportLicense')) {
           next.has_import_export_license =
@@ -1039,7 +1138,16 @@ function EnterpriseDetail() {
           message.success('产品已删除');
           const detail = await enterpriseApi.getDetail(enterprise.id);
           if (detail.data) {
-            setEnterprise((prev) => (prev ? { ...prev, products: detail.data.products || [] } : prev));
+            setEnterprise((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    products: detail.data.products || [],
+                    overviewMergedTargetRegionNames: detail.data.overviewMergedTargetRegionNames,
+                    overviewMergedTargetCountryNames: detail.data.overviewMergedTargetCountryNames,
+                  }
+                : prev
+            );
           }
         } catch (e) {
           message.error(e?.message || '删除失败');
@@ -1096,7 +1204,16 @@ function EnterpriseDetail() {
       }
       const detail = await enterpriseApi.getDetail(enterprise.id);
       if (detail.data) {
-        setEnterprise((prev) => (prev ? { ...prev, products: detail.data.products || [] } : prev));
+        setEnterprise((prev) =>
+          prev
+            ? {
+                ...prev,
+                products: detail.data.products || [],
+                overviewMergedTargetRegionNames: detail.data.overviewMergedTargetRegionNames,
+                overviewMergedTargetCountryNames: detail.data.overviewMergedTargetCountryNames,
+              }
+            : prev
+        );
       }
       setIsProductModalOpen(false);
       productForm.resetFields();
@@ -1393,11 +1510,11 @@ function EnterpriseDetail() {
   const tabItems = [
     {
       key: 'basic',
-      label: '基本信息',
+      label: enterpriseDetailTabLabel('基本信息', 'basic'),
       children: (
         <div style={{ padding: 16 }}>
           <Card 
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>企业信息</span>}
+            title={enterpriseDetailCardTitle('企业信息', 'basic-enterprise')}
             size="small" 
             style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }} 
             headStyle={{ borderBottom: '1px solid #f0f0f0' }}
@@ -1458,7 +1575,7 @@ function EnterpriseDetail() {
             </Descriptions>
           </Card>
           <Card 
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>联系人信息</span>}
+            title={enterpriseDetailCardTitle('联系人信息', 'basic-contacts')}
             size="small" 
             style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }} 
             headStyle={{ borderBottom: '1px solid #f0f0f0' }}
@@ -1547,7 +1664,7 @@ function EnterpriseDetail() {
     },
     {
       key: 'product',
-      label: '产品信息',
+      label: enterpriseDetailTabLabel('产品信息', 'product'),
       children: (
         <div style={{ padding: 16 }}>
           {/* 产品总体信息 */}
@@ -1560,10 +1677,55 @@ function EnterpriseDetail() {
               const v = parseFloat(String(p.annualSales || '0').replace(/[^\d.]/g, ''));
               return s + (isNaN(v) ? 0 : v);
             }, 0);
-            // 企业级字段：用 regionOptions 解析 ID 为名称
+            const mergeUniqueLabels = (primary: string[], secondary: string[]) => {
+              const seen = new Set<string>();
+              const out: string[] = [];
+              for (const s of [...primary, ...secondary]) {
+                if (s == null || s === '' || seen.has(s)) continue;
+                seen.add(s);
+                out.push(s);
+              }
+              return out;
+            };
+            const regionLabelForId = (id: number) =>
+              regionOptions.find((o: any) => Number(o.value) === Number(id))?.label;
+            // 主要销售区域/国家：优先用详情接口返回的合并字段（后端直读库+字典，不依赖前端选项加载）；旧接口则前端合并
             const regionIds: number[] = enterprise.target_region_ids || (enterprise as any).targetRegionIds || [];
-            const regionNames = regionIds.map((id: number) => regionOptions.find((o: any) => o.value === id)?.label).filter(Boolean);
-            const countryNames: string[] = enterprise.target_country_ids || (enterprise as any).targetCountryIds || [];
+            const enterpriseRegionLabels = regionIds
+              .map((id: number) => regionLabelForId(id))
+              .filter(Boolean) as string[];
+            const productRegionLabels = products.flatMap((p: any) => {
+              const names = p.targetRegionNames || p.target_region_names;
+              if (Array.isArray(names) && names.length) return names.filter(Boolean);
+              const ids = p.targetRegionIds || p.target_region_ids || [];
+              return ids.map((id: number) => regionLabelForId(id)).filter(Boolean);
+            });
+            const clientRegionNames = mergeUniqueLabels(enterpriseRegionLabels, productRegionLabels);
+            const enterpriseCountryRaw =
+              enterprise.target_country_ids ?? (enterprise as any).targetCountryIds ?? [];
+            const enterpriseCountryLabels: string[] = Array.isArray(enterpriseCountryRaw)
+              ? enterpriseCountryRaw.filter(Boolean)
+              : [];
+            const productCountryLabels = products.flatMap((p: any) => {
+              const ids = p.targetCountryIds || p.target_country_ids;
+              return Array.isArray(ids) ? ids.filter(Boolean) : [];
+            });
+            const clientCountryNames = mergeUniqueLabels(enterpriseCountryLabels, productCountryLabels);
+            // 有 overviewMerged* 时也与 client 再合并一次：避免后端返回空数组时把「仅写在产品上」的区域/国家整段丢掉
+            const serverRegionNames = Array.isArray((enterprise as any).overviewMergedTargetRegionNames)
+              ? ((enterprise as any).overviewMergedTargetRegionNames as string[]).filter(Boolean)
+              : null;
+            const serverCountryNames = Array.isArray((enterprise as any).overviewMergedTargetCountryNames)
+              ? ((enterprise as any).overviewMergedTargetCountryNames as string[]).filter(Boolean)
+              : null;
+            const regionNames =
+              serverRegionNames != null
+                ? mergeUniqueLabels(serverRegionNames, clientRegionNames)
+                : clientRegionNames;
+            const countryNames =
+              serverCountryNames != null
+                ? mergeUniqueLabels(serverCountryNames, clientCountryNames)
+                : clientCountryNames;
             // 与「编辑产品信息」弹窗 hasImportExportLicense 的判定一致，避免页面显示「-」而弹窗显示「否」
             const licRaw = enterprise.has_import_export_license ?? (enterprise as any).hasImportExportLicense;
             const hasImportExportLicenseYes =
@@ -1571,7 +1733,7 @@ function EnterpriseDetail() {
             return (
               <Card
                 size="small"
-                title={<span style={{ fontWeight: 600, fontSize: 15 }}>产品总体概览</span>}
+                title={enterpriseDetailCardTitle('产品总体概览', 'product-overview')}
                 style={{ marginBottom: 16, borderRadius: 8, border: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
                 headStyle={{ borderBottom: '1px solid #f0f0f0' }}
                 extra={<Button type="link" size="small" icon={<EditOutlined />} style={{ fontWeight: 500 }} onClick={() => setIsProductOverviewModalOpen(true)}>编辑</Button>}
@@ -1632,7 +1794,7 @@ function EnterpriseDetail() {
 
           {/* 产品列表 */}
           <Card
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>产品列表</span>}
+            title={enterpriseDetailCardTitle('产品列表', 'product-list')}
             size="small"
             style={{ 
               marginBottom: 16, 
@@ -1695,7 +1857,7 @@ function EnterpriseDetail() {
           {/* 自主品牌 */}
           <Card
             size="small"
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>自主品牌</span>}
+            title={enterpriseDetailCardTitle('自主品牌', 'product-brand')}
             style={{ marginBottom: 16, borderRadius: 8, border: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
             headStyle={{ borderBottom: '1px solid #f0f0f0' }}
             extra={
@@ -1745,7 +1907,7 @@ function EnterpriseDetail() {
           {/* 核心技术/专利 */}
           <Card
             size="small"
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>核心技术/专利</span>}
+            title={enterpriseDetailCardTitle('核心技术/专利', 'product-patent')}
             style={{ borderRadius: 8, border: 'none', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}
             headStyle={{ borderBottom: '1px solid #f0f0f0' }}
             extra={
@@ -1788,7 +1950,7 @@ function EnterpriseDetail() {
     },
     {
       key: 'trade',
-      label: '外贸信息',
+      label: enterpriseDetailTabLabel('外贸信息', 'trade'),
       children: (
         <div>
           {/* 是否开展外贸 */}
@@ -1814,6 +1976,7 @@ function EnterpriseDetail() {
                   boxShadow: hasForeignTrade ? '0 0 8px rgba(67,233,123,0.5)' : 'none'
                 }} />
                 <Text strong style={{ fontSize: 15 }}>是否开展外贸业务</Text>
+                <EnterpriseDetailSectionHint sectionKey="trade-switch" />
               </div>
               <Switch 
                 checked={hasForeignTrade} 
@@ -1834,7 +1997,9 @@ function EnterpriseDetail() {
           }}>
             <Card 
               size="small" 
+              title={enterpriseDetailCardTitle('外贸基础信息', 'trade-basics')}
               style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+              headStyle={{ borderBottom: '1px solid #f0f0f0' }}
               extra={<Button type="link" icon={<EditOutlined />} style={{ fontWeight: 500 }} onClick={() => setIsTradeModalOpen(true)}>编辑</Button>}
             >
               <Row gutter={[20, 20]}>
@@ -1889,7 +2054,7 @@ function EnterpriseDetail() {
             {/* 外贸业绩分析 */}
             <Card 
               size="small" 
-              title={<span style={{ fontWeight: 600, fontSize: 15 }}>外贸业绩分析</span>}
+              title={enterpriseDetailCardTitle('外贸业绩分析', 'trade-performance')}
               style={{ marginTop: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
               headStyle={{ borderBottom: '1px solid #f0f0f0' }}
               extra={(
@@ -1993,7 +2158,10 @@ function EnterpriseDetail() {
 
               {/* 市场变化 */}
               <div style={{ marginBottom: 20 }}>
-                <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 12, color: '#333' }}>市场变化</Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 12 }}>
+                  <Text strong style={{ fontSize: 14, color: '#333' }}>市场变化</Text>
+                  <EnterpriseDetailSectionHint sectionKey="trade-performance-market" />
+                </div>
                 <Row gutter={16}>
                   <Col span={12}>
                     <div style={{ 
@@ -2061,7 +2229,10 @@ function EnterpriseDetail() {
 
               {/* 模式变化 */}
               <div style={{ marginBottom: 20 }}>
-                <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 12, color: '#333' }}>模式变化</Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 12 }}>
+                  <Text strong style={{ fontSize: 14, color: '#333' }}>模式变化</Text>
+                  <EnterpriseDetailSectionHint sectionKey="trade-performance-mode" />
+                </div>
                 <Row gutter={16}>
                   <Col span={12}>
                     <div style={{ 
@@ -2132,7 +2303,10 @@ function EnterpriseDetail() {
 
               {/* 品类变化 */}
               <div style={{ marginBottom: 20 }}>
-                <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 12, color: '#333' }}>品类变化</Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 12 }}>
+                  <Text strong style={{ fontSize: 14, color: '#333' }}>品类变化</Text>
+                  <EnterpriseDetailSectionHint sectionKey="trade-performance-category" />
+                </div>
                 <Row gutter={16}>
                   <Col span={12}>
                     <div style={{ 
@@ -2203,7 +2377,10 @@ function EnterpriseDetail() {
 
               {/* 原因分析 */}
               <div>
-                <Text strong style={{ fontSize: 14, display: 'block', marginBottom: 12, color: '#333' }}>原因分析</Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 12 }}>
+                  <Text strong style={{ fontSize: 14, color: '#333' }}>原因分析</Text>
+                  <EnterpriseDetailSectionHint sectionKey="trade-performance-reasons" />
+                </div>
                 <Row gutter={16}>
                   <Col span={12}>
                     <div style={{ 
@@ -2282,7 +2459,7 @@ function EnterpriseDetail() {
     },
     {
       key: 'crossborder',
-      label: '线上跨境电商',
+      label: enterpriseDetailTabLabel('线上跨境电商', 'crossborder'),
       children: (
         <div style={{ padding: 16 }}>
           {/* 是否开展跨境电商 */}
@@ -2308,6 +2485,7 @@ function EnterpriseDetail() {
                   boxShadow: hasCrossborderEcommerce ? '0 0 8px rgba(102,126,234,0.5)' : 'none'
                 }} />
                 <Text strong style={{ fontSize: 15 }}>是否开展跨境电商业务</Text>
+                <EnterpriseDetailSectionHint sectionKey="cb-switch" />
               </div>
               <Switch 
                 checked={hasCrossborderEcommerce} 
@@ -2328,7 +2506,7 @@ function EnterpriseDetail() {
           
           {/* 主要跨境平台 */}
           <Card 
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>主要跨境平台</span>}
+            title={enterpriseDetailCardTitle('主要跨境平台', 'cb-platforms')}
             size="small" 
             style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }} 
             headStyle={{ borderBottom: '1px solid #f5f5f5' }}
@@ -2415,7 +2593,7 @@ function EnterpriseDetail() {
 
           {/* 跨境基本信息 */}
           <Card 
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>跨境基本信息</span>}
+            title={enterpriseDetailCardTitle('跨境基本信息', 'cb-basic')}
             size="small" 
             style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }} 
             headStyle={{ borderBottom: '1px solid #f5f5f5' }}
@@ -2490,7 +2668,7 @@ function EnterpriseDetail() {
 
           {/* 目标市场及占比 */}
           <Card 
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>目标市场及占比</span>}
+            title={enterpriseDetailCardTitle('目标市场及占比', 'cb-markets')}
             size="small" 
             style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }} 
             headStyle={{ borderBottom: '1px solid #f5f5f5' }}
@@ -2531,12 +2709,12 @@ function EnterpriseDetail() {
     },
     {
       key: 'requirements',
-      label: '需求分析',
+      label: enterpriseDetailTabLabel('需求分析', 'requirements'),
       children: (
         <div style={{ padding: 16 }}>
           {/* 维度选择区域 */}
           <Card 
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>企业画像维度选择</span>}
+            title={enterpriseDetailCardTitle('企业画像维度选择', 'req-dimensions')}
             size="small"
             style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
             headStyle={{ borderBottom: '1px solid #f0f0f0' }}
@@ -2712,7 +2890,9 @@ function EnterpriseDetail() {
                 {/* 统计概览 */}
                 <Card
                   size="small"
+                  title={enterpriseDetailCardTitle('需求匹配概览', 'req-stats')}
                   style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+                  headStyle={{ borderBottom: '1px solid #f0f0f0' }}
                 >
                   <Row gutter={16}>
                     <Col span={6}>
@@ -2988,15 +3168,21 @@ function EnterpriseDetail() {
                   }).filter(Boolean);
                   
                   return (
-                    <Collapse
-                      defaultActiveKey={phases}
-                      style={{ 
-                        background: 'transparent',
-                        marginBottom: 16
-                      }}
-                      expandIcon={({ isActive }) => isActive ? <DownOutlined /> : <RightOutlined />}
-                      items={phaseItems as any}
-                    />
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                        <Text strong style={{ fontSize: 14 }}>按阶段匹配的需求清单</Text>
+                        <EnterpriseDetailSectionHint sectionKey="req-phases" />
+                      </div>
+                      <Collapse
+                        defaultActiveKey={phases}
+                        style={{ 
+                          background: 'transparent',
+                          marginBottom: 16
+                        }}
+                        expandIcon={({ isActive }) => isActive ? <DownOutlined /> : <RightOutlined />}
+                        items={phaseItems as any}
+                      />
+                    </>
                   );
                 })()}
 
@@ -3004,7 +3190,7 @@ function EnterpriseDetail() {
                 <Card
                   size="small"
                   title={
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{
                         padding: '4px 12px',
                         background: 'rgba(250,140,22,0.08)',
@@ -3019,6 +3205,7 @@ function EnterpriseDetail() {
                       <Text type="secondary" style={{ fontSize: 13 }}>
                         针对该企业的个性化需求
                       </Text>
+                      <EnterpriseDetailSectionHint sectionKey="req-custom" />
                     </div>
                   }
                   extra={
@@ -3221,12 +3408,12 @@ function EnterpriseDetail() {
     },
     {
       key: 'policy',
-      label: '政策支持',
+      label: enterpriseDetailTabLabel('政策支持', 'policy'),
       children: (
         <div>
           {/* 政策支持情况 */}
           <Card 
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>政策支持情况</span>}
+            title={enterpriseDetailCardTitle('政策支持情况', 'policy-support')}
             size="small" 
             style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
             headStyle={{ borderBottom: '1px solid #f5f5f5' }}
@@ -3264,14 +3451,17 @@ function EnterpriseDetail() {
     },
     {
       key: 'cooperation',
-      label: '合作',
+      label: enterpriseDetailTabLabel('合作', 'cooperation'),
       children: (
         <div>
           {/* 三中心合作 */}
           <Card 
             title={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontWeight: 600, fontSize: 15 }}>三中心合作</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ fontWeight: 600, fontSize: 15 }}>三中心合作</span>
+                  <EnterpriseDetailSectionHint sectionKey="coop-tricenter" />
+                </span>
                 <Switch 
                   checked={isCooperating} 
                   onChange={setIsCooperating}
@@ -3289,7 +3479,10 @@ function EnterpriseDetail() {
           >
             {isCooperating ? (
               <div>
-                <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>合作项目</Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                  <Text strong style={{ fontSize: 14 }}>合作项目</Text>
+                  <EnterpriseDetailSectionHint sectionKey="coop-tricenter-projects" />
+                </div>
                 <Select
                   mode="multiple"
                   style={{ width: '100%' }}
@@ -3430,7 +3623,10 @@ function EnterpriseDetail() {
               </div>
             ) : (
               <div>
-                <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>不合作主要顾虑</Text>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                  <Text strong style={{ fontSize: 14 }}>不合作主要顾虑</Text>
+                  <EnterpriseDetailSectionHint sectionKey="coop-tricenter-concerns" />
+                </div>
                 <Select
                   mode="multiple"
                   style={{ width: '100%' }}
@@ -3459,14 +3655,17 @@ function EnterpriseDetail() {
 
           {/* 三中心评估 */}
           <Card 
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>三中心评估</span>}
+            title={enterpriseDetailCardTitle('三中心评估', 'coop-evaluation')}
             size="small" 
             style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }} 
             headStyle={{ borderBottom: '1px solid #f5f5f5' }}
           >
             {/* 合作可能性评分 */}
             <div style={{ marginBottom: 20 }}>
-              <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>合作可能性评分</Text>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                <Text strong style={{ fontSize: 14 }}>合作可能性评分</Text>
+                <EnterpriseDetailSectionHint sectionKey="coop-evaluation-ratings" />
+              </div>
               <Row gutter={[16, 16]}>
                 {[
                   { label: '企业服务合作', field: 'service_cooperation_rating', apiField: 'serviceCooperationRating', color: '#667eea' },
@@ -3500,7 +3699,10 @@ function EnterpriseDetail() {
 
             {/* 标杆企业可能性 */}
             <div style={{ marginBottom: 20 }}>
-              <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>标杆企业可能性</Text>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                <Text strong style={{ fontSize: 14 }}>标杆企业可能性</Text>
+                <EnterpriseDetailSectionHint sectionKey="coop-evaluation-benchmark" />
+              </div>
               <div style={{ 
                 padding: '16px', 
                 background: 'linear-gradient(135deg, rgba(102,126,234,0.08) 0%, rgba(118,75,162,0.05) 100%)', 
@@ -3530,7 +3732,10 @@ function EnterpriseDetail() {
 
             {/* 其它补充说明 */}
             <div>
-              <Text strong style={{ fontSize: 14, marginBottom: 12, display: 'block' }}>其它补充说明</Text>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                <Text strong style={{ fontSize: 14 }}>其它补充说明</Text>
+                <EnterpriseDetailSectionHint sectionKey="coop-evaluation-notes" />
+              </div>
               <Input.TextArea 
                 value={enterprise.additional_notes || ''}
                 onChange={(e) => setEnterprise({...enterprise, additional_notes: e.target.value})}
@@ -3581,7 +3786,10 @@ function EnterpriseDetail() {
                   <FileTextOutlined />
                 </div>
                 <div>
-                  <Text strong style={{ fontSize: 15 }}>合作服务档案</Text>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Text strong style={{ fontSize: 15 }}>合作服务档案</Text>
+                    <EnterpriseDetailSectionHint sectionKey="coop-service-archive" />
+                  </div>
                   <div style={{ fontSize: 12, color: '#888', marginTop: 2 }}>
                     共 <span style={{ color: '#667eea', fontWeight: 600 }}>{serviceSummary.total}</span> 条服务记录
                     {serviceSummary.completed > 0 && <span style={{ marginLeft: 8 }}>已完成 <span style={{ color: '#10b981', fontWeight: 600 }}>{serviceSummary.completed}</span></span>}
@@ -3609,7 +3817,7 @@ function EnterpriseDetail() {
     },
     {
       key: 'competition',
-      label: '竞争力与风险',
+      label: enterpriseDetailTabLabel('竞争力与风险', 'competition'),
       children: (
         <div>
           {/* 是否经过调研选择 */}
@@ -3635,6 +3843,7 @@ function EnterpriseDetail() {
                   boxShadow: isSurveyed ? '0 0 8px rgba(102,126,234,0.5)' : 'none'
                 }} />
                 <Text strong style={{ fontSize: 15 }}>该企业是否经过调研</Text>
+                <EnterpriseDetailSectionHint sectionKey="comp-survey-switch" />
               </div>
               <Switch 
                 checked={isSurveyed} 
@@ -3657,7 +3866,7 @@ function EnterpriseDetail() {
           }}>
           {/* 行业竞争地位 */}
           <Card 
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>行业竞争地位</span>}
+            title={enterpriseDetailCardTitle('行业竞争地位', 'comp-position')}
             size="small" 
             style={{ marginBottom: 16, borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
             headStyle={{ borderBottom: '1px solid #f5f5f5' }}
@@ -3704,7 +3913,7 @@ function EnterpriseDetail() {
 
           {/* 当前面临风险（库字段 current_risk_tags + risk_description） */}
           <Card 
-            title={<span style={{ fontWeight: 600, fontSize: 15 }}>当前面临风险</span>}
+            title={enterpriseDetailCardTitle('当前面临风险', 'comp-risk')}
             size="small" 
             style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
             headStyle={{ borderBottom: '1px solid #f5f5f5' }}
@@ -3781,7 +3990,7 @@ function EnterpriseDetail() {
     },
     {
       key: 'followup',
-      label: '跟进记录',
+      label: enterpriseDetailTabLabel('跟进记录', 'followup'),
       children: (
         <div style={{ padding: 16 }}>
           <div style={{ 
@@ -3791,7 +4000,10 @@ function EnterpriseDetail() {
             marginBottom: 20,
             padding: '0 4px'
           }}>
-            <Text strong style={{ fontSize: 15 }}>共 <span style={{ color: '#667eea', fontSize: 18 }}>{enterpriseRecords.length}</span> 条跟进记录</Text>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Text strong style={{ fontSize: 15 }}>共 <span style={{ color: '#667eea', fontSize: 18 }}>{enterpriseRecords.length}</span> 条跟进记录</Text>
+              <EnterpriseDetailSectionHint sectionKey="followup-header" />
+            </div>
             <Button 
               type="primary" 
               size="small" 
@@ -3808,7 +4020,11 @@ function EnterpriseDetail() {
             </Button>
           </div>
           {enterpriseRecords.length > 0 ? (
-            <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <Card
+              title={enterpriseDetailCardTitle('跟进记录列表', 'followup-list')}
+              style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+              headStyle={{ borderBottom: '1px solid #f0f0f0' }}
+            >
               <Table
                 columns={recordColumns}
                 dataSource={enterpriseRecords}
@@ -3818,7 +4034,11 @@ function EnterpriseDetail() {
               />
             </Card>
           ) : (
-            <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+            <Card
+              title={enterpriseDetailCardTitle('跟进记录列表', 'followup-list')}
+              style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+              headStyle={{ borderBottom: '1px solid #f0f0f0' }}
+            >
               <div style={{ textAlign: 'center', padding: 60 }}>
                 <div style={{ 
                   width: 64, 
@@ -3843,7 +4063,10 @@ function EnterpriseDetail() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div
+        data-tour="enterprise-detail-toolbar"
+        style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+      >
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/enterprise')}>
           返回列表
         </Button>
@@ -3864,7 +4087,8 @@ function EnterpriseDetail() {
         </Button>
       </div>
 
-      <Card 
+      <Card
+        data-tour="enterprise-detail-header"
         style={{ 
           marginBottom: 16,
           background: '#fff',
@@ -4063,7 +4287,10 @@ function EnterpriseDetail() {
         </div>
       </Card>
 
-      <Card style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}>
+      <Card
+        data-tour="enterprise-detail-tabs"
+        style={{ borderRadius: 16, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)' }}
+      >
         <Tabs 
           activeKey={activeTab} 
           onChange={setActiveTab} 
@@ -4625,18 +4852,28 @@ function EnterpriseDetail() {
         open={isProductOverviewModalOpen}
         afterOpenChange={(open) => {
           if (open && enterprise) {
-            const regionIds =
+            const enterpriseRegionIds =
               Array.isArray(enterprise.target_region_ids) && enterprise.target_region_ids.length > 0
                 ? enterprise.target_region_ids
                 : Array.isArray(enterprise.targetRegionIds)
                   ? enterprise.targetRegionIds
                   : [];
-            const countryIds =
+            const enterpriseCountryIds =
               Array.isArray(enterprise.target_country_ids) && enterprise.target_country_ids.length > 0
                 ? enterprise.target_country_ids
                 : Array.isArray(enterprise.targetCountryIds)
                   ? enterprise.targetCountryIds
                   : [];
+            const productRegionIds = ((enterprise.products || []) as any[]).flatMap((p: any) => {
+              const ids = p.targetRegionIds || p.target_region_ids;
+              return Array.isArray(ids) ? ids : [];
+            });
+            const productCountryIds = ((enterprise.products || []) as any[]).flatMap((p: any) => {
+              const ids = p.targetCountryIds || p.target_country_ids;
+              return Array.isArray(ids) ? ids : [];
+            });
+            const regionIds = [...new Set([...enterpriseRegionIds, ...productRegionIds].map((id) => Number(id)).filter((id) => Number.isFinite(id)))];
+            const countryIds = [...new Set([...enterpriseCountryIds, ...productCountryIds].filter(Boolean))];
             const lic = enterprise.has_import_export_license;
             const hasLicense =
               lic === true || lic === 1 || lic === '1' || enterprise.hasImportExportLicense === true || enterprise.hasImportExportLicense === 1;
@@ -4652,8 +4889,24 @@ function EnterpriseDetail() {
         }}
         onOk={async () => {
           const values = productOverviewForm.getFieldsValue(true);
-          const fallbackRegions = enterprise.target_region_ids || enterprise.targetRegionIds || [];
-          const fallbackCountries = enterprise.target_country_ids || enterprise.targetCountryIds || [];
+          const fallbackRegions = [
+            ...(Array.isArray(enterprise.target_region_ids) ? enterprise.target_region_ids : Array.isArray(enterprise.targetRegionIds) ? enterprise.targetRegionIds : []),
+            ...((enterprise.products || []) as any[]).flatMap((p: any) => {
+              const ids = p.targetRegionIds || p.target_region_ids;
+              return Array.isArray(ids) ? ids : [];
+            }),
+          ]
+            .map((id) => Number(id))
+            .filter((id) => Number.isFinite(id))
+            .filter((id, index, arr) => arr.indexOf(id) === index);
+          const fallbackCountries = [
+            ...(Array.isArray(enterprise.target_country_ids) ? enterprise.target_country_ids : Array.isArray(enterprise.targetCountryIds) ? enterprise.targetCountryIds : []),
+            ...((enterprise.products || []) as any[]).flatMap((p: any) => {
+              const ids = p.targetCountryIds || p.target_country_ids;
+              return Array.isArray(ids) ? ids : [];
+            }),
+          ].filter(Boolean)
+            .filter((id, index, arr) => arr.indexOf(id) === index);
           const targetRegionIds = Array.isArray(values.targetRegionIds)
             ? values.targetRegionIds
             : fallbackRegions;
@@ -4686,7 +4939,7 @@ function EnterpriseDetail() {
             showIcon
             style={{ marginBottom: 16 }}
             message="说明"
-            description="本弹窗仅三项，与上方「产品总体概览」第一组字段一一对应：主要销售区域、主要销售国家、是否有进出口资质。产品数量、产品品类、年销售额合计、产品认证、物流合作方由下方「产品列表」自动汇总，请在列表中「添加产品」或「编辑」维护。"
+            description="是否有进出口资质仅在本弹窗维护。主要销售区域、主要销售国家：概览区展示为「企业级（本弹窗）+ 全部产品」去重合并；若仅在产品列表中填写，也会出现在概览。产品数量、产品品类、年销售额合计、产品认证、物流合作方由下方「产品列表」自动汇总。"
           />
           <Row gutter={16}>
             <Col span={24}>

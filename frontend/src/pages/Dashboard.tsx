@@ -9,7 +9,7 @@ import {
   ArrowRightOutlined,
   WarningOutlined,
   PlusOutlined,
-  FunnelPlotOutlined,
+  BarChartOutlined,
   FileTextOutlined,
 } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
@@ -243,108 +243,110 @@ function Dashboard() {
   return (
     <div>
       {/* ═══ 第一行：蓝色主卡 + 统计卡 + 待跟进提醒 ═══ */}
-      <Row gutter={[24, 24]}>
-        {/* 蓝色渐变主卡（BankDash "My Cards" 位置） */}
-        <Col xs={24} lg={10}>
-          <div style={{
-            background: 'linear-gradient(135deg, #4F6CF7 0%, #253BA0 100%)',
-            borderRadius: 25, padding: '28px 32px', color: '#fff',
-            display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
-            minHeight: 210, position: 'relative', overflow: 'hidden',
-          }}>
-            {/* 装饰半圆 */}
+      <div data-tour="dashboard-overview">
+        <Row gutter={[24, 24]}>
+          {/* 蓝色渐变主卡（BankDash "My Cards" 位置） */}
+          <Col xs={24} lg={10}>
             <div style={{
-              position: 'absolute', top: -30, right: -30,
-              width: 160, height: 160, borderRadius: '50%',
-              background: 'rgba(255,255,255,0.08)',
-            }} />
-            <div style={{
-              position: 'absolute', bottom: -40, right: 60,
-              width: 120, height: 120, borderRadius: '50%',
-              background: 'rgba(255,255,255,0.05)',
-            }} />
+              background: 'linear-gradient(135deg, #4F6CF7 0%, #253BA0 100%)',
+              borderRadius: 25, padding: '28px 32px', color: '#fff',
+              display: 'flex', flexDirection: 'column', justifyContent: 'space-between',
+              minHeight: 210, position: 'relative', overflow: 'hidden',
+            }}>
+              {/* 装饰半圆 */}
+              <div style={{
+                position: 'absolute', top: -30, right: -30,
+                width: 160, height: 160, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.08)',
+              }} />
+              <div style={{
+                position: 'absolute', bottom: -40, right: 60,
+                width: 120, height: 120, borderRadius: '50%',
+                background: 'rgba(255,255,255,0.05)',
+              }} />
 
-            <div>
-              <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 4 }}>企业总数</div>
-              <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: -1 }}>{totalEnterprises}</div>
+              <div>
+                <div style={{ fontSize: 13, opacity: 0.7, marginBottom: 4 }}>企业总数</div>
+                <div style={{ fontSize: 36, fontWeight: 700, letterSpacing: -1 }}>{totalEnterprises}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 32, marginTop: 16 }}>
+                <div>
+                  <div style={{ fontSize: 11, opacity: 0.6 }}>潜在企业</div>
+                  <div style={{ fontSize: 20, fontWeight: 600 }}>{potentialCount}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, opacity: 0.6 }}>签约率</div>
+                  <div style={{ fontSize: 20, fontWeight: 600 }}>{signRate}%</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, opacity: 0.6 }}>本月新增</div>
+                  <div style={{ fontSize: 20, fontWeight: 600 }}>+{monthlyChange.total || 0}</div>
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 32, marginTop: 16 }}>
-              <div>
-                <div style={{ fontSize: 11, opacity: 0.6 }}>潜在企业</div>
-                <div style={{ fontSize: 20, fontWeight: 600 }}>{potentialCount}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, opacity: 0.6 }}>签约率</div>
-                <div style={{ fontSize: 20, fontWeight: 600 }}>{signRate}%</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 11, opacity: 0.6 }}>本月新增</div>
-                <div style={{ fontSize: 20, fontWeight: 600 }}>+{monthlyChange.total || 0}</div>
-              </div>
-            </div>
-          </div>
-        </Col>
+          </Col>
 
-        {/* 两张小统计卡（BankDash 第二张卡片位置） */}
-        <Col xs={24} lg={7}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%' }}>
-            {[
-              { label: '有明确需求', value: hasDemandCount, icon: <AimOutlined />, bg: '#DCFAF8', color: C.teal, change: monthlyChange.hasDemand || 0 },
-              { label: '已签约入驻', value: signedCount, icon: <CheckCircleOutlined />, bg: '#FFF5D9', color: C.yellow, change: monthlyChange.signedSettled || 0 },
-            ].map((s) => (
-              <Card key={s.label} style={{ ...cardStyle, flex: 1 }} styles={{ body: { padding: '18px 24px', height: '100%', display: 'flex', alignItems: 'center' } }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%' }}>
-                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: s.color, flexShrink: 0 }}>
-                    {s.icon}
+          {/* 两张小统计卡（BankDash 第二张卡片位置） */}
+          <Col xs={24} lg={7}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, height: '100%' }}>
+              {[
+                { label: '有明确需求', value: hasDemandCount, icon: <AimOutlined />, bg: '#DCFAF8', color: C.teal, change: monthlyChange.hasDemand || 0 },
+                { label: '已签约入驻', value: signedCount, icon: <CheckCircleOutlined />, bg: '#FFF5D9', color: C.yellow, change: monthlyChange.signedSettled || 0 },
+              ].map((s) => (
+                <Card key={s.label} style={{ ...cardStyle, flex: 1 }} styles={{ body: { padding: '18px 24px', height: '100%', display: 'flex', alignItems: 'center' } }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, width: '100%' }}>
+                    <div style={{ width: 48, height: 48, borderRadius: '50%', background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, color: s.color, flexShrink: 0 }}>
+                      {s.icon}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 2 }}>{s.label}</div>
+                      <div style={{ fontSize: 22, fontWeight: 700, color: C.textDark }}>{s.value}</div>
+                    </div>
+                    <div style={{ fontSize: 11, color: s.change >= 0 ? C.teal : C.pink, fontWeight: 600 }}>
+                      {s.change >= 0 ? '+' : ''}{s.change} 本月
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          </Col>
+
+          {/* 待跟进提醒（BankDash "Recent Transaction" 位置） */}
+          <Col xs={24} lg={7}>
+            <Card
+              title={<span style={{ fontWeight: 600, color: C.textDark }}>待跟进提醒</span>}
+              style={{ ...cardStyle, height: '100%' }}
+              styles={{ body: { padding: '12px 24px' } }}
+            >
+              {[
+                { icon: <WarningOutlined />, text: `${pendingFollowUps?.overdue30Days || 0} 家企业超30天未跟进`, color: C.pink, bg: '#FFE0EB', sub: '需要尽快跟进' },
+                { icon: <ClockCircleOutlined />, text: `${pendingFollowUps?.needFollowThisWeek || 0} 家企业本周需回访`, color: C.blue, bg: '#E7EDFF', sub: '计划中的回访' },
+                { icon: <ShopOutlined />, text: `${potentialCount} 家潜在企业待转化`, color: C.teal, bg: '#DCFAF8', sub: '转化漏斗顶部' },
+              ].map((item, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 0', borderBottom: i < 2 ? '1px solid #F3F3F5' : 'none' }}>
+                  <div style={{ width: 42, height: 42, borderRadius: '50%', background: item.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: item.color, fontSize: 18, flexShrink: 0 }}>
+                    {item.icon}
                   </div>
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 2 }}>{s.label}</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: C.textDark }}>{s.value}</div>
-                  </div>
-                  <div style={{ fontSize: 11, color: s.change >= 0 ? C.teal : C.pink, fontWeight: 600 }}>
-                    {s.change >= 0 ? '+' : ''}{s.change} 本月
+                    <div style={{ fontSize: 13, fontWeight: 500, color: C.textDark }}>{item.text}</div>
+                    <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{item.sub}</div>
                   </div>
                 </div>
-              </Card>
-            ))}
-          </div>
-        </Col>
-
-        {/* 待跟进提醒（BankDash "Recent Transaction" 位置） */}
-        <Col xs={24} lg={7}>
-          <Card
-            title={<span style={{ fontWeight: 600, color: C.textDark }}>待跟进提醒</span>}
-            style={{ ...cardStyle, height: '100%' }}
-            styles={{ body: { padding: '12px 24px' } }}
-          >
-            {[
-              { icon: <WarningOutlined />, text: `${pendingFollowUps?.overdue30Days || 0} 家企业超30天未跟进`, color: C.pink, bg: '#FFE0EB', sub: '需要尽快跟进' },
-              { icon: <ClockCircleOutlined />, text: `${pendingFollowUps?.needFollowThisWeek || 0} 家企业本周需回访`, color: C.blue, bg: '#E7EDFF', sub: '计划中的回访' },
-              { icon: <ShopOutlined />, text: `${potentialCount} 家潜在企业待转化`, color: C.teal, bg: '#DCFAF8', sub: '转化漏斗顶部' },
-            ].map((item, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 0', borderBottom: i < 2 ? '1px solid #F3F3F5' : 'none' }}>
-                <div style={{ width: 42, height: 42, borderRadius: '50%', background: item.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: item.color, fontSize: 18, flexShrink: 0 }}>
-                  {item.icon}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: C.textDark }}>{item.text}</div>
-                  <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{item.sub}</div>
-                </div>
-              </div>
-            ))}
-          </Card>
-        </Col>
-      </Row>
+              ))}
+            </Card>
+          </Col>
+        </Row>
+      </div>
 
       {/* ═══ 第二行：漏斗饼图 + 行业柱状图 ═══ */}
-      <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
+      <Row gutter={[24, 24]} style={{ marginTop: 24 }} data-tour="dashboard-charts">
         {/* 漏斗阶段分布（饼图） */}
         <Col xs={24} lg={9}>
           <Card
             title={<span style={{ fontWeight: 600, color: C.textDark }}>漏斗阶段分布</span>}
             extra={
-              <Button type="link" onClick={() => navigate('/funnel')} style={{ fontWeight: 500, color: C.blue, fontSize: 13 }}>
-                详情 <ArrowRightOutlined />
+              <Button type="link" onClick={() => navigate('/data-analysis')} style={{ fontWeight: 500, color: C.blue, fontSize: 13 }}>
+                数据分析 <ArrowRightOutlined />
               </Button>
             }
             style={cardStyle}
@@ -375,7 +377,7 @@ function Dashboard() {
       </Row>
 
       {/* ═══ 第三行：快捷操作 + 区域分布 ═══ */}
-      <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
+      <Row gutter={[24, 24]} style={{ marginTop: 24 }} data-tour="dashboard-actions">
         {/* 快捷操作（BankDash "Quick Transfer" 位置） */}
         <Col xs={24} lg={9}>
           <Card
@@ -387,7 +389,7 @@ function Dashboard() {
               {[
                 { label: '新增企业', icon: <PlusOutlined />, color: C.blue, bg: '#E7EDFF', path: '/enterprise' },
                 { label: '添加跟进', icon: <FileTextOutlined />, color: C.teal, bg: '#DCFAF8', path: '/follow-up' },
-                { label: '漏斗分析', icon: <FunnelPlotOutlined />, color: C.purple, bg: '#F0EBFF', path: '/funnel' },
+                { label: '数据分析', icon: <BarChartOutlined />, color: C.purple, bg: '#F0EBFF', path: '/data-analysis' },
               ].map((a) => (
                 <div
                   key={a.label}

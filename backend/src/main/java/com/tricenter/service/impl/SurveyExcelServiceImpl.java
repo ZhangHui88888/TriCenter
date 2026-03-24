@@ -22,6 +22,7 @@ import org.springframework.web.multipart.MultipartFile;
 import com.tricenter.config.SurveyExcelStyleHandler;
 import com.tricenter.service.OptionsService;
 
+import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.util.*;
@@ -72,27 +73,16 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
     @Override
     public void downloadTemplate(HttpServletResponse response) {
-        LambdaQueryWrapper<Enterprise> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Enterprise::getIsDeleted, 0)
-                .orderByAsc(Enterprise::getId);
-        List<Enterprise> enterprises = enterpriseMapper.selectList(wrapper);
-        if (enterprises.isEmpty()) {
-            throw BusinessException.badRequest("系统中暂无企业数据，请先创建企业后再下载模板");
-        }
-        exportToResponse(enterprises, "调研导入模板", response);
+        // 空模板：仅含表头、填写说明与示例行，不预填库内企业数据（导入时按企业ID/名称匹配或新建）
+        exportToResponse(List.of(), "调研导入模板", response);
     }
 
     private void exportToResponse(List<Enterprise> enterprises, String fileNamePrefix, HttpServletResponse response) {
-        try {
-            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-            response.setCharacterEncoding("utf-8");
-            String fileName = URLEncoder.encode(fileNamePrefix, "UTF-8").replaceAll("\\+", "%20");
-            response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
-
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             // 从数据库加载所有选项，用于填写提示
             Map<String, List<String>> optionLabels = loadAllOptionLabels();
 
-            ExcelWriter writer = EasyExcel.write(response.getOutputStream())
+            ExcelWriter writer = EasyExcel.write(outputStream)
                     .registerWriteHandler(new SurveyExcelStyleHandler())
                     .build();
 
@@ -377,14 +367,21 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             List<RequirementConfigResponse.RequirementItemDTO> allReqs = reqConfig.getRequirements() != null
                     ? reqConfig.getRequirements()
                     : List.of();
+            // 需求分析 Sheet：右侧企业列数（空模板时为 1 列占位，便于复制扩展）
+            final int reqEnterpriseColumns = enterprises.isEmpty() ? 1 : enterprises.size();
             // 构建四级表头：左侧固定为需求信息，右侧每列一个企业
             List<List<String>> reqHead = new ArrayList<>();
             reqHead.add(Arrays.asList("需求信息", "需求信息", "需求阶段", "需求阶段"));
             reqHead.add(Arrays.asList("需求信息", "需求信息", "需求分类", "需求分类"));
             reqHead.add(Arrays.asList("需求信息", "需求信息", "需求ID", "需求ID"));
             reqHead.add(Arrays.asList("需求信息", "需求信息", "需求名称", "需求名称"));
-            for (Enterprise e : enterprises) {
-                reqHead.add(Arrays.asList("企业信息", "企业信息", "企业名称", e.getName()));
+            if (enterprises.isEmpty()) {
+                // 无企业时仍给一列占位，便于线下复制整列扩展为多企业
+                reqHead.add(Arrays.asList("企业信息", "企业信息", "企业名称", "（请填写；可复制本列向右扩展）"));
+            } else {
+                for (Enterprise e : enterprises) {
+                    reqHead.add(Arrays.asList("企业信息", "企业信息", "企业名称", e.getName()));
+                }
             }
 
             // 需求分析Sheet专用样式处理器：设置列宽和表头行高
@@ -396,7 +393,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                     sheet.setColumnWidth(1, 18 * 256);
                     sheet.setColumnWidth(2, 14 * 256);
                     sheet.setColumnWidth(3, 40 * 256);
-                    for (int i = 4; i < 4 + enterprises.size(); i++) {
+                    for (int i = 4; i < 4 + reqEnterpriseColumns; i++) {
                         sheet.setColumnWidth(i, 24 * 256);
                     }
                     // 仅冻结前4列（需求维度），横向滚动时保持左侧需求信息可见
@@ -416,7 +413,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             reqHint.add("");
             reqHint.add("");
             reqHint.add("每行一条需求；企业列填写“是/否”；最后一行“自定义需求”可自由填写");
-            for (int i = 0; i < enterprises.size(); i++) {
+            for (int i = 0; i < reqEnterpriseColumns; i++) {
                 reqHint.add("填：是/否");
             }
             reqData.add(reqHint);
@@ -426,7 +423,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             reqExample.add("品牌建设");
             reqExample.add("R-DEMO");
             reqExample.add("示例需求");
-            for (int i = 0; i < enterprises.size(); i++) {
+            for (int i = 0; i < reqEnterpriseColumns; i++) {
                 reqExample.add(i % 3 == 0 ? "是" : "否"); // 交替填写示例
             }
             reqData.add(reqExample);
@@ -437,7 +434,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 row.add(req.getCategory());
                 row.add(req.getId());
                 row.add(req.getName());
-                for (int i = 0; i < enterprises.size(); i++) {
+                for (int i = 0; i < reqEnterpriseColumns; i++) {
                     row.add(""); // 空白待填写
                 }
                 reqData.add(row);
@@ -448,13 +445,24 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             customReqRow.add("");
             customReqRow.add("");
             customReqRow.add("自定义需求（自由填写）");
-            for (int i = 0; i < enterprises.size(); i++) {
+            for (int i = 0; i < reqEnterpriseColumns; i++) {
                 customReqRow.add("");
             }
             reqData.add(customReqRow);
             writer.write(reqData, sheet7);
 
             writer.finish();
+
+            byte[] bytes = outputStream.toByteArray();
+            String fileName = URLEncoder.encode(fileNamePrefix, "UTF-8").replaceAll("\\+", "%20");
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setCharacterEncoding("utf-8");
+            response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
+            response.setContentLength(bytes.length);
+            response.getOutputStream().write(bytes);
+            response.getOutputStream().flush();
+            log.info("调研Excel导出成功: fileNamePrefix={}, enterpriseCount={}, bytes={}",
+                    fileNamePrefix, enterprises.size(), bytes.length);
         } catch (Exception e) {
             log.error("导出调研Excel失败", e);
             throw new BusinessException("导出失败: " + e.getMessage());

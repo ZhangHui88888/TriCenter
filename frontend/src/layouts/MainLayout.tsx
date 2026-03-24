@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Avatar, Dropdown, Space, Switch, Tooltip, Modal, message, Input } from 'antd';
+import { Layout, Menu, Avatar, Dropdown, Space, Switch, Tooltip, Modal, message } from 'antd';
 import {
   DashboardOutlined,
   ShopOutlined,
@@ -22,6 +22,7 @@ import type { MenuProps } from 'antd';
 import { useThemeStore } from '@/stores/themeStore';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/services/api';
+import AppGuide from '@/components/AppGuide';
 
 const { Header, Sider, Content } = Layout;
 
@@ -145,15 +146,7 @@ function MainLayout() {
           </Space>
 
           <Space size={20} align="center">
-            <Input
-              prefix={<SearchOutlined style={{ color: '#8BA3CB' }} />}
-              placeholder="搜索..."
-              style={{
-                width: 255, height: 50, borderRadius: 40,
-                background: '#F5F7FA', border: 'none',
-                fontSize: 15,
-              }}
-            />
+            <AppGuide />
             <Tooltip title={mode === 'dark' ? '切换亮色' : '切换暗色'}>
               <Switch
                 checked={mode === 'dark'} onChange={toggleTheme}

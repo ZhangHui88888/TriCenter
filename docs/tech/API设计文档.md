@@ -71,9 +71,9 @@ NODE_ENV=production npm start
 | 4 | 企业产品管理 | 4 | ✅ 已完成 | 产品、品牌、专利 |
 | 5 | 跟进记录 | 5 | ✅ 已完成 | 跟进管理 |
 | 6 | 看板统计 | 5 | ✅ 已完成 | 首页数据展示 |
-| 7 | 漏斗分析 | 3 | ✅ 已完成 | 漏斗转化分析 |
 
-**总计: ~41个API（已完成约40个）**
+**总计: ~38个API（已完成约37个）**  
+> 说明：原「漏斗分析」独立模块 `GET /api/funnel/*` 已下线；漏斗**阶段数量分布**仍由 `GET /api/dashboard/funnel` 及数据分析聚合接口提供。
 
 ---
 
@@ -760,43 +760,6 @@ interface PendingFollowUps {
 
 ---
 
-## 模块7: 漏斗分析 (3个API)
-
-### 7.1 漏斗数据
-| 项 | 值 |
-|-----|-----|
-| 路径 | `GET /api/funnel/data` |
-| 响应 | `[{ stage: string, name: string, count: number, color: string }]` |
-| 说明 | 漏斗各阶段企业数量（与dashboard/funnel相同） |
-
-### 7.2 转化率数据
-| 项 | 值 |
-|-----|-----|
-| 路径 | `GET /api/funnel/conversion` |
-| 响应 | `[{ from: string, to: string, count: number, rate: number }]` |
-| 说明 | 各阶段间的转化数量和转化率 |
-
-**转化路径:**
-- 潜在企业 → 有明确需求
-- 潜在企业 → 无明确需求
-- 无明确需求 → 有明确需求
-- 无明确需求 → 没有合作意向
-- 有明确需求 → 已签约
-- 已签约 → 已入驻
-- 已入驻 → 重点孵化
-
-### 7.3 趋势数据
-| 项 | 值 |
-|-----|-----|
-| 路径 | `GET /api/funnel/trend` |
-| 参数 | `?startDate=&endDate=` |
-| 响应 | `[{ month: string, potential: number, hasDemand: number, signed: number, settled: number }]` |
-| 说明 | 各阶段企业数量的月度趋势 |
-
-**开发状态:** ✅ 已完成
-
----
-
 ## 通用响应格式
 
 ### 成功响应
@@ -870,8 +833,7 @@ interface PendingFollowUps {
 | 顺序 | 模块 | 预计工时 | 依赖 | 说明 |
 |------|------|----------|------|------|
 | 8 | 模块6: 看板统计 | 3h | 模块3,5 | 首页Dashboard数据 |
-| 9 | 模块7: 漏斗分析 | 2h | 模块3 | 转化率和趋势分析 |
-| 10 | 模块3: 企业数据分析 | 2h | 模块3 | 企业列表页的数据分析功能 |
+| 9 | 模块3: 企业数据分析 | 2h | 模块3 | 企业列表页的数据分析功能 |
 
 ### 开发检查清单
 
@@ -905,10 +867,7 @@ interface PendingFollowUps {
   □ 22. Dashboard区域分布API
   □ 23. Dashboard行业分布API
   □ 24. Dashboard待跟进提醒API
-  □ 25. 漏斗数据API
-  □ 26. 转化率API
-  □ 27. 趋势数据API
-  □ 28. 企业数据分析API
+  □ 25. 企业数据分析API
 ```
 
 ### 总预计工时：约36小时（4-5个工作日）
@@ -961,11 +920,6 @@ dashboardApi.getFunnelStats()      // GET /api/dashboard/funnel
 dashboardApi.getDistrictStats()    // GET /api/dashboard/districts
 dashboardApi.getIndustryStats()    // GET /api/dashboard/industries
 dashboardApi.getPendingFollowUps() // GET /api/dashboard/pending-follow-ups
-
-// 漏斗分析 API
-funnelApi.getData()                // GET /api/funnel/data
-funnelApi.getConversionRates()     // GET /api/funnel/conversion
-funnelApi.getTrend(params)         // GET /api/funnel/trend
 
 // 用户认证 API
 authApi.login(data)                // POST /api/auth/login

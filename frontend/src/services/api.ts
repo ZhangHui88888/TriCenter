@@ -147,19 +147,6 @@ export const dashboardApi = {
   clearCache: () => request.delete('/dashboard/cache'),
 };
 
-// 漏斗分析 API
-export const funnelApi = {
-  // 获取漏斗数据
-  getData: () => request.get('/funnel/data'),
-
-  // 获取转化率
-  getConversionRates: () => request.get('/funnel/conversion'),
-
-  // 获取趋势数据
-  getTrend: (params?: { startDate?: string; endDate?: string }) =>
-    request.get('/funnel/trend', { params }),
-};
-
 // 用户认证 API
 export const authApi = {
   // 登录
@@ -233,7 +220,10 @@ export const surveyExcelApi = {
 
   // 批量导出企业调研表
   exportBatch: (enterpriseIds: number[]) =>
-    request.post('/survey-excel/export/batch', enterpriseIds, { responseType: 'blob', timeout: 0 }),
+    request.post('/survey-excel/export/batch', enterpriseIds, {
+      responseType: 'blob',
+      timeout: 0,
+    }),
 
   // 导入调研数据
   import: (file: File) => {
@@ -245,9 +235,9 @@ export const surveyExcelApi = {
     });
   },
 
-  // 下载调研导入模板
+  // 下载调研导入模板（全量企业多 Sheet，生成可能超过默认 10s）
   downloadTemplate: () =>
-    request.get('/survey-excel/template', { responseType: 'blob' }),
+    request.get('/survey-excel/template', { responseType: 'blob', timeout: 0 }),
 };
 
 // 市场调研报告 API
@@ -304,6 +294,8 @@ export interface TreeCategoryItem {
   sortOrder: number;
   isEnabled: number;
   createdAt: string;
+  /** 需求分类三级节点：与 requirements.id 对齐时由后端填充，用于编辑画像五维 */
+  linkedRequirementId?: string | null;
 }
 
 /** 数据字典管理（新增选项等，写入 system_options 并刷新服务端缓存） */

@@ -30,3 +30,6 @@ Thumbs.db
 
 # Application
 application-local.yml
+
+# Local Sonar token (never commit)
+.sonar-token.local

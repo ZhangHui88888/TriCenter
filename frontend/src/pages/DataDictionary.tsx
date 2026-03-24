@@ -53,6 +53,8 @@ interface CategoryTreeItem {
   path: string;
   sort_order: number;
   is_enabled: boolean;
+  /** 三级需求节点与 requirements.id 一致时由接口返回，用于编辑五维 */
+  linked_requirement_id?: string;
   children?: CategoryTreeItem[];
 }
 
@@ -77,7 +79,21 @@ const mapApiToTreeItem = (item: TreeCategoryItem): CategoryTreeItem => ({
   path: item.path ?? '',
   sort_order: item.sortOrder ?? 0,
   is_enabled: item.isEnabled === 1,
+  linked_requirement_id: item.linkedRequirementId || undefined,
 });
+
+function dimensionsBodyFromFormValues(values: Record<string, unknown>): Record<string, string[]> {
+  const body: Record<string, string[]> = {};
+  personaDimensions.forEach((d) => {
+    const v = values[d.key];
+    if (d.multiple) {
+      body[d.key] = Array.isArray(v) ? v.filter((x: unknown) => x != null && x !== '') : [];
+    } else {
+      body[d.key] = v != null && v !== '' ? [String(v)] : [];
+    }
+  });
+  return body;
+}
 
 function DataDictionary() {
   const [remoteFlatItems, setRemoteFlatItems] = useState<DictionaryItem[]>([]);
@@ -97,6 +113,7 @@ function DataDictionary() {
   const [editingTreeItem, setEditingTreeItem] = useState<CategoryTreeItem | null>(null);
   const [treeForm] = Form.useForm();
   const [currentTreeType, setCurrentTreeType] = useState<'industry' | 'product' | 'requirement'>('industry');
+  const [treeDimLoading, setTreeDimLoading] = useState(false);
 
   const [requirementRows, setRequirementRows] = useState<RequirementAdminRow[]>([]);
   const [reqItemsLoading, setReqItemsLoading] = useState(false);
@@ -444,10 +461,43 @@ function DataDictionary() {
     setTreeModalVisible(true);
   };
 
-  const handleEditTreeItem = (item: CategoryTreeItem) => {
+  const handleEditTreeItem = async (item: CategoryTreeItem) => {
     setCurrentTreeType(treeType);
     setEditingTreeItem(item);
-    treeForm.setFieldsValue(item);
+    treeForm.resetFields();
+    const base = {
+      parent_id: item.parent_id,
+      name: item.name,
+      level: item.level,
+      sort_order: item.sort_order,
+      is_enabled: item.is_enabled,
+    };
+    if (treeType === 'requirement' && item.level === 3 && item.linked_requirement_id) {
+      setTreeDimLoading(true);
+      try {
+        const res = (await requirementItemAdminApi.getDimensions(item.linked_requirement_id)) as {
+          data?: Record<string, string[]>;
+        };
+        const dims = res.data || {};
+        const dimInit: Record<string, unknown> = {};
+        personaDimensions.forEach((d) => {
+          const vals = dims[d.key];
+          if (d.multiple) {
+            dimInit[d.key] = vals && vals.length ? [...vals] : [];
+          } else {
+            dimInit[d.key] = vals && vals.length ? vals[0] : undefined;
+          }
+        });
+        treeForm.setFieldsValue({ ...base, ...dimInit });
+      } catch {
+        message.error('加载画像维度失败');
+        treeForm.setFieldsValue(base);
+      } finally {
+        setTreeDimLoading(false);
+      }
+    } else {
+      treeForm.setFieldsValue(base);
+    }
     setTreeModalVisible(true);
   };
 
@@ -470,6 +520,14 @@ function DataDictionary() {
           sortOrder: values.sort_order,
           isEnabled: values.is_enabled,
         });
+        if (
+          currentTreeType === 'requirement' &&
+          editingTreeItem.level === 3 &&
+          editingTreeItem.linked_requirement_id
+        ) {
+          const dimBody = dimensionsBodyFromFormValues(values as Record<string, unknown>);
+          await requirementItemAdminApi.putDimensions(editingTreeItem.linked_requirement_id, dimBody);
+        }
         message.success('修改成功');
       } else {
         await treeCategoryApi.create(currentTreeType, {
@@ -559,7 +617,7 @@ function DataDictionary() {
               添加子级
             </Button>
           )}
-          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => handleEditTreeItem(item)}>编辑</Button>
+          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => void handleEditTreeItem(item)}>编辑</Button>
           <Popconfirm title="确定删除此分类吗？" onConfirm={() => handleDeleteTreeItem(item.id)} okText="确定" cancelText="取消">
             <Button type="link" size="small" danger icon={<DeleteOutlined />}>删除</Button>
           </Popconfirm>
@@ -653,15 +711,7 @@ function DataDictionary() {
     if (!editingRequirement) return;
     try {
       const values = await reqDimensionForm.validateFields();
-      const body: Record<string, string[]> = {};
-      personaDimensions.forEach((d) => {
-        const v = values[d.key];
-        if (d.multiple) {
-          body[d.key] = Array.isArray(v) ? v.filter((x: unknown) => x != null && x !== '') : [];
-        } else {
-          body[d.key] = v != null && v !== '' ? [String(v)] : [];
-        }
-      });
+      const body = dimensionsBodyFromFormValues(values as Record<string, unknown>);
       setReqDimensionSaving(true);
       await requirementItemAdminApi.putDimensions(editingRequirement.id, body);
       message.success('画像维度已保存');
@@ -712,7 +762,7 @@ function DataDictionary() {
         styles={{ body: { padding: '20px 24px' } }}
       >
         {/* 搜索区域 */}
-        <div style={{ marginBottom: 24 }}>
+        <div style={{ marginBottom: 24 }} data-tour="dictionary-category">
           <Space size="middle" align="center" wrap>
             <Text strong>选择分类：</Text>
             <Select
@@ -783,35 +833,37 @@ function DataDictionary() {
         )}
 
         {/* 数据展示 */}
-        {selectedCategory ? (
-          isRequirementItemsCategory ? (
-            <Spin spinning={reqItemsLoading}>
-              <Table
-                columns={requirementItemColumns}
-                dataSource={requirementRows}
-                rowKey="id"
-                pagination={{ pageSize: 20, showSizeChanger: true }}
-                size="middle"
-                scroll={{ x: 900 }}
-              />
-            </Spin>
-          ) : isTreeCategory ? (
-            <Spin spinning={treeLoading}>
-              <Tree
-                treeData={treeDataWithActions}
-                defaultExpandAll
-                blockNode
-                style={{ background: '#F5F7FA', padding: 16, borderRadius: 12 }}
-              />
-            </Spin>
+        <div data-tour="dictionary-data">
+          {selectedCategory ? (
+            isRequirementItemsCategory ? (
+              <Spin spinning={reqItemsLoading}>
+                <Table
+                  columns={requirementItemColumns}
+                  dataSource={requirementRows}
+                  rowKey="id"
+                  pagination={{ pageSize: 20, showSizeChanger: true }}
+                  size="middle"
+                  scroll={{ x: 900 }}
+                />
+              </Spin>
+            ) : isTreeCategory ? (
+              <Spin spinning={treeLoading}>
+                <Tree
+                  treeData={treeDataWithActions}
+                  defaultExpandAll
+                  blockNode
+                  style={{ background: '#F5F7FA', padding: 16, borderRadius: 12 }}
+                />
+              </Spin>
+            ) : (
+              <Spin spinning={flatLoading}>
+                <Table columns={columns} dataSource={currentData} rowKey="id" pagination={false} size="middle" />
+              </Spin>
+            )
           ) : (
-            <Spin spinning={flatLoading}>
-              <Table columns={columns} dataSource={currentData} rowKey="id" pagination={false} size="middle" />
-            </Spin>
-          )
-        ) : (
-          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请先选择一个数据字典分类" style={{ padding: '60px 0' }} />
-        )}
+            <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请先选择一个数据字典分类" style={{ padding: '60px 0' }} />
+          )}
+        </div>
       </Card>
 
       {/* 选项编辑弹窗 */}
@@ -891,39 +943,127 @@ function DataDictionary() {
       </Modal>
 
       {/* 多级分类编辑弹窗 */}
-      <Modal title={editingTreeItem ? '编辑分类' : '新增子分类'} open={treeModalVisible} onOk={handleSaveTreeItem} onCancel={() => setTreeModalVisible(false)} width={500} okButtonProps={{ style: { background: C.blue, borderColor: C.blue } }}>
-        <Form form={treeForm} layout="vertical" style={{ marginTop: 16 }}>
-          <Form.Item
-            name="parent_id"
-            label="上级分类"
-            extra={
-              editingTreeItem
-                ? '编辑时不支持调整上级。如需改变层级关系，请删除后重建。'
-                : '新增时可选择上级；最多 3 级。'
-            }
-          >
-            <TreeSelect
-              treeData={buildTreeSelectData(
-                currentTreeType === 'industry' ? industryCategories 
-                : currentTreeType === 'product' ? productCategories 
-                : requirementCategories
+      <Modal
+        title={editingTreeItem ? '编辑分类' : '新增子分类'}
+        open={treeModalVisible}
+        onOk={() => void handleSaveTreeItem()}
+        onCancel={() => {
+          setTreeModalVisible(false);
+          setTreeDimLoading(false);
+        }}
+        width={
+          editingTreeItem &&
+          currentTreeType === 'requirement' &&
+          editingTreeItem.level === 3 &&
+          editingTreeItem.linked_requirement_id
+            ? 720
+            : 500
+        }
+        okButtonProps={{
+          style: { background: C.blue, borderColor: C.blue },
+          disabled: treeDimLoading,
+        }}
+      >
+        <Spin spinning={treeDimLoading}>
+          <Form form={treeForm} layout="vertical" style={{ marginTop: 16 }}>
+            <Form.Item
+              name="parent_id"
+              label="上级分类"
+              extra={
+                editingTreeItem
+                  ? '编辑时不支持调整上级。如需改变层级关系，请删除后重建。'
+                  : '新增时可选择上级；最多 3 级。'
+              }
+            >
+              <TreeSelect
+                treeData={buildTreeSelectData(
+                  currentTreeType === 'industry'
+                    ? industryCategories
+                    : currentTreeType === 'product'
+                      ? productCategories
+                      : requirementCategories
+                )}
+                placeholder="选择上级分类"
+                treeDefaultExpandAll
+                disabled={!!editingTreeItem}
+              />
+            </Form.Item>
+            <Form.Item name="name" label="分类名称" rules={[{ required: true, message: '请输入分类名称' }]}>
+              <Input placeholder="请输入分类名称" />
+            </Form.Item>
+            <Form.Item name="level" hidden>
+              <InputNumber />
+            </Form.Item>
+            <Form.Item name="sort_order" label="排序" rules={[{ required: true, message: '请输入排序' }]}>
+              <InputNumber min={1} style={{ width: '100%' }} />
+            </Form.Item>
+            <Form.Item name="is_enabled" label="状态" valuePropName="checked">
+              <Switch checkedChildren="启用" unCheckedChildren="禁用" />
+            </Form.Item>
+
+            {editingTreeItem &&
+              currentTreeType === 'requirement' &&
+              editingTreeItem.level === 3 &&
+              editingTreeItem.linked_requirement_id && (
+                <>
+                  <Alert
+                    type="info"
+                    showIcon
+                    style={{ marginBottom: 12 }}
+                    message={
+                      <span>
+                        企业画像五维（标准需求 ID <Text code>{editingTreeItem.linked_requirement_id}</Text>）
+                      </span>
+                    }
+                    description="与「需求项与画像维度」页同一套配置；确定保存时将同时更新分类信息与维度映射。"
+                  />
+                  <Row gutter={16}>
+                    {personaDimensions.map((dim) => (
+                      <Col span={dim.key === 'ecommerceExp' ? 24 : 12} key={dim.key}>
+                        <Form.Item
+                          name={dim.key}
+                          label={
+                            <span>
+                              {dim.name}
+                              <Text type="secondary" style={{ fontSize: 12, marginLeft: 6 }}>
+                                {dim.multiple ? '（可多选）' : '（单选）'}
+                              </Text>
+                            </span>
+                          }
+                        >
+                          <Select
+                            mode={dim.multiple ? 'multiple' : undefined}
+                            allowClear
+                            placeholder={`请选择${dim.name}`}
+                            options={dim.options.map((o) => ({
+                              value: o.value,
+                              label: o.description ? `${o.label} — ${o.description}` : o.label,
+                            }))}
+                            showSearch={dim.multiple}
+                            optionFilterProp="label"
+                            style={{ width: '100%' }}
+                          />
+                        </Form.Item>
+                      </Col>
+                    ))}
+                  </Row>
+                </>
               )}
-              placeholder="选择上级分类"
-              treeDefaultExpandAll
-              disabled={!!editingTreeItem}
-            />
-          </Form.Item>
-          <Form.Item name="name" label="分类名称" rules={[{ required: true, message: '请输入分类名称' }]}>
-            <Input placeholder="请输入分类名称" />
-          </Form.Item>
-          <Form.Item name="level" hidden><InputNumber /></Form.Item>
-          <Form.Item name="sort_order" label="排序" rules={[{ required: true, message: '请输入排序' }]}>
-            <InputNumber min={1} style={{ width: '100%' }} />
-          </Form.Item>
-          <Form.Item name="is_enabled" label="状态" valuePropName="checked">
-            <Switch checkedChildren="启用" unCheckedChildren="禁用" />
-          </Form.Item>
-        </Form>
+
+            {editingTreeItem &&
+              currentTreeType === 'requirement' &&
+              editingTreeItem.level === 3 &&
+              !editingTreeItem.linked_requirement_id && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginTop: 8 }}
+                  message="未匹配到标准需求 ID"
+                  description="无法在此编辑五维。通常是因为新增/调整排序后，树形位置与 requirements 表中的编号（如 1.1.1）不一致。可在「需求项与画像维度」中按需求 ID 维护映射，或恢复默认分类树后重试。"
+                />
+              )}
+          </Form>
+        </Spin>
       </Modal>
     </div>
   );

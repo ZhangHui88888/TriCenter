@@ -7,7 +7,9 @@ import com.alibaba.excel.write.metadata.holder.WriteSheetHolder;
 import com.alibaba.excel.write.metadata.holder.WriteTableHolder;
 import org.apache.poi.ss.usermodel.*;
 
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 调研Excel样式处理器
@@ -18,6 +20,8 @@ import java.util.List;
  */
 public class SurveyExcelStyleHandler implements CellWriteHandler {
 
+    private final Map<Workbook, CachedStyles> styleCache = new IdentityHashMap<>();
+
     @Override
     public void afterCellDispose(WriteSheetHolder writeSheetHolder, WriteTableHolder writeTableHolder,
                                   List<WriteCellData<?>> cellDataList, Cell cell, Head head,
@@ -25,22 +29,10 @@ public class SurveyExcelStyleHandler implements CellWriteHandler {
         if (cell == null) return;
         Workbook workbook = cell.getSheet().getWorkbook();
         Sheet sheet = cell.getSheet();
+        CachedStyles styles = styleCache.computeIfAbsent(workbook, this::buildStyles);
 
         if (Boolean.TRUE.equals(isHead)) {
-            CellStyle headStyle = workbook.createCellStyle();
-            Font headFont = workbook.createFont();
-            headFont.setBold(true);
-            headFont.setColor(IndexedColors.WHITE.getIndex());
-            headFont.setFontName("微软雅黑");
-            headFont.setFontHeightInPoints((short) 11);
-            headStyle.setFont(headFont);
-            headStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
-            headStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            headStyle.setAlignment(HorizontalAlignment.CENTER);
-            headStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-            headStyle.setWrapText(true);
-            setBorders(headStyle, BorderStyle.THIN, IndexedColors.WHITE.getIndex());
-            cell.setCellStyle(headStyle);
+            cell.setCellStyle(styles.headStyle);
             // 需求分析Sheet有4行表头，压低行高避免顶部区域过高
             String sheetName = cell.getSheet().getSheetName();
             if ("需求分析".equals(sheetName)) {
@@ -57,64 +49,88 @@ public class SurveyExcelStyleHandler implements CellWriteHandler {
             }
         } else if (relativeRowIndex != null && relativeRowIndex == 0) {
             // 提示行
-            CellStyle hintStyle = workbook.createCellStyle();
-            Font hintFont = workbook.createFont();
-            hintFont.setItalic(true);
-            hintFont.setColor(IndexedColors.GREY_50_PERCENT.getIndex());
-            hintFont.setFontName("微软雅黑");
-            hintFont.setFontHeightInPoints((short) 9);
-            hintStyle.setFont(hintFont);
-            hintStyle.setFillForegroundColor(IndexedColors.LEMON_CHIFFON.getIndex());
-            hintStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            hintStyle.setAlignment(HorizontalAlignment.LEFT);
-            hintStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-            hintStyle.setWrapText(true);
-            setBorders(hintStyle, BorderStyle.THIN, IndexedColors.GREY_25_PERCENT.getIndex());
-            cell.setCellStyle(hintStyle);
+            cell.setCellStyle(styles.hintStyle);
             // 动态行高：根据内容计算
             adjustRowHeight(cell, sheet, 9, 80);
         } else if (relativeRowIndex != null && relativeRowIndex == 1) {
             // 示例行
-            CellStyle exampleStyle = workbook.createCellStyle();
-            Font exampleFont = workbook.createFont();
-            exampleFont.setFontName("微软雅黑");
-            exampleFont.setFontHeightInPoints((short) 10);
-            exampleFont.setColor(IndexedColors.BLUE.getIndex());
-            exampleStyle.setFont(exampleFont);
-            exampleStyle.setFillForegroundColor(IndexedColors.PALE_BLUE.getIndex());
-            exampleStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            exampleStyle.setAlignment(HorizontalAlignment.LEFT);
-            exampleStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-            exampleStyle.setWrapText(true);
-            exampleStyle.setBorderBottom(BorderStyle.MEDIUM);
-            exampleStyle.setBottomBorderColor(IndexedColors.CORNFLOWER_BLUE.getIndex());
-            exampleStyle.setBorderLeft(BorderStyle.THIN);
-            exampleStyle.setLeftBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
-            exampleStyle.setBorderRight(BorderStyle.THIN);
-            exampleStyle.setRightBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
-            cell.setCellStyle(exampleStyle);
+            cell.setCellStyle(styles.exampleStyle);
             cell.getRow().setHeightInPoints(24);
         } else {
             // 数据行
-            CellStyle dataStyle = workbook.createCellStyle();
-            Font dataFont = workbook.createFont();
-            dataFont.setFontName("微软雅黑");
-            dataFont.setFontHeightInPoints((short) 10);
-            dataStyle.setFont(dataFont);
-            dataStyle.setAlignment(HorizontalAlignment.LEFT);
-            dataStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-            dataStyle.setWrapText(true);
-            setBorders(dataStyle, BorderStyle.THIN, IndexedColors.GREY_25_PERCENT.getIndex());
-
-            if (relativeRowIndex != null && relativeRowIndex % 2 == 0) {
-                dataStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
-                dataStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-            }
-
-            cell.setCellStyle(dataStyle);
+            cell.setCellStyle(relativeRowIndex != null && relativeRowIndex % 2 == 0
+                    ? styles.dataEvenStyle
+                    : styles.dataOddStyle);
             // 动态行高：根据内容计算，最小22pt
             adjustRowHeight(cell, sheet, 10, 22);
         }
+    }
+
+    private CachedStyles buildStyles(Workbook workbook) {
+        CachedStyles styles = new CachedStyles();
+
+        Font headFont = workbook.createFont();
+        headFont.setBold(true);
+        headFont.setColor(IndexedColors.WHITE.getIndex());
+        headFont.setFontName("微软雅黑");
+        headFont.setFontHeightInPoints((short) 11);
+        styles.headStyle = workbook.createCellStyle();
+        styles.headStyle.setFont(headFont);
+        styles.headStyle.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
+        styles.headStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        styles.headStyle.setAlignment(HorizontalAlignment.CENTER);
+        styles.headStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        styles.headStyle.setWrapText(true);
+        setBorders(styles.headStyle, BorderStyle.THIN, IndexedColors.WHITE.getIndex());
+
+        Font hintFont = workbook.createFont();
+        hintFont.setItalic(true);
+        hintFont.setColor(IndexedColors.GREY_50_PERCENT.getIndex());
+        hintFont.setFontName("微软雅黑");
+        hintFont.setFontHeightInPoints((short) 9);
+        styles.hintStyle = workbook.createCellStyle();
+        styles.hintStyle.setFont(hintFont);
+        styles.hintStyle.setFillForegroundColor(IndexedColors.LEMON_CHIFFON.getIndex());
+        styles.hintStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        styles.hintStyle.setAlignment(HorizontalAlignment.LEFT);
+        styles.hintStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        styles.hintStyle.setWrapText(true);
+        setBorders(styles.hintStyle, BorderStyle.THIN, IndexedColors.GREY_25_PERCENT.getIndex());
+
+        Font exampleFont = workbook.createFont();
+        exampleFont.setFontName("微软雅黑");
+        exampleFont.setFontHeightInPoints((short) 10);
+        exampleFont.setColor(IndexedColors.BLUE.getIndex());
+        styles.exampleStyle = workbook.createCellStyle();
+        styles.exampleStyle.setFont(exampleFont);
+        styles.exampleStyle.setFillForegroundColor(IndexedColors.PALE_BLUE.getIndex());
+        styles.exampleStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+        styles.exampleStyle.setAlignment(HorizontalAlignment.LEFT);
+        styles.exampleStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        styles.exampleStyle.setWrapText(true);
+        styles.exampleStyle.setBorderBottom(BorderStyle.MEDIUM);
+        styles.exampleStyle.setBottomBorderColor(IndexedColors.CORNFLOWER_BLUE.getIndex());
+        styles.exampleStyle.setBorderLeft(BorderStyle.THIN);
+        styles.exampleStyle.setLeftBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        styles.exampleStyle.setBorderRight(BorderStyle.THIN);
+        styles.exampleStyle.setRightBorderColor(IndexedColors.GREY_25_PERCENT.getIndex());
+
+        Font dataFont = workbook.createFont();
+        dataFont.setFontName("微软雅黑");
+        dataFont.setFontHeightInPoints((short) 10);
+        styles.dataOddStyle = workbook.createCellStyle();
+        styles.dataOddStyle.setFont(dataFont);
+        styles.dataOddStyle.setAlignment(HorizontalAlignment.LEFT);
+        styles.dataOddStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+        styles.dataOddStyle.setWrapText(true);
+        setBorders(styles.dataOddStyle, BorderStyle.THIN, IndexedColors.GREY_25_PERCENT.getIndex());
+
+        styles.dataEvenStyle = workbook.createCellStyle();
+        styles.dataEvenStyle.cloneStyleFrom(styles.dataOddStyle);
+        styles.dataEvenStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+        styles.dataEvenStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+        return styles;
     }
 
     private void setBorders(CellStyle style, BorderStyle borderStyle, short color) {
@@ -163,7 +179,7 @@ public class SurveyExcelStyleHandler implements CellWriteHandler {
             }
             lines += parts.length - 1; // 换行符本身的行数
 
-            float neededHeight = lines * (fontSize + 5);
+            float neededHeight = (float) lines * (fontSize + 5);
             if (neededHeight > maxHeight) {
                 maxHeight = neededHeight;
             }
@@ -173,5 +189,13 @@ public class SurveyExcelStyleHandler implements CellWriteHandler {
         if (maxHeight > row.getHeightInPoints()) {
             row.setHeightInPoints(maxHeight);
         }
+    }
+
+    private static class CachedStyles {
+        private CellStyle headStyle;
+        private CellStyle hintStyle;
+        private CellStyle exampleStyle;
+        private CellStyle dataOddStyle;
+        private CellStyle dataEvenStyle;
     }
 }

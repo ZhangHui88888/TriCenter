@@ -45,6 +45,8 @@ import {
 } from '@/utils/constants';
 import ReactECharts from 'echarts-for-react';
 import { enterpriseApi, optionsApi, surveyExcelApi, dashboardApi } from '@/services/api';
+import { toXlsxBlobFromResponse } from '@/utils/excelDownloadResponse';
+import { getCountryOptions } from '@/data/countries';
 import EnterpriseSearch from '@/components/EnterpriseSearch';
 import type { Enterprise } from '@/types';
 
@@ -95,6 +97,15 @@ type EnterpriseListQueryParams = {
   crossBorderTeamSize?: string;
   logisticsMode?: string;
   paymentMethod?: string;
+  productCategoryId?: number;
+  targetRegionId?: number;
+  targetCountryCode?: string;
+  productCertificationId?: number;
+  customsDeclarationMode?: string;
+  hasDomesticEcommerce?: number;
+  hasOverseasDistributors?: number;
+  crossBorderRatio?: string;
+  investmentWillingness?: string;
   createdDateStart?: string;
   createdDateEnd?: string;
 };
@@ -336,10 +347,13 @@ function EnterpriseList() {
   const [staffSizeOptions, setStaffSizeOptions] = useState<SelectOption[]>([]);
   const [domesticRevenueOptions, setDomesticRevenueOptions] = useState<SelectOption[]>([]);
   const [sourceOptions, setSourceOptions] = useState<SelectOption[]>([]);
-  const [automationLevelOptions, setAutomationLevelOptions] = useState<SelectOption[]>([]);
+  const [_automationLevelOptions, setAutomationLevelOptions] = useState<SelectOption[]>([]);
   const [logisticsOptions, setLogisticsOptions] = useState<SelectOption[]>([]);
   const [tradeModeOptions, setTradeModeOptions] = useState<SelectOption[]>([]);
   const [tradeTeamModeOptions, setTradeTeamModeOptions] = useState<SelectOption[]>([]);
+  const [productCategoryOptions, setProductCategoryOptions] = useState<SelectOption[]>([]);
+  const [regionOptions, setRegionOptions] = useState<SelectOption[]>([]);
+  const [certificationOptions, setCertificationOptions] = useState<SelectOption[]>([]);
 
   const [overviewStats, setOverviewStats] = useState<EnterpriseOverviewStats>({
     totalCount: 0,
@@ -450,6 +464,19 @@ function EnterpriseList() {
     paymentMethod: Array.isArray(filters.payment_method) && filters.payment_method.length > 0
       ? filters.payment_method.join(',')
       : undefined,
+    productCategoryId: filters.product_category_id || undefined,
+    targetRegionId: filters.target_region_id || undefined,
+    targetCountryCode: filters.target_country_code || undefined,
+    productCertificationId: filters.product_certification_id || undefined,
+    customsDeclarationMode: filters.customs_declaration_mode || undefined,
+    hasDomesticEcommerce: typeof filters.has_domestic_ecommerce === 'boolean'
+      ? (filters.has_domestic_ecommerce ? 1 : 0)
+      : undefined,
+    hasOverseasDistributors: typeof filters.has_overseas_distributors === 'boolean'
+      ? (filters.has_overseas_distributors ? 1 : 0)
+      : undefined,
+    crossBorderRatio: filters.cross_border_ratio || undefined,
+    investmentWillingness: filters.investment_willingness || undefined,
     createdDateStart: entryDateRange?.[0],
     createdDateEnd: entryDateRange?.[1],
     });
@@ -633,7 +660,7 @@ function EnterpriseList() {
   // 加载选项数据
   const fetchOptions = async () => {
     try {
-      const [districtRes, industryRes, staffSizeRes, domesticRevenueRes, sourceRes, automationLevelRes, logisticsRes, tradeModeRes, tradeTeamModeRes] = await Promise.all([
+      const [districtRes, industryRes, staffSizeRes, domesticRevenueRes, sourceRes, automationLevelRes, logisticsRes, tradeModeRes, tradeTeamModeRes, productCategoryRes, regionRes, certificationRes] = await Promise.all([
         optionsApi.getOptions('district'),
         optionsApi.getIndustries(),
         optionsApi.getOptions('staff_size'),
@@ -643,6 +670,9 @@ function EnterpriseList() {
         optionsApi.getOptions('logistics'),
         optionsApi.getOptions('trade_mode'),
         optionsApi.getOptions('trade_team_mode'),
+        optionsApi.getProductCategories(),
+        optionsApi.getOptions('region'),
+        optionsApi.getOptions('certification'),
       ]);
       
       // 区域选项
@@ -689,6 +719,26 @@ function EnterpriseList() {
 
       if (tradeTeamModeRes.data) {
         setTradeTeamModeOptions(tradeTeamModeRes.data.map((item: any) => ({ label: item.label, value: item.id })));
+      }
+
+      if (productCategoryRes.data) {
+        const flatCategories: SelectOption[] = [];
+        const flattenCat = (items: any[]) => {
+          items.forEach((item: any) => {
+            flatCategories.push({ label: item.name, value: item.id });
+            if (item.children) flattenCat(item.children);
+          });
+        };
+        flattenCat(productCategoryRes.data);
+        setProductCategoryOptions(flatCategories);
+      }
+
+      if (regionRes.data) {
+        setRegionOptions(regionRes.data.map((item: any) => ({ label: item.label, value: item.id })));
+      }
+
+      if (certificationRes.data) {
+        setCertificationOptions(certificationRes.data.map((item: any) => ({ label: item.label, value: item.id })));
       }
     } catch (error) {
       console.error('Failed to fetch options:', error);
@@ -836,6 +886,15 @@ function EnterpriseList() {
     'crossborder_team_size',
     'logistics_mode',
     'payment_method',
+    'product_category_id',
+    'target_region_id',
+    'target_country_code',
+    'product_certification_id',
+    'customs_declaration_mode',
+    'has_domestic_ecommerce',
+    'has_overseas_distributors',
+    'cross_border_ratio',
+    'investment_willingness',
   ]);
 
   const advancedFilterLabels: Record<string, string> = {
@@ -876,6 +935,15 @@ function EnterpriseList() {
     payment_method: '支付结算方式',
     last_followup_days: '最近跟进时间',
     requirements: '需求分析',
+    product_category_id: '产品品类',
+    target_region_id: '主要销售区域',
+    target_country_code: '主要销售国家',
+    product_certification_id: '产品认证',
+    customs_declaration_mode: '报关申报主体模式',
+    has_domestic_ecommerce: '是否有国内电商经验',
+    has_overseas_distributors: '是否有海外分销商',
+    cross_border_ratio: '跨境业务占比',
+    investment_willingness: '愿意投入转型程度',
   };
 
   const hasActiveFilterValue = (value: any): boolean => {
@@ -1140,7 +1208,7 @@ function EnterpriseList() {
 
   return (
     <div>
-      <div className="enterprise-bankdash-overview">
+      <div className="enterprise-bankdash-overview" data-tour="enterprise-overview">
         <div className="enterprise-bankdash-overview__left">
           <div className="enterprise-bankdash-section-head">
             <span className="enterprise-bankdash-section-head__title">企业卡片</span>
@@ -1185,239 +1253,243 @@ function EnterpriseList() {
         </div>
       </div>
 
-      <Card 
-        style={{ 
-          marginBottom: 16, 
-          borderRadius: 25, 
-          border: 'none',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
-        }}
-        styles={{ body: { padding: '20px 24px' } }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            gap: 16,
-            justifyContent: 'space-between',
+      <div data-tour="enterprise-toolbar">
+        <Card 
+          style={{ 
+            marginBottom: 16, 
+            borderRadius: 25, 
+            border: 'none',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
           }}
+          styles={{ body: { padding: '20px 24px' } }}
         >
-          <Space wrap size={16} style={{ flex: '1 1 auto', minWidth: 0 }}>
-            <EnterpriseSearch
-              value={searchTerm}
-              onChange={setSearchTerm}
-              onSearch={handleSearch}
-              placeholder="搜索企业名称..."
-              style={{ width: 280 }}
-            />
-            <Select
-              placeholder="所属阶段"
-              style={{ width: 140, height: 40 }}
-              allowClear
-              value={stageFilter || undefined}
-              onChange={(value) => setStageFilter(value || '')}
-              options={FUNNEL_STAGES.map(s => ({ label: s.name, value: s.code }))}
-            />
-            <Select
-              placeholder="所属区域"
-              style={{ width: 130, height: 40 }}
-              allowClear
-              value={districtFilter || undefined}
-              onChange={(value) => setDistrictFilter(value || '')}
-              options={districts.map(d => ({ label: d, value: d }))}
-            />
-            <Select
-              placeholder="所属行业"
-              style={{ width: 130, height: 40 }}
-              allowClear
-              value={industryFilter}
-              onChange={(value) => setIndustryFilter(value)}
-              options={industries.map(i => ({ label: i.name, value: i.id }))}
-            />
-            <Button
-              type="primary"
-              icon={<SearchOutlined />}
-              onClick={handleSearch}
-              style={{
-                borderRadius: 12,
-                height: 40,
-                fontWeight: 500,
-                background: '#396AFF',
-                border: 'none',
-              }}
-            >
-              搜索
-            </Button>
-            <Badge count={activeFilterCount} size="small" offset={[-5, 5]}>
+          <div
+            style={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              alignItems: 'center',
+              gap: 16,
+              justifyContent: 'space-between',
+            }}
+          >
+            <Space wrap size={16} style={{ flex: '1 1 auto', minWidth: 0 }}>
+              <EnterpriseSearch
+                value={searchTerm}
+                onChange={setSearchTerm}
+                onSearch={handleSearch}
+                placeholder="搜索企业名称..."
+                style={{ width: 280 }}
+              />
+              <Select
+                placeholder="所属阶段"
+                style={{ width: 140, height: 40 }}
+                allowClear
+                value={stageFilter || undefined}
+                onChange={(value) => setStageFilter(value || '')}
+                options={FUNNEL_STAGES.map(s => ({ label: s.name, value: s.code }))}
+              />
+              <Select
+                placeholder="所属区域"
+                style={{ width: 130, height: 40 }}
+                allowClear
+                value={districtFilter || undefined}
+                onChange={(value) => setDistrictFilter(value || '')}
+                options={districts.map(d => ({ label: d, value: d }))}
+              />
+              <Select
+                placeholder="所属行业"
+                style={{ width: 130, height: 40 }}
+                allowClear
+                value={industryFilter}
+                onChange={(value) => setIndustryFilter(value)}
+                options={industries.map(i => ({ label: i.name, value: i.id }))}
+              />
               <Button
-                icon={<FilterOutlined />}
-                onClick={() => setIsFilterModalOpen(true)}
+                type="primary"
+                icon={<SearchOutlined />}
+                onClick={handleSearch}
                 style={{
                   borderRadius: 12,
                   height: 40,
                   fontWeight: 500,
-                  borderColor: activeFilterCount > 0 ? '#396AFF' : undefined,
-                  color: activeFilterCount > 0 ? '#396AFF' : undefined,
+                  background: '#396AFF',
+                  border: 'none',
                 }}
               >
-                高级筛选
+                搜索
               </Button>
-            </Badge>
-            {activeFilterCount > 0 && (
-              <Button
-                type="text"
-                icon={<CloseCircleOutlined />}
-                onClick={handleResetFilters}
-                style={{ color: '#999', height: 40 }}
-              >
-                清除筛选
-              </Button>
-            )}
-          </Space>
-          <Space size={12} wrap style={{ flexShrink: 0, marginLeft: 'auto' }}>
-            <Select
-              value={pageSize}
-              options={ENTERPRISE_PAGE_SIZE_OPTIONS}
-              onChange={(size) => {
-                setPage(1);
-                setPageSize(size);
-                void fetchEnterprises(1, size);
-              }}
-              style={{ width: 118, height: 40 }}
-              styles={{ popup: { root: { minWidth: 112 } } }}
-            />
-            <Button
-              icon={<UploadOutlined />}
-              onClick={() => setIsImportModalOpen(true)}
-              style={{
-                borderRadius: 12,
-                height: 40,
-                fontWeight: 500,
-              }}
-            >
-              导入
-            </Button>
-            <Button
-              icon={<DownloadOutlined />}
-              onClick={() => setIsExportModalOpen(true)}
-              style={{
-                borderRadius: 12,
-                height: 40,
-                fontWeight: 500,
-              }}
-            >
-              导出
-            </Button>
-            <Button
-              type="primary"
-              icon={isCreating ? <LoadingOutlined /> : <PlusOutlined />}
-              onClick={handleAddEnterprise}
-              loading={isCreating}
-              style={{
-                borderRadius: 12,
-                height: 40,
-                fontWeight: 500,
-                background: '#396AFF',
-                border: 'none',
-                boxShadow: '0 4px 12px rgba(57, 106, 255, 0.4)',
-              }}
-            >
-              新增企业
-            </Button>
-          </Space>
-        </div>
-      </Card>
-
-      <Card
-        style={{ 
-          borderRadius: 25, 
-          border: 'none',
-          boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
-        }}
-        styles={{ body: { padding: '8px 0' } }}
-      >
-        <div
-          style={{
-            minHeight: SELECTION_ACTION_BAR_SLOT_MIN_PX,
-            boxSizing: 'border-box',
-          }}
-        >
-          {selectedRowKeys.length > 0 ? (
-            <div
-              className="enterprise-list-batch-bar"
-              style={{
-                padding: '12px 24px',
-                background: 'rgba(57, 106, 255, 0.04)',
-                borderBottom: '1px solid rgba(57, 106, 255, 0.1)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}
-            >
-              <Text>
-                已选择 <Text strong style={{ color: '#396AFF' }}>{selectedRowKeys.length}</Text> 家企业
-              </Text>
-              <Space>
+              <Badge count={activeFilterCount} size="small" offset={[-5, 5]}>
                 <Button
-                  icon={<SwapOutlined />}
-                  onClick={handleBatchStageChange}
-                  style={{ borderRadius: 8 }}
+                  icon={<FilterOutlined />}
+                  onClick={() => setIsFilterModalOpen(true)}
+                  style={{
+                    borderRadius: 12,
+                    height: 40,
+                    fontWeight: 500,
+                    borderColor: activeFilterCount > 0 ? '#396AFF' : undefined,
+                    color: activeFilterCount > 0 ? '#396AFF' : undefined,
+                  }}
                 >
-                  批量变更阶段
+                  高级筛选
                 </Button>
-                <Button
-                  danger
-                  icon={<DeleteOutlined />}
-                  onClick={handleBatchDelete}
-                  style={{ borderRadius: 8 }}
-                >
-                  批量删除
-                </Button>
+              </Badge>
+              {activeFilterCount > 0 && (
                 <Button
                   type="text"
-                  onClick={() => setSelectedRowKeys([])}
-                  style={{ color: '#999' }}
+                  icon={<CloseCircleOutlined />}
+                  onClick={handleResetFilters}
+                  style={{ color: '#999', height: 40 }}
                 >
-                  取消选择
+                  清除筛选
                 </Button>
-              </Space>
-            </div>
-          ) : null}
-        </div>
-        <Table
-          columns={columns}
-          dataSource={filteredEnterprises}
-          rowKey="id"
-          loading={loading}
-          rowSelection={{
-            columnWidth: 48,
-            selectedRowKeys,
-            onChange: (keys) => setSelectedRowKeys(keys),
+              )}
+            </Space>
+            <Space size={12} wrap style={{ flexShrink: 0, marginLeft: 'auto' }}>
+              <Select
+                value={pageSize}
+                options={ENTERPRISE_PAGE_SIZE_OPTIONS}
+                onChange={(size) => {
+                  setPage(1);
+                  setPageSize(size);
+                  void fetchEnterprises(1, size);
+                }}
+                style={{ width: 118, height: 40 }}
+                styles={{ popup: { root: { minWidth: 112 } } }}
+              />
+              <Button
+                icon={<UploadOutlined />}
+                onClick={() => setIsImportModalOpen(true)}
+                style={{
+                  borderRadius: 12,
+                  height: 40,
+                  fontWeight: 500,
+                }}
+              >
+                导入
+              </Button>
+              <Button
+                icon={<DownloadOutlined />}
+                onClick={() => setIsExportModalOpen(true)}
+                style={{
+                  borderRadius: 12,
+                  height: 40,
+                  fontWeight: 500,
+                }}
+              >
+                导出
+              </Button>
+              <Button
+                type="primary"
+                icon={isCreating ? <LoadingOutlined /> : <PlusOutlined />}
+                onClick={handleAddEnterprise}
+                loading={isCreating}
+                style={{
+                  borderRadius: 12,
+                  height: 40,
+                  fontWeight: 500,
+                  background: '#396AFF',
+                  border: 'none',
+                  boxShadow: '0 4px 12px rgba(57, 106, 255, 0.4)',
+                }}
+              >
+                新增企业
+              </Button>
+            </Space>
+          </div>
+        </Card>
+      </div>
+
+      <div data-tour="enterprise-table">
+        <Card
+          style={{ 
+            borderRadius: 25, 
+            border: 'none',
+            boxShadow: '0 2px 12px rgba(0,0,0,0.04)'
           }}
-          pagination={{
-            current: page,
-            total: _total,
-            pageSize: pageSize,
-            onChange: (current) => {
-              setPage(current);
-              void fetchEnterprises(current, pageSize);
-            },
-            showTotal: (total) => (
-              <span style={{ color: '#666' }}>
-                共 <span style={{ color: '#396AFF', fontWeight: 600 }}>{total}</span> 条记录
-              </span>
-            ),
-            showSizeChanger: false,
-            style: { padding: '16px 24px' }
-          }}
-          className="enterprise-list-table"
-          style={{
-            borderRadius: 12,
-          }}
-          rowClassName={() => 'custom-table-row'}
-        />
-      </Card>
+          styles={{ body: { padding: '8px 0' } }}
+        >
+          <div
+            style={{
+              minHeight: SELECTION_ACTION_BAR_SLOT_MIN_PX,
+              boxSizing: 'border-box',
+            }}
+          >
+            {selectedRowKeys.length > 0 ? (
+              <div
+                className="enterprise-list-batch-bar"
+                style={{
+                  padding: '12px 24px',
+                  background: 'rgba(57, 106, 255, 0.04)',
+                  borderBottom: '1px solid rgba(57, 106, 255, 0.1)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <Text>
+                  已选择 <Text strong style={{ color: '#396AFF' }}>{selectedRowKeys.length}</Text> 家企业
+                </Text>
+                <Space>
+                  <Button
+                    icon={<SwapOutlined />}
+                    onClick={handleBatchStageChange}
+                    style={{ borderRadius: 8 }}
+                  >
+                    批量变更阶段
+                  </Button>
+                  <Button
+                    danger
+                    icon={<DeleteOutlined />}
+                    onClick={handleBatchDelete}
+                    style={{ borderRadius: 8 }}
+                  >
+                    批量删除
+                  </Button>
+                  <Button
+                    type="text"
+                    onClick={() => setSelectedRowKeys([])}
+                    style={{ color: '#999' }}
+                  >
+                    取消选择
+                  </Button>
+                </Space>
+              </div>
+            ) : null}
+          </div>
+          <Table
+            columns={columns}
+            dataSource={filteredEnterprises}
+            rowKey="id"
+            loading={loading}
+            rowSelection={{
+              columnWidth: 48,
+              selectedRowKeys,
+              onChange: (keys) => setSelectedRowKeys(keys),
+            }}
+            pagination={{
+              current: page,
+              total: _total,
+              pageSize: pageSize,
+              onChange: (current) => {
+                setPage(current);
+                void fetchEnterprises(current, pageSize);
+              },
+              showTotal: (total) => (
+                <span style={{ color: '#666' }}>
+                  共 <span style={{ color: '#396AFF', fontWeight: 600 }}>{total}</span> 条记录
+                </span>
+              ),
+              showSizeChanger: false,
+              style: { padding: '16px 24px' }
+            }}
+            className="enterprise-list-table"
+            style={{
+              borderRadius: 12,
+            }}
+            rowClassName={() => 'custom-table-row'}
+          />
+        </Card>
+      </div>
 
       <Modal
         title="新增企业"
@@ -1620,7 +1692,7 @@ function EnterpriseList() {
             onClick={async () => {
               try {
                 const response = await surveyExcelApi.downloadTemplate();
-                const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+                const blob = await toXlsxBlobFromResponse(response);
                 const url = window.URL.createObjectURL(blob);
                 const link = document.createElement('a');
                 link.href = url;
@@ -1630,8 +1702,9 @@ function EnterpriseList() {
                 document.body.removeChild(link);
                 window.URL.revokeObjectURL(url);
                 message.success('模板下载成功');
-              } catch (error: any) {
-                message.error(error.message || '模板下载失败');
+              } catch (error: unknown) {
+                const err = error as { message?: string };
+                message.error(err.message || '模板下载失败');
               }
             }}
           >
@@ -1666,35 +1739,7 @@ function EnterpriseList() {
             if (exportType === 'list') {
               const params = buildListParams(1, 99999) as Record<string, unknown>;
               const response = await enterpriseApi.export(params);
-              const raw = response.data as Blob;
-              const hdrs = response.headers || {};
-              const ct = String(
-                hdrs['content-type'] ?? (hdrs as Record<string, string>)['Content-Type'] ?? ''
-              ).toLowerCase();
-              if (ct.includes('application/json') || ct.includes('application/problem')) {
-                const text = await raw.text();
-                let msg = '导出失败';
-                try {
-                  const j = JSON.parse(text) as { message?: string; detail?: string };
-                  msg = j.message || j.detail || msg;
-                } catch {
-                  if (text) msg = text.slice(0, 200);
-                }
-                message.error(msg);
-                return;
-              }
-              const head = new Uint8Array(await raw.slice(0, 4).arrayBuffer());
-              const isZip = head[0] === 0x50 && head[1] === 0x4b;
-              if (!isZip) {
-                const text = await raw.text();
-                message.error(
-                  text?.slice(0, 200) || '返回内容不是 Excel（.xlsx 应为 ZIP 头），请确认已登录且请求到达 TriCenter 后端'
-                );
-                return;
-              }
-              const blob = new Blob([raw], {
-                type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-              });
+              const blob = await toXlsxBlobFromResponse(response);
               const url = window.URL.createObjectURL(blob);
               const link = document.createElement('a');
               link.href = url;
@@ -1714,7 +1759,7 @@ function EnterpriseList() {
                 return;
               }
               const response = await surveyExcelApi.exportBatch(ids);
-              const blob = new Blob([response.data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+              const blob = await toXlsxBlobFromResponse(response);
               const url = window.URL.createObjectURL(blob);
               const link = document.createElement('a');
               link.href = url;
@@ -1926,18 +1971,6 @@ function EnterpriseList() {
                       </Form.Item>
                     </Col>
                     <Col span={8}>
-                      <Form.Item name="export_qualification" label="进出口经营权">
-                        <Select
-                          placeholder="请选择"
-                          allowClear
-                          options={[
-                            { label: '有', value: true },
-                            { label: '无', value: false },
-                          ]}
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
                       <Form.Item name="iso_certifications" label="ISO认证">
                         <Input allowClear placeholder="包含关键词即可" />
                       </Form.Item>
@@ -1961,36 +1994,64 @@ function EnterpriseList() {
                 children: (
                   <Row gutter={16}>
                     <Col span={8}>
-                      <Form.Item name="automation_level" label="设备自动化程度">
-                        <Select 
-                          placeholder="请选择" 
+                      <Form.Item name="target_region_id" label="主要销售区域">
+                        <Select
+                          placeholder="请选择"
                           allowClear
-                          options={automationLevelOptions} 
+                          options={regionOptions}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="target_country_code" label="主要销售国家">
+                        <Select
+                          placeholder="请选择"
+                          allowClear
+                          showSearch
+                          optionFilterProp="label"
+                          options={getCountryOptions()}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="export_qualification" label="是否有进出口资质">
+                        <Select
+                          placeholder="请选择"
+                          allowClear
+                          options={[
+                            { label: '有', value: true },
+                            { label: '无', value: false },
+                          ]}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="product_category_id" label="产品品类">
+                        <Select
+                          placeholder="请选择"
+                          allowClear
+                          showSearch
+                          optionFilterProp="label"
+                          options={productCategoryOptions}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="product_certification_id" label="产品认证">
+                        <Select
+                          placeholder="请选择"
+                          allowClear
+                          options={certificationOptions}
                         />
                       </Form.Item>
                     </Col>
                     <Col span={8}>
                       <Form.Item name="logistics_partners" label="物流合作方">
-                        <Select 
+                        <Select
                           mode="multiple"
-                          placeholder="请选择" 
+                          placeholder="请选择"
                           allowClear
-                          options={logisticsOptions} 
-                        />
-                      </Form.Item>
-                    </Col>
-                    <Col span={8}>
-                      <Form.Item name="local_procurement_ratio" label="原材料本地采购比例">
-                        <Select 
-                          placeholder="请选择" 
-                          allowClear
-                          options={[
-                            { label: '90%以上', value: '90%以上' },
-                            { label: '70%-90%', value: '70%-90%' },
-                            { label: '50%-70%', value: '50%-70%' },
-                            { label: '30%-50%', value: '30%-50%' },
-                            { label: '30%以下', value: '30%以下' },
-                          ]} 
+                          options={logisticsOptions}
                         />
                       </Form.Item>
                     </Col>
@@ -2040,6 +2101,42 @@ function EnterpriseList() {
                             { label: '11-30人', value: '11-30人' },
                             { label: '30人以上', value: '30人以上' },
                           ]} 
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="customs_declaration_mode" label="报关申报主体模式">
+                        <Select
+                          placeholder="请选择"
+                          allowClear
+                          options={[
+                            { label: '自营', value: '自营' },
+                            { label: '代理', value: '代理' },
+                          ]}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="has_domestic_ecommerce" label="是否有国内电商经验">
+                        <Select
+                          placeholder="请选择"
+                          allowClear
+                          options={[
+                            { label: '是', value: true },
+                            { label: '否', value: false },
+                          ]}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="has_overseas_distributors" label="是否有海外分销商">
+                        <Select
+                          placeholder="请选择"
+                          allowClear
+                          options={[
+                            { label: '是', value: true },
+                            { label: '否', value: false },
+                          ]}
                         />
                       </Form.Item>
                     </Col>
@@ -2147,6 +2244,34 @@ function EnterpriseList() {
                             { label: '澳新', value: '澳新' },
                             { label: '非洲', value: '非洲' },
                           ]} 
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="cross_border_ratio" label="跨境业务占比">
+                        <Select
+                          placeholder="请选择"
+                          allowClear
+                          options={[
+                            { label: '10%以下', value: '10%以下' },
+                            { label: '10%-30%', value: '10%-30%' },
+                            { label: '30%-50%', value: '30%-50%' },
+                            { label: '50%-70%', value: '50%-70%' },
+                            { label: '70%以上', value: '70%以上' },
+                          ]}
+                        />
+                      </Form.Item>
+                    </Col>
+                    <Col span={8}>
+                      <Form.Item name="investment_willingness" label="愿意投入转型程度">
+                        <Select
+                          placeholder="请选择"
+                          allowClear
+                          options={[
+                            { label: '高', value: '高' },
+                            { label: '中', value: '中' },
+                            { label: '低', value: '低' },
+                          ]}
                         />
                       </Form.Item>
                     </Col>

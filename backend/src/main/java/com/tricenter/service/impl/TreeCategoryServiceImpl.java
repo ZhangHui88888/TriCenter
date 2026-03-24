@@ -12,6 +12,7 @@ import com.tricenter.entity.RequirementCategory;
 import com.tricenter.mapper.IndustryCategoryMapper;
 import com.tricenter.mapper.ProductCategoryMapper;
 import com.tricenter.mapper.RequirementCategoryMapper;
+import com.tricenter.mapper.RequirementMapper;
 import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.service.TreeCategoryService;
 import lombok.RequiredArgsConstructor;
@@ -20,9 +21,12 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -33,6 +37,7 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
     private final IndustryCategoryMapper industryCategoryMapper;
     private final ProductCategoryMapper productCategoryMapper;
     private final RequirementCategoryMapper requirementCategoryMapper;
+    private final RequirementMapper requirementMapper;
     private final DictionaryCacheService dictionaryCache;
     private final JdbcTemplate jdbcTemplate;
 
@@ -44,7 +49,11 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
         return switch (type) {
             case "industry" -> listFromMapper(industryCategoryMapper, IndustryCategory.class);
             case "product" -> listFromMapper(productCategoryMapper, ProductCategory.class);
-            case "requirement" -> listFromMapper(requirementCategoryMapper, RequirementCategory.class);
+            case "requirement" -> {
+                List<TreeCategoryResponse> rows = listFromMapper(requirementCategoryMapper, RequirementCategory.class);
+                enrichRequirementLinkedIds(rows);
+                yield rows;
+            }
             default -> throw BusinessException.badRequest("不支持的分类类型: " + type);
         };
     }
@@ -322,6 +331,54 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
                 .path(path).sortOrder(sortOrder).isEnabled(isEnabled)
                 .createdAt(createdAt)
                 .build();
+    }
+
+    private static final Comparator<TreeCategoryResponse> TREE_ROW_ORDER = Comparator
+            .comparingInt((TreeCategoryResponse a) -> a.getSortOrder() != null ? a.getSortOrder() : 0)
+            .thenComparingInt(TreeCategoryResponse::getId);
+
+    /**
+     * 标准需求 id 与种子树一致：第1段=顶级阶段在同级中的序号，第2段=二级分类在该阶段下的序号，第3段=三级条目在二级下的序号。
+     */
+    private void enrichRequirementLinkedIds(List<TreeCategoryResponse> rows) {
+        Map<Integer, TreeCategoryResponse> byId = rows.stream()
+                .collect(Collectors.toMap(TreeCategoryResponse::getId, r -> r, (a, b) -> a));
+        for (TreeCategoryResponse row : rows) {
+            if (row.getLevel() == null || row.getLevel() != 3) {
+                continue;
+            }
+            TreeCategoryResponse l2 = byId.get(row.getParentId());
+            if (l2 == null || l2.getLevel() == null || l2.getLevel() != 2) {
+                continue;
+            }
+            TreeCategoryResponse l1 = byId.get(l2.getParentId());
+            if (l1 == null || l1.getLevel() == null || l1.getLevel() != 1) {
+                continue;
+            }
+            int p = siblingIndex(rows, r -> Objects.equals(r.getParentId(), 0) && Objects.equals(r.getLevel(), 1), l1.getId());
+            int c = siblingIndex(rows, r -> Objects.equals(r.getParentId(), l1.getId()) && Objects.equals(r.getLevel(), 2), l2.getId());
+            int i = siblingIndex(rows, r -> Objects.equals(r.getParentId(), l2.getId()) && Objects.equals(r.getLevel(), 3), row.getId());
+            if (p <= 0 || c <= 0 || i <= 0) {
+                continue;
+            }
+            String rid = p + "." + c + "." + i;
+            if (requirementMapper.selectById(rid) != null) {
+                row.setLinkedRequirementId(rid);
+            }
+        }
+    }
+
+    private static int siblingIndex(List<TreeCategoryResponse> all, Predicate<TreeCategoryResponse> sameGroup, int targetId) {
+        List<TreeCategoryResponse> sibs = all.stream()
+                .filter(sameGroup)
+                .sorted(TREE_ROW_ORDER)
+                .toList();
+        for (int idx = 0; idx < sibs.size(); idx++) {
+            if (Objects.equals(sibs.get(idx).getId(), targetId)) {
+                return idx + 1;
+            }
+        }
+        return -1;
     }
 
     private void applyUpdates(Object entity, TreeCategoryUpdateRequest req) {

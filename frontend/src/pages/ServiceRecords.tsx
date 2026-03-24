@@ -378,7 +378,7 @@ export default function ServiceRecords() {
         />
       )}
       {/* 页面标题 */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, padding: '0 4px' }}>
+      <div data-tour="service-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, padding: '0 4px' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             {paramEnterpriseId && (
@@ -420,114 +420,118 @@ export default function ServiceRecords() {
       </div>
 
       {/* 筛选与状态切换栏 */}
-      <Card style={{ marginBottom: 16, borderRadius: 25, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', background: '#FFFFFF' }} styles={{ body: { padding: '16px 24px' } }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-          <Radio.Group
-            value={filterStatus || 'all'}
-            onChange={e => setFilterStatus(e.target.value === 'all' ? undefined : e.target.value)}
-            optionType="button"
-            buttonStyle="solid"
-            style={{ borderRadius: 12 }}
-          >
-            <Radio.Button value="all">
-              全部服务 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => filterType ? r.serviceType === filterType : true).length}</span>
-            </Radio.Button>
-            <Radio.Button value="pending">
-              待启动 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => r.status === 'pending' && (filterType ? r.serviceType === filterType : true)).length}</span>
-            </Radio.Button>
-            <Radio.Button value="in_progress">
-              进行中 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => r.status === 'in_progress' && (filterType ? r.serviceType === filterType : true)).length}</span>
-            </Radio.Button>
-            <Radio.Button value="completed">
-              已完成 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => r.status === 'completed' && (filterType ? r.serviceType === filterType : true)).length}</span>
-            </Radio.Button>
-          </Radio.Group>
-          
-          <Space wrap size={16}>
-            <Select
-              placeholder="按企业筛选"
-              style={{ width: 220, borderRadius: 12, background: '#F5F7FA', border: 'none' }}
-              allowClear
-              showSearch
-              optionFilterProp="label"
-              value={filterEnterpriseId}
-              onChange={(v) => setFilterEnterpriseId(v)}
-              options={enterprises.map(e => ({ label: e.name, value: e.id }))}
-            />
-            <Select
-              placeholder="服务类型"
-              style={{ width: 150, borderRadius: 12, background: '#F5F7FA', border: 'none' }}
-              allowClear
-              value={filterType}
-              onChange={setFilterType}
-              options={SERVICE_TYPES.map(t => ({ label: t.label, value: t.value }))}
-            />
-          </Space>
-        </div>
-      </Card>
+      <div data-tour="service-toolbar">
+        <Card style={{ marginBottom: 16, borderRadius: 25, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', background: '#FFFFFF' }} styles={{ body: { padding: '16px 24px' } }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
+            <Radio.Group
+              value={filterStatus || 'all'}
+              onChange={e => setFilterStatus(e.target.value === 'all' ? undefined : e.target.value)}
+              optionType="button"
+              buttonStyle="solid"
+              style={{ borderRadius: 12 }}
+            >
+              <Radio.Button value="all">
+                全部服务 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => filterType ? r.serviceType === filterType : true).length}</span>
+              </Radio.Button>
+              <Radio.Button value="pending">
+                待启动 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => r.status === 'pending' && (filterType ? r.serviceType === filterType : true)).length}</span>
+              </Radio.Button>
+              <Radio.Button value="in_progress">
+                进行中 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => r.status === 'in_progress' && (filterType ? r.serviceType === filterType : true)).length}</span>
+              </Radio.Button>
+              <Radio.Button value="completed">
+                已完成 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => r.status === 'completed' && (filterType ? r.serviceType === filterType : true)).length}</span>
+              </Radio.Button>
+            </Radio.Group>
+            
+            <Space wrap size={16}>
+              <Select
+                placeholder="按企业筛选"
+                style={{ width: 220, borderRadius: 12, background: '#F5F7FA', border: 'none' }}
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                value={filterEnterpriseId}
+                onChange={(v) => setFilterEnterpriseId(v)}
+                options={enterprises.map(e => ({ label: e.name, value: e.id }))}
+              />
+              <Select
+                placeholder="服务类型"
+                style={{ width: 150, borderRadius: 12, background: '#F5F7FA', border: 'none' }}
+                allowClear
+                value={filterType}
+                onChange={setFilterType}
+                options={SERVICE_TYPES.map(t => ({ label: t.label, value: t.value }))}
+              />
+            </Space>
+          </div>
+        </Card>
+      </div>
 
       {/* 列表 */}
-      <Card style={{ borderRadius: 25, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', background: '#FFFFFF' }} styles={{ body: { padding: '8px 0' } }}>
-        {filteredRecords.length > 0 ? (
-          <Table
-            columns={columns}
-            dataSource={filteredRecords}
-            rowKey="id"
-            loading={loading}
-            pagination={{
-              pageSize: 10,
-              showTotal: (total) => (
-                <span style={{ color: '#718EBF' }}>
-                  共 <span style={{ color: '#396AFF', fontWeight: 600 }}>{total}</span> 条记录，涉及 <span style={{ color: '#FFBB38', fontWeight: 600 }}>{new Set(filteredRecords.map(r => r.enterpriseId)).size}</span> 家企业
-                </span>
-              ),
-              showSizeChanger: true,
-              style: { padding: '16px 24px' },
-            }}
-            expandable={{
-              expandedRowRender: (record) => (
-                <div style={{ padding: '8px 16px', color: '#718EBF', fontSize: 13, lineHeight: 1.8 }}>
-                  {record.contractNo && <div><Text type="secondary">合同编号：</Text>{record.contractNo}</div>}
-                  {record.description && <div><Text type="secondary">服务内容：</Text>{record.description}</div>}
-                  {record.result && <div><Text type="secondary">服务成果：</Text>{record.result}</div>}
-                  {record.stageFrom && record.stageTo && record.stageFrom !== record.stageTo && (
-                    <div style={{ marginTop: 4 }}>
-                      <Text type="secondary">阶段变更：</Text>
-                      <Tag color={FUNNEL_STAGES.find(s => s.code === record.stageFrom)?.color}>
-                        {FUNNEL_STAGES.find(s => s.code === record.stageFrom)?.name || record.stageFrom}
-                      </Tag>
-                      <span style={{ margin: '0 4px', color: '#718EBF' }}>→</span>
-                      <Tag color={FUNNEL_STAGES.find(s => s.code === record.stageTo)?.color}>
-                        {FUNNEL_STAGES.find(s => s.code === record.stageTo)?.name || record.stageTo}
-                      </Tag>
-                    </div>
-                  )}
-                  {!record.contractNo && !record.description && !record.result && <Text type="secondary">暂无详细信息</Text>}
-                </div>
-              ),
-              rowExpandable: () => true,
-            }}
-            rowClassName={() => 'custom-table-row'}
-          />
-        ) : (
-          <div style={{ textAlign: 'center', padding: 80 }}>
-            <CustomerServiceOutlined style={{ fontSize: 48, color: '#718EBF', marginBottom: 16, display: 'block' }} />
-            <Text type="secondary" style={{ fontSize: 15, color: '#718EBF' }}>
-              {COOPERATION_SERVICE_BACKEND_READY ? '暂无合作服务记录' : '该模块还没开发完成'}
-            </Text>
-            <br />
-            {COOPERATION_SERVICE_BACKEND_READY ? (
-              <Button type="link" icon={<PlusOutlined />} onClick={handleOpenAdd} style={{ marginTop: 8, color: '#396AFF', fontWeight: 500 }}>
-                添加第一条服务记录
-              </Button>
-            ) : (
-              <Button type="link" disabled style={{ marginTop: 8, color: '#bfbfbf', fontWeight: 500, cursor: 'not-allowed' }}>
-                添加第一条服务记录
-              </Button>
-            )}
-          </div>
-        )}
-      </Card>
+      <div data-tour="service-table">
+        <Card style={{ borderRadius: 25, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', background: '#FFFFFF' }} styles={{ body: { padding: '8px 0' } }}>
+          {filteredRecords.length > 0 ? (
+            <Table
+              columns={columns}
+              dataSource={filteredRecords}
+              rowKey="id"
+              loading={loading}
+              pagination={{
+                pageSize: 10,
+                showTotal: (total) => (
+                  <span style={{ color: '#718EBF' }}>
+                    共 <span style={{ color: '#396AFF', fontWeight: 600 }}>{total}</span> 条记录，涉及 <span style={{ color: '#FFBB38', fontWeight: 600 }}>{new Set(filteredRecords.map(r => r.enterpriseId)).size}</span> 家企业
+                  </span>
+                ),
+                showSizeChanger: true,
+                style: { padding: '16px 24px' },
+              }}
+              expandable={{
+                expandedRowRender: (record) => (
+                  <div style={{ padding: '8px 16px', color: '#718EBF', fontSize: 13, lineHeight: 1.8 }}>
+                    {record.contractNo && <div><Text type="secondary">合同编号：</Text>{record.contractNo}</div>}
+                    {record.description && <div><Text type="secondary">服务内容：</Text>{record.description}</div>}
+                    {record.result && <div><Text type="secondary">服务成果：</Text>{record.result}</div>}
+                    {record.stageFrom && record.stageTo && record.stageFrom !== record.stageTo && (
+                      <div style={{ marginTop: 4 }}>
+                        <Text type="secondary">阶段变更：</Text>
+                        <Tag color={FUNNEL_STAGES.find(s => s.code === record.stageFrom)?.color}>
+                          {FUNNEL_STAGES.find(s => s.code === record.stageFrom)?.name || record.stageFrom}
+                        </Tag>
+                        <span style={{ margin: '0 4px', color: '#718EBF' }}>→</span>
+                        <Tag color={FUNNEL_STAGES.find(s => s.code === record.stageTo)?.color}>
+                          {FUNNEL_STAGES.find(s => s.code === record.stageTo)?.name || record.stageTo}
+                        </Tag>
+                      </div>
+                    )}
+                    {!record.contractNo && !record.description && !record.result && <Text type="secondary">暂无详细信息</Text>}
+                  </div>
+                ),
+                rowExpandable: () => true,
+              }}
+              rowClassName={() => 'custom-table-row'}
+            />
+          ) : (
+            <div style={{ textAlign: 'center', padding: 80 }}>
+              <CustomerServiceOutlined style={{ fontSize: 48, color: '#718EBF', marginBottom: 16, display: 'block' }} />
+              <Text type="secondary" style={{ fontSize: 15, color: '#718EBF' }}>
+                {COOPERATION_SERVICE_BACKEND_READY ? '暂无合作服务记录' : '该模块还没开发完成'}
+              </Text>
+              <br />
+              {COOPERATION_SERVICE_BACKEND_READY ? (
+                <Button type="link" icon={<PlusOutlined />} onClick={handleOpenAdd} style={{ marginTop: 8, color: '#396AFF', fontWeight: 500 }}>
+                  添加第一条服务记录
+                </Button>
+              ) : (
+                <Button type="link" disabled style={{ marginTop: 8, color: '#bfbfbf', fontWeight: 500, cursor: 'not-allowed' }}>
+                  添加第一条服务记录
+                </Button>
+              )}
+            </div>
+          )}
+        </Card>
+      </div>
 
       {/* 新增/编辑弹窗 */}
       <Modal

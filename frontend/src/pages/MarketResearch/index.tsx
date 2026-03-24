@@ -246,7 +246,7 @@ function MarketResearch() {
           </div>
         ),
         okText: '前往企业详情',
-        onOk: () => navigate(`/enterprises/${detail.id}`),
+        onOk: () => navigate(`/enterprise/${detail.id}`),
       });
       return;
     }
@@ -281,7 +281,7 @@ function MarketResearch() {
         okText: '继续生成',
         cancelText: '前往补充',
         onOk: doGenerate,
-        onCancel: () => navigate(`/enterprises/${detail.id}`),
+        onCancel: () => navigate(`/enterprise/${detail.id}`),
       });
       return;
     }
@@ -443,125 +443,127 @@ function MarketResearch() {
   return (
     <div>
       {/* ========== 工具栏 ========== */}
-      <Card
-        className="report-toolbar"
-        style={{ marginBottom: 16, borderRadius: 12 }}
-        styles={{ body: { padding: '16px 20px' } }}
-      >
-        <Row gutter={[16, 12]} align="middle">
-          <Col flex="auto">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <Title level={4} style={{ margin: 0 }}>
-                <FilePdfOutlined style={{ color: '#1a56db', marginRight: 8 }} />
-                外贸企业市场调研报告
-              </Title>
-              {enterpriseData && (
-                <Tag color="blue" style={{ fontSize: 13, padding: '2px 10px' }}>
-                  {enterpriseData.enterprise_name || (enterpriseData as any).enterpriseName || (enterpriseData as any).name}
-                </Tag>
-              )}
-            </div>
-            <Text type="secondary" style={{ fontSize: 13 }}>
-              选择企业 → 选择报告版本 → 自动填充数据库信息 → AI补全缺失字段 → 导出PDF
-            </Text>
-          </Col>
-        </Row>
+      <div data-tour="market-research-toolbar">
+        <Card
+          className="report-toolbar"
+          style={{ marginBottom: 16, borderRadius: 12 }}
+          styles={{ body: { padding: '16px 20px' } }}
+        >
+          <Row gutter={[16, 12]} align="middle">
+            <Col flex="auto">
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                <Title level={4} style={{ margin: 0 }}>
+                  <FilePdfOutlined style={{ color: '#1a56db', marginRight: 8 }} />
+                  外贸企业市场调研报告
+                </Title>
+                {enterpriseData && (
+                  <Tag color="blue" style={{ fontSize: 13, padding: '2px 10px' }}>
+                    {enterpriseData.enterprise_name || (enterpriseData as any).enterpriseName || (enterpriseData as any).name}
+                  </Tag>
+                )}
+              </div>
+              <Text type="secondary" style={{ fontSize: 13 }}>
+                选择企业 → 选择报告版本 → 自动填充数据库信息 → AI补全缺失字段 → 导出PDF
+              </Text>
+            </Col>
+          </Row>
 
-        <Row gutter={[12, 12]} style={{ marginTop: 12 }} align="middle">
-          <Col flex="400px">
-            <Select
-              showSearch
-              placeholder="搜索并选择企业..."
-              value={selectedEnterpriseId}
-              onChange={handleSelectEnterprise}
-              onSearch={handleSearch}
-              filterOption={false}
-              loading={loadingEnterprise}
-              style={{ width: '100%' }}
-              size="large"
-              suffixIcon={<SearchOutlined />}
-              notFoundContent={searchKeyword ? '未找到匹配企业' : '输入关键词搜索'}
-              options={enterpriseList.map(e => ({
-                value: e.id,
-                label: (
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>{e.enterprise_name}</span>
-                    <span style={{ color: '#999', fontSize: 12 }}>{e.industry}</span>
-                  </div>
-                ),
-              }))}
-            />
-          </Col>
-          <Col>
-            <Space>
-              <Button
-                icon={<FileTextOutlined />}
-                onClick={() => handleGenerate('basic')}
-                loading={loadingEnterprise && reportVersion === 'basic'}
-                disabled={!selectedEnterpriseId || (loadingEnterprise && reportVersion !== 'basic')}
+          <Row gutter={[12, 12]} style={{ marginTop: 12 }} align="middle">
+            <Col flex="400px">
+              <Select
+                showSearch
+                placeholder="搜索并选择企业..."
+                value={selectedEnterpriseId}
+                onChange={handleSelectEnterprise}
+                onSearch={handleSearch}
+                filterOption={false}
+                loading={loadingEnterprise}
+                style={{ width: '100%' }}
                 size="large"
-                style={{ borderRadius: 8 }}
-              >
-                生成基础版
-              </Button>
+                suffixIcon={<SearchOutlined />}
+                notFoundContent={searchKeyword ? '未找到匹配企业' : '输入关键词搜索'}
+                options={enterpriseList.map(e => ({
+                  value: e.id,
+                  label: (
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span>{e.enterprise_name}</span>
+                      <span style={{ color: '#999', fontSize: 12 }}>{e.industry}</span>
+                    </div>
+                  ),
+                }))}
+              />
+            </Col>
+            <Col>
+              <Space>
+                <Button
+                  icon={<FileTextOutlined />}
+                  onClick={() => handleGenerate('basic')}
+                  loading={loadingEnterprise && reportVersion === 'basic'}
+                  disabled={!selectedEnterpriseId || (loadingEnterprise && reportVersion !== 'basic')}
+                  size="large"
+                  style={{ borderRadius: 8 }}
+                >
+                  生成基础版
+                </Button>
+                <Button
+                  icon={<FundProjectionScreenOutlined />}
+                  onClick={() => handleGenerate('deep')}
+                  loading={loadingEnterprise && reportVersion === 'deep'}
+                  disabled={!selectedEnterpriseId || (loadingEnterprise && reportVersion !== 'deep')}
+                  size="large"
+                  style={{ borderRadius: 8 }}
+                >
+                  生成深度版
+                </Button>
+              </Space>
+            </Col>
+            <Col>
               <Button
-                icon={<FundProjectionScreenOutlined />}
-                onClick={() => handleGenerate('deep')}
-                loading={loadingEnterprise && reportVersion === 'deep'}
-                disabled={!selectedEnterpriseId || (loadingEnterprise && reportVersion !== 'deep')}
-                size="large"
-                style={{ borderRadius: 8 }}
-              >
-                生成深度版
-              </Button>
-            </Space>
-          </Col>
-          <Col>
-            <Button
-              icon={hasApiKey ? <CheckCircleOutlined /> : <KeyOutlined />}
-              onClick={() => {
-                setApiKeyInput(getDeepSeekApiKey());
-                setApiKeyModalOpen(true);
-              }}
-              type={hasApiKey ? 'default' : 'dashed'}
-              size="large"
-              style={{ borderRadius: 8 }}
-            >
-              {hasApiKey ? 'API Key 已配置' : '设置 DeepSeek API Key'}
-            </Button>
-          </Col>
-          <Col flex="auto" style={{ textAlign: 'right' }}>
-            <Space>
-              <Button
-                icon={<PrinterOutlined />}
-                onClick={handlePrint}
-                size="large"
-                style={{ borderRadius: 8 }}
-              >
-                打印
-              </Button>
-              <Button
-                type="primary"
-                icon={<DownloadOutlined />}
-                onClick={handleExportPDF}
-                loading={exporting}
-                size="large"
-                style={{
-                  borderRadius: 8,
-                  background: 'linear-gradient(135deg, #1a56db 0%, #2563eb 100%)',
-                  border: 'none',
+                icon={hasApiKey ? <CheckCircleOutlined /> : <KeyOutlined />}
+                onClick={() => {
+                  setApiKeyInput(getDeepSeekApiKey());
+                  setApiKeyModalOpen(true);
                 }}
+                type={hasApiKey ? 'default' : 'dashed'}
+                size="large"
+                style={{ borderRadius: 8 }}
               >
-                导出 PDF
+                {hasApiKey ? 'API Key 已配置' : '设置 DeepSeek API Key'}
               </Button>
-            </Space>
-          </Col>
-        </Row>
-      </Card>
+            </Col>
+            <Col flex="auto" style={{ textAlign: 'right' }}>
+              <Space>
+                <Button
+                  icon={<PrinterOutlined />}
+                  onClick={handlePrint}
+                  size="large"
+                  style={{ borderRadius: 8 }}
+                >
+                  打印
+                </Button>
+                <Button
+                  type="primary"
+                  icon={<DownloadOutlined />}
+                  onClick={handleExportPDF}
+                  loading={exporting}
+                  size="large"
+                  style={{
+                    borderRadius: 8,
+                    background: 'linear-gradient(135deg, #1a56db 0%, #2563eb 100%)',
+                    border: 'none',
+                  }}
+                >
+                  导出 PDF
+                </Button>
+              </Space>
+            </Col>
+          </Row>
+        </Card>
+      </div>
 
       {/* ========== 模板切换 ========== */}
       {!isLoading && (
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 16 }} data-tour="market-research-version">
           <Segmented
             size="large"
             value={reportVersion}
@@ -583,7 +585,7 @@ function MarketResearch() {
           onCancel={handleCancelGenerate}
         />
       )}
-      <div style={{ display: isLoading ? 'none' : 'block' }}>
+      <div style={{ display: isLoading ? 'none' : 'block' }} data-tour="market-research-content">
         {reportVersion === 'basic' ? (
           <BasicReportTemplate ref={reportRef} enterprise={enterpriseData} aiData={aiData} />
         ) : (

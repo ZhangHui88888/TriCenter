@@ -69,8 +69,7 @@ mvn spring-boot:run
 - `/api/options/*` - 基础数据/数据字典
 - `/api/enterprises/*` - 企业管理
 - `/api/follow-ups/*` - 跟进记录
-- `/api/dashboard/*` - 看板统计
-- `/api/funnel/*` - 漏斗分析
+- `/api/dashboard/*` - 看板统计（含漏斗阶段分布 `GET /dashboard/funnel`）
 
 ## 项目结构
 
