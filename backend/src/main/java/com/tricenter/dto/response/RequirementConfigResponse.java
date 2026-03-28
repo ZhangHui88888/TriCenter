@@ -32,7 +32,10 @@ public class RequirementConfigResponse {
         private String id;
         private String name;
         private String description;
+        /** 与《跨境电商企业需求文档》一致的具体说明（长文） */
+        private String detailDescription;
         private String phase;
         private String category;
+        private Integer isRecommended;
     }
 }

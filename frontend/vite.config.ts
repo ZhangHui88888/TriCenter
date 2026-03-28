@@ -25,6 +25,8 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    /** 占用时直接失败，避免静默改到 3001 导致混淆 */
+    strictPort: true,
     proxy: {
       '/api': {
         // 使用 127.0.0.1，避免 Windows 上 localhost 解析到 ::1 而后端只监听 IPv4 导致 ECONNREFUSED

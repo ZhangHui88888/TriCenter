@@ -34,3 +34,7 @@ logging:
   level:
     com.tricenter: info
     org.springframework.security: warn
+    org.apache.ibatis: warn
+    org.mybatis: warn
+    org.mybatis.spring: warn
+    org.springframework.web.servlet.handler.HandlerMappingIntrospector: error

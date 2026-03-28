@@ -8,6 +8,8 @@ type RequestLogMeta = {
 
 type RequestConfigWithMeta = InternalAxiosRequestConfig & {
   metadata?: RequestLogMeta;
+  /** 为 true 时不弹全局 message，由调用方自行展示（避免与页面内提示重复叠在一起） */
+  skipGlobalErrorToast?: boolean;
 };
 
 const request: AxiosInstance = axios.create({
@@ -85,7 +87,9 @@ request.interceptors.response.use(
       return response;
     }
     if (data.code && data.code !== 200 && data.code !== 0) {
-      showErrorOnce(data.message || '请求失败');
+      if (!config.skipGlobalErrorToast) {
+        showErrorOnce(data.message || '请求失败');
+      }
       return Promise.reject(new Error(data.message || '请求失败'));
     }
     return data;
@@ -100,17 +104,18 @@ request.interceptors.response.use(
       durationMs: getDurationMs(config),
       message: error.message,
     });
+    const skipToast = (config as RequestConfigWithMeta | undefined)?.skipGlobalErrorToast;
     if (error.response) {
       const { status } = error.response;
       switch (status) {
         case 401:
         case 403:
           if (window.location.pathname === '/login') {
-            showErrorOnce(error.response.data?.message || '用户名或密码错误');
+            if (!skipToast) showErrorOnce(error.response.data?.message || '用户名或密码错误');
           } else if (!isRedirecting) {
             isRedirecting = true;
             localStorage.removeItem('token');
-            showErrorOnce('登录已过期或没有权限，请重新登录');
+            if (!skipToast) showErrorOnce('登录已过期或没有权限，请重新登录');
             setTimeout(() => {
               window.location.href = '/login';
               isRedirecting = false;
@@ -120,15 +125,15 @@ request.interceptors.response.use(
         case 404:
           break;
         case 500:
-          showErrorOnce(error.response.data?.message || '服务器错误');
+          if (!skipToast) showErrorOnce(error.response.data?.message || '服务器错误');
           break;
         default:
-          showErrorOnce(error.response.data?.message || '请求失败');
+          if (!skipToast) showErrorOnce(error.response.data?.message || '请求失败');
       }
     } else if (error.message.includes('timeout')) {
-      showErrorOnce('请求超时');
+      if (!skipToast) showErrorOnce('请求超时');
     } else {
-      showErrorOnce('网络错误');
+      if (!skipToast) showErrorOnce('网络错误');
     }
     return Promise.reject(error);
   }

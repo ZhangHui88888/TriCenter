@@ -56,4 +56,9 @@ public interface OptionsService {
      * 供企业详情页需求分析使用，从数据库实时读取
      */
     com.tricenter.dto.response.RequirementConfigResponse getRequirementConfig();
+
+    /**
+     * 获取服务商选项列表（用于下拉选择）
+     */
+    List<OptionResponse> getProviderOptions();
 }

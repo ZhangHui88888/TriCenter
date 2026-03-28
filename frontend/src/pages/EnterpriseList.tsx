@@ -1492,6 +1492,7 @@ function EnterpriseList() {
       </div>
 
       <Modal
+        maskClosable={false}
         title="新增企业"
         open={isModalOpen}
         onOk={handleAddEnterprise}
@@ -1637,6 +1638,7 @@ function EnterpriseList() {
       </Modal>
 
       <Modal
+        maskClosable={false}
         title="导入调研数据"
         open={isImportModalOpen}
         onOk={async () => {
@@ -1731,6 +1733,7 @@ function EnterpriseList() {
       </Modal>
 
       <Modal
+        maskClosable={false}
         title="导出企业数据"
         open={isExportModalOpen}
         onOk={async () => {
@@ -1796,7 +1799,7 @@ function EnterpriseList() {
               <div style={{ marginTop: 12 }}>
                 <Text type="secondary">
                   Excel（.xlsx）双 Sheet：① 企业列表（导入模板同结构字段）；②
-                  需求分析矩阵——行为标准需求（阶段/分类/名称），列为企业，单元格为是/否；左上为筛选条件说明，已冻结左侧与表头便于横向浏览。
+                  需求分析矩阵——行：按文档序号（需求ID）排序的标准需求，含阶段、分类、需求ID、名称、要点说明与具体说明；列：企业，单元格为是否命中该需求；左上为筛选条件说明，已冻结左侧与表头便于横向浏览。
                 </Text>
               </div>
             </>
@@ -1824,6 +1827,7 @@ function EnterpriseList() {
 
       {/* 高级筛选弹窗 */}
       <Modal
+        maskClosable={false}
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <FilterOutlined style={{ color: '#396AFF' }} />
@@ -2374,6 +2378,7 @@ function EnterpriseList() {
 
       {/* 批量变更阶段模态框 */}
       <Modal
+        maskClosable={false}
         title="批量变更漏斗阶段"
         open={batchStageModalOpen}
         onOk={handleBatchStageOk}

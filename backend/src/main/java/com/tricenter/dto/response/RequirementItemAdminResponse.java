@@ -18,6 +18,7 @@ public class RequirementItemAdminResponse {
     private String phase;
     private String category;
     private Integer sortOrder;
+    private Integer isRecommended;
     /** 各维度已选 value 列表（与 enterprise 画像维度 key 一致） */
     private Map<String, java.util.List<String>> dimensions;
 }

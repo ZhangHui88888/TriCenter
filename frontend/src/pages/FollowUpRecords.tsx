@@ -386,6 +386,7 @@ function FollowUpRecords() {
       </div>
 
       <Modal
+        maskClosable={false}
         title="新增跟进记录"
         open={isModalOpen}
         onOk={handleAddRecord}

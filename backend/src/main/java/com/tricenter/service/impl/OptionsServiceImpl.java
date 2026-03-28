@@ -9,8 +9,11 @@ import com.tricenter.entity.*;
 import com.tricenter.mapper.*;
 import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.service.OptionsService;
+import com.tricenter.util.RequirementFilterHelper;
+import com.tricenter.util.RequirementIdOrder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,9 +32,10 @@ public class OptionsServiceImpl implements OptionsService {
     private final IndustryCategoryMapper industryCategoryMapper;
     private final ProductCategoryMapper productCategoryMapper;
     private final UserMapper userMapper;
-    private final RequirementMapper requirementMapper;
     private final RequirementDimensionMappingMapper dimensionMappingMapper;
     private final DictionaryCacheService dictionaryCache;
+    private final ProviderMapper providerMapper;
+    private final JdbcTemplate jdbcTemplate;
 
     /**
      * 分类名称映射
@@ -282,20 +286,38 @@ public class OptionsServiceImpl implements OptionsService {
         ).forEach(opt -> categoryMap.put(opt.getValue(), opt.getLabel()));
 
         // 读取所有启用的标准需求
-        List<Requirement> allReqs = requirementMapper.selectList(
-            new LambdaQueryWrapper<Requirement>()
-                .eq(Requirement::getIsCustom, 0)
-                .eq(Requirement::getIsEnabled, 1)
-                .orderByAsc(Requirement::getSortOrder)
-        );
+        boolean hasRecommendedColumn = hasRecommendedColumn();
+        String requirementSql = hasRecommendedColumn
+            ? "SELECT id, name, description, detail_description, phase, category, is_universal, is_enhanced, sort_order, COALESCE(is_recommended, 0) AS is_recommended FROM requirements WHERE is_custom = 0 AND is_enabled = 1"
+            : "SELECT id, name, description, detail_description, phase, category, is_universal, is_enhanced, sort_order, 0 AS is_recommended FROM requirements WHERE is_custom = 0 AND is_enabled = 1";
+        List<Requirement> allReqs = jdbcTemplate.query(requirementSql, (rs, rowNum) -> {
+            Requirement requirement = new Requirement();
+            requirement.setId(rs.getString("id"));
+            requirement.setName(rs.getString("name"));
+            requirement.setDescription(rs.getString("description"));
+            requirement.setDetailDescription(rs.getString("detail_description"));
+            requirement.setPhase(rs.getString("phase"));
+            requirement.setCategory(rs.getString("category"));
+            requirement.setIsUniversal(toInteger(rs.getObject("is_universal")));
+            requirement.setIsEnhanced(toInteger(rs.getObject("is_enhanced")));
+            requirement.setSortOrder(toInteger(rs.getObject("sort_order")));
+            requirement.setIsRecommended(toInteger(rs.getObject("is_recommended")));
+            return requirement;
+        });
+        // 与《跨境电商企业需求文档》序号一致：先按 ID 数值段序，再按库内 sort_order 兜底
+        allReqs.sort(Comparator
+            .comparing(Requirement::getId, RequirementIdOrder::compare)
+            .thenComparing(r -> r.getSortOrder() != null ? r.getSortOrder() : 0));
 
         List<RequirementConfigResponse.RequirementItemDTO> items = allReqs.stream()
             .map(r -> RequirementConfigResponse.RequirementItemDTO.builder()
                 .id(r.getId())
                 .name(r.getName())
                 .description(r.getDescription())
+                .detailDescription(r.getDetailDescription())
                 .phase(phaseMap.getOrDefault(r.getPhase(), r.getPhase()))
                 .category(categoryMap.getOrDefault(r.getCategory(), r.getCategory()))
+                .isRecommended(r.getIsRecommended())
                 .build())
             .collect(Collectors.toList());
 
@@ -303,11 +325,25 @@ public class OptionsServiceImpl implements OptionsService {
             .filter(r -> Objects.equals(r.getIsUniversal(), 1))
             .map(Requirement::getId)
             .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (universalIds.isEmpty()) {
+            Set<String> fallbackIds = RequirementFilterHelper.getUniversalRequiredIds();
+            universalIds = allReqs.stream()
+                .map(Requirement::getId)
+                .filter(fallbackIds::contains)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        }
 
         Set<String> enhancedIds = allReqs.stream()
             .filter(r -> Objects.equals(r.getIsEnhanced(), 1))
             .map(Requirement::getId)
             .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (enhancedIds.isEmpty()) {
+            Set<String> fallbackIds = RequirementFilterHelper.getUniversalEnhancedIds();
+            enhancedIds = allReqs.stream()
+                .map(Requirement::getId)
+                .filter(fallbackIds::contains)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        }
 
         // 构建维度映射：dimensionKey -> dimensionValue -> requirementId[]
         List<RequirementDimensionMapping> allMappings = dimensionMappingMapper.selectList(null);
@@ -324,5 +360,35 @@ public class OptionsServiceImpl implements OptionsService {
             .universalEnhancedIds(enhancedIds)
             .dimensionRequirementMapping(dimMap)
             .build();
+    }
+
+    private boolean hasRecommendedColumn() {
+        Integer count = jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'requirements' AND COLUMN_NAME = 'is_recommended'",
+            Integer.class
+        );
+        return count != null && count > 0;
+    }
+
+    private Integer toInteger(Object value) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return null;
+    }
+
+    @Override
+    public List<OptionResponse> getProviderOptions() {
+        List<Provider> providers = providerMapper.selectList(
+            new LambdaQueryWrapper<Provider>()
+                .orderByAsc(Provider::getId)
+        );
+        return providers.stream().map(p -> {
+            OptionResponse resp = new OptionResponse();
+            resp.setId(p.getId());
+            resp.setValue(String.valueOf(p.getId()));
+            resp.setLabel(p.getName());
+            return resp;
+        }).collect(Collectors.toList());
     }
 }

@@ -37,6 +37,7 @@ docs/
 | [企业详情-导出Excel功能.md](./design/企业详情-导出Excel功能.md) | 企业详情页导出 Excel 的 Sheet 结构与字段映射 |
 | [市场调研模块设计文档.md](./design/市场调研模块设计文档.md) | 市场调研模块需求设计：总览、数据查询、AI分析、竞品分析、报告模板 |
 | [调研报告字段映射分析.md](./design/调研报告字段映射分析.md) | 调研报告所需企业字段与数据库字段的对照分析，含缺失字段建议 |
+| [服务商管理页面设计.md](./design/服务商管理页面设计.md) | 服务商管理页面设计：列表筛选、CRUD、后端接口 |
 
 ## `tech/` — 技术文档
 
@@ -76,3 +77,5 @@ docs/
 | [init.sql](./sql/init.sql) | 初始化数据（系统选项、行业分类、产品品类、需求、默认用户） |
 | scripts/ | 上线后每次更新的迁移脚本 |
 | [scripts/04_add_market_reports.sql](./sql/scripts/04_add_market_reports.sql) | 新增市场调研报告表 |
+| [scripts/05_add_provider_capability.sql](./sql/scripts/05_add_provider_capability.sql) | providers 表新增 capability_requirement_ids 字段 + 服务分类字典数据 |
+| [scripts/06_add_requirement_recommended.sql](./sql/scripts/06_add_requirement_recommended.sql) | requirements 表新增 is_recommended 字段（推荐需求优先展示） |

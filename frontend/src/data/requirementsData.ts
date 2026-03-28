@@ -258,7 +258,7 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
       // 品牌建设（兼具工厂和贸易优势）
       '1.1.1', '1.7.1', '4.3.2',
       // 市场洞察
-      '1.2.1', '1.2.2', '1.2.3',
+      '1.2.1',
       // 选品与产品开发
       '1.4.1', '1.4.3', '1.4.4',
       // 供应链优化

@@ -65,6 +65,7 @@ interface RequirementAdminRow {
   phase: string;
   category: string;
   sortOrder?: number;
+  isRecommended?: number;
   dimensions?: Record<string, string[]>;
 }
 
@@ -212,6 +213,7 @@ function DataDictionary() {
               phase: String(r.phase ?? ''),
               category: String(r.category ?? ''),
               sortOrder: typeof r.sortOrder === 'number' ? r.sortOrder : undefined,
+              isRecommended: typeof r.isRecommended === 'number' ? r.isRecommended : 0,
               dimensions:
                 r.dimensions && typeof r.dimensions === 'object' && r.dimensions !== null
                   ? (r.dimensions as Record<string, string[]>)
@@ -474,11 +476,13 @@ function DataDictionary() {
     };
     if (treeType === 'requirement' && item.level === 3 && item.linked_requirement_id) {
       setTreeDimLoading(true);
+      treeForm.setFieldsValue({ ...base, is_recommended: false });
       try {
-        const res = (await requirementItemAdminApi.getDimensions(item.linked_requirement_id)) as {
-          data?: Record<string, string[]>;
-        };
-        const dims = res.data || {};
+        const [dimResult, recommendedResult] = await Promise.allSettled([
+          requirementItemAdminApi.getDimensions(item.linked_requirement_id) as Promise<{ data?: Record<string, string[]> }>,
+          requirementItemAdminApi.getRecommended(item.linked_requirement_id) as Promise<{ data?: { isRecommended?: number } }>,
+        ]);
+        const dims = dimResult.status === 'fulfilled' ? dimResult.value.data || {} : {};
         const dimInit: Record<string, unknown> = {};
         personaDimensions.forEach((d) => {
           const vals = dims[d.key];
@@ -488,7 +492,16 @@ function DataDictionary() {
             dimInit[d.key] = vals && vals.length ? vals[0] : undefined;
           }
         });
-        treeForm.setFieldsValue({ ...base, ...dimInit });
+        const isRecommended = recommendedResult.status === 'fulfilled'
+          ? recommendedResult.value.data?.isRecommended === 1
+          : false;
+        if (dimResult.status === 'rejected') {
+          message.warning('加载画像维度失败，已按空配置打开');
+        }
+        if (recommendedResult.status === 'rejected') {
+          message.warning('加载推荐状态失败，已按普通需求打开');
+        }
+        treeForm.setFieldsValue({ ...base, ...dimInit, is_recommended: isRecommended });
       } catch {
         message.error('加载画像维度失败');
         treeForm.setFieldsValue(base);
@@ -527,15 +540,32 @@ function DataDictionary() {
         ) {
           const dimBody = dimensionsBodyFromFormValues(values as Record<string, unknown>);
           await requirementItemAdminApi.putDimensions(editingTreeItem.linked_requirement_id, dimBody);
+          // 同步更新推荐状态
+          await requirementItemAdminApi.toggleRecommended(editingTreeItem.linked_requirement_id, !!values.is_recommended);
         }
         message.success('修改成功');
       } else {
-        await treeCategoryApi.create(currentTreeType, {
+        const createRes = await treeCategoryApi.create(currentTreeType, {
           parentId: values.parent_id ?? 0,
           name: values.name,
           sortOrder: values.sort_order,
           isEnabled: values.is_enabled,
         });
+        if (currentTreeType === 'requirement' && values.level === 3) {
+          const created = (createRes as any)?.data;
+          const linkedId = created?.linkedRequirementId;
+          if (linkedId) {
+            const dimBody = dimensionsBodyFromFormValues(values as Record<string, unknown>);
+            const hasDims = Object.values(dimBody).some(arr => arr.length > 0);
+            if (hasDims) {
+              await requirementItemAdminApi.putDimensions(linkedId, dimBody);
+            }
+            // 新建时也同步推荐状态
+            if (values.is_recommended) {
+              await requirementItemAdminApi.toggleRecommended(linkedId, true);
+            }
+          }
+        }
         message.success('添加成功');
       }
       setTreeModalVisible(false);
@@ -728,9 +758,9 @@ function DataDictionary() {
 
   const requirementItemColumns: ColumnsType<RequirementAdminRow> = [
     { title: '需求ID', dataIndex: 'id', width: 100, render: (t: string) => <Text code>{t}</Text> },
-    { title: '名称', dataIndex: 'name', width: 220, ellipsis: true },
-    { title: '阶段', dataIndex: 'phase', width: 200, ellipsis: true },
-    { title: '分类', dataIndex: 'category', width: 140, ellipsis: true },
+    { title: '名称', dataIndex: 'name', width: 200, ellipsis: true },
+    { title: '阶段', dataIndex: 'phase', width: 180, ellipsis: true },
+    { title: '分类', dataIndex: 'category', width: 130, ellipsis: true },
     {
       title: '画像维度配置',
       key: 'dims',
@@ -867,7 +897,7 @@ function DataDictionary() {
       </Card>
 
       {/* 选项编辑弹窗 */}
-      <Modal title={editingItem ? '编辑选项' : '新增选项'} open={modalVisible} onOk={handleSave} onCancel={() => setModalVisible(false)} width={500} okButtonProps={{ style: { background: C.blue, borderColor: C.blue } }}>
+      <Modal maskClosable={false} title={editingItem ? '编辑选项' : '新增选项'} open={modalVisible} onOk={handleSave} onCancel={() => setModalVisible(false)} width={500} okButtonProps={{ style: { background: C.blue, borderColor: C.blue } }}>
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
           <Form.Item name="category" hidden><Input /></Form.Item>
           <Form.Item name="value" label="选项值" rules={[{ required: true, message: '请输入选项值' }]} tooltip="用于程序内部标识，建议使用英文">
@@ -889,6 +919,7 @@ function DataDictionary() {
       </Modal>
 
       <Modal
+        maskClosable={false}
         title={editingRequirement ? `编辑画像维度 — ${editingRequirement.id}` : '编辑画像维度'}
         open={reqDimensionModalOpen}
         onOk={() => void handleSaveRequirementDimensions()}
@@ -944,6 +975,7 @@ function DataDictionary() {
 
       {/* 多级分类编辑弹窗 */}
       <Modal
+        maskClosable={false}
         title={editingTreeItem ? '编辑分类' : '新增子分类'}
         open={treeModalVisible}
         onOk={() => void handleSaveTreeItem()}
@@ -951,14 +983,16 @@ function DataDictionary() {
           setTreeModalVisible(false);
           setTreeDimLoading(false);
         }}
-        width={
-          editingTreeItem &&
-          currentTreeType === 'requirement' &&
-          editingTreeItem.level === 3 &&
-          editingTreeItem.linked_requirement_id
-            ? 720
-            : 500
-        }
+        width={(() => {
+          if (currentTreeType === 'requirement') {
+            if (editingTreeItem && editingTreeItem.level === 3 && editingTreeItem.linked_requirement_id) return 720;
+            if (!editingTreeItem) {
+              const lvl = treeForm.getFieldValue('level');
+              if (lvl === 3) return 720;
+            }
+          }
+          return 500;
+        })()}
         okButtonProps={{
           style: { background: C.blue, borderColor: C.blue },
           disabled: treeDimLoading,
@@ -1001,67 +1035,76 @@ function DataDictionary() {
               <Switch checkedChildren="启用" unCheckedChildren="禁用" />
             </Form.Item>
 
-            {editingTreeItem &&
-              currentTreeType === 'requirement' &&
-              editingTreeItem.level === 3 &&
-              editingTreeItem.linked_requirement_id && (
-                <>
+            {currentTreeType === 'requirement' && (() => {
+              const isEditLevel3 = editingTreeItem && editingTreeItem.level === 3;
+              const isNewLevel3 = !editingTreeItem && treeForm.getFieldValue('level') === 3;
+              const hasLinked = editingTreeItem?.linked_requirement_id;
+              if ((isEditLevel3 && hasLinked) || isNewLevel3) {
+                return (
+                  <>
+                    <Form.Item name="is_recommended" label="推荐需求" valuePropName="checked" style={{ marginBottom: 12 }}>
+                      <Switch checkedChildren="推荐" unCheckedChildren="普通" />
+                    </Form.Item>
+                    <Alert
+                      type="info"
+                      showIcon
+                      style={{ marginBottom: 12 }}
+                      message={
+                        hasLinked
+                          ? <span>企业画像五维（标准需求 ID <Text code>{editingTreeItem!.linked_requirement_id}</Text>）</span>
+                          : '企业画像五维'
+                      }
+                      description={hasLinked
+                        ? '与「需求项与画像维度」页同一套配置；确定保存时将同时更新分类信息与维度映射。'
+                        : '新建三级需求节点时可配置画像维度，保存后自动关联。'
+                      }
+                    />
+                    <Row gutter={16}>
+                      {personaDimensions.map((dim) => (
+                        <Col span={dim.key === 'ecommerceExp' ? 24 : 12} key={dim.key}>
+                          <Form.Item
+                            name={dim.key}
+                            label={
+                              <span>
+                                {dim.name}
+                                <Text type="secondary" style={{ fontSize: 12, marginLeft: 6 }}>
+                                  {dim.multiple ? '（可多选）' : '（单选）'}
+                                </Text>
+                              </span>
+                            }
+                          >
+                            <Select
+                              mode={dim.multiple ? 'multiple' : undefined}
+                              allowClear
+                              placeholder={`请选择${dim.name}`}
+                              options={dim.options.map((o) => ({
+                                value: o.value,
+                                label: o.description ? `${o.label} — ${o.description}` : o.label,
+                              }))}
+                              showSearch={dim.multiple}
+                              optionFilterProp="label"
+                              style={{ width: '100%' }}
+                            />
+                          </Form.Item>
+                        </Col>
+                      ))}
+                    </Row>
+                  </>
+                );
+              }
+              if (isEditLevel3 && !hasLinked) {
+                return (
                   <Alert
-                    type="info"
+                    type="warning"
                     showIcon
-                    style={{ marginBottom: 12 }}
-                    message={
-                      <span>
-                        企业画像五维（标准需求 ID <Text code>{editingTreeItem.linked_requirement_id}</Text>）
-                      </span>
-                    }
-                    description="与「需求项与画像维度」页同一套配置；确定保存时将同时更新分类信息与维度映射。"
+                    style={{ marginTop: 8 }}
+                    message="未匹配到标准需求 ID"
+                    description="无法在此编辑五维。通常是因为新增/调整排序后，树形位置与 requirements 表中的编号（如 1.1.1）不一致。可在「需求项与画像维度」中按需求 ID 维护映射，或恢复默认分类树后重试。"
                   />
-                  <Row gutter={16}>
-                    {personaDimensions.map((dim) => (
-                      <Col span={dim.key === 'ecommerceExp' ? 24 : 12} key={dim.key}>
-                        <Form.Item
-                          name={dim.key}
-                          label={
-                            <span>
-                              {dim.name}
-                              <Text type="secondary" style={{ fontSize: 12, marginLeft: 6 }}>
-                                {dim.multiple ? '（可多选）' : '（单选）'}
-                              </Text>
-                            </span>
-                          }
-                        >
-                          <Select
-                            mode={dim.multiple ? 'multiple' : undefined}
-                            allowClear
-                            placeholder={`请选择${dim.name}`}
-                            options={dim.options.map((o) => ({
-                              value: o.value,
-                              label: o.description ? `${o.label} — ${o.description}` : o.label,
-                            }))}
-                            showSearch={dim.multiple}
-                            optionFilterProp="label"
-                            style={{ width: '100%' }}
-                          />
-                        </Form.Item>
-                      </Col>
-                    ))}
-                  </Row>
-                </>
-              )}
-
-            {editingTreeItem &&
-              currentTreeType === 'requirement' &&
-              editingTreeItem.level === 3 &&
-              !editingTreeItem.linked_requirement_id && (
-                <Alert
-                  type="warning"
-                  showIcon
-                  style={{ marginTop: 8 }}
-                  message="未匹配到标准需求 ID"
-                  description="无法在此编辑五维。通常是因为新增/调整排序后，树形位置与 requirements 表中的编号（如 1.1.1）不一致。可在「需求项与画像维度」中按需求 ID 维护映射，或恢复默认分类树后重试。"
-                />
-              )}
+                );
+              }
+              return null;
+            })()}
           </Form>
         </Spin>
       </Modal>

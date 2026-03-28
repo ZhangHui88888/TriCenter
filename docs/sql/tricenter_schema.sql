@@ -18,6 +18,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 DROP TABLE IF EXISTS market_reports;
 DROP TABLE IF EXISTS operation_logs;
+DROP TABLE IF EXISTS enterprise_service_records;
 DROP TABLE IF EXISTS provider_service_areas;
 DROP TABLE IF EXISTS provider_contacts;
 DROP TABLE IF EXISTS providers;
@@ -387,6 +388,7 @@ CREATE TABLE requirements (
     is_custom       TINYINT DEFAULT 0 COMMENT '是否自定义需求',
     enterprise_id   INT COMMENT '所属企业ID(自定义需求时填写)',
     sort_order      INT DEFAULT 0 COMMENT '排序',
+    is_recommended  TINYINT DEFAULT 0 COMMENT '是否推荐（推荐的需求在企业详情需求分析中优先展示）',
     is_enabled      TINYINT DEFAULT 1 COMMENT '是否启用',
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -534,7 +536,44 @@ CREATE TABLE provider_service_areas (
 ) COMMENT='服务商服务领域表';
 
 -- ============================================================
--- 表18: operation_logs (操作日志)
+-- 表18: enterprise_service_records (企业合作服务记录)
+-- 含 attachments(JSON 附件元数据)、benchmark_possibility（原独立脚本 04/05 已并入本表定义）
+-- ============================================================
+CREATE TABLE enterprise_service_records (
+    id              INT PRIMARY KEY AUTO_INCREMENT,
+    enterprise_id   INT NOT NULL COMMENT '企业ID',
+    provider_id     INT COMMENT '服务商ID(可选,关联providers表)',
+    service_type    VARCHAR(30) NOT NULL COMMENT '服务类型: training/policy/incubation/platform/settlement/activity/finance/other',
+    service_name    VARCHAR(200) NOT NULL COMMENT '服务名称',
+    service_date    DATE NOT NULL COMMENT '服务日期',
+    status          VARCHAR(20) DEFAULT 'pending' COMMENT '状态: pending/in_progress/completed/terminated',
+    responsible_id  INT COMMENT '负责人ID(关联users表)',
+    contract_no     VARCHAR(100) COMMENT '合同/协议编号',
+    description     TEXT COMMENT '服务内容描述',
+    result          TEXT COMMENT '服务成果/备注',
+    stage_from      VARCHAR(20) COMMENT '变更前漏斗阶段',
+    stage_to        VARCHAR(20) COMMENT '变更后漏斗阶段',
+    project_level   VARCHAR(10) COMMENT '项目级别: S/A/B/C',
+    feasibility_score DECIMAL(3,1) COMMENT '可行性综合评分(1.0-5.0)',
+    assessment_data JSON COMMENT '可行性评估各维度评分JSON',
+    attachments     JSON COMMENT '附件元数据[{storedFileName,originalName,contentType,size}]',
+    benchmark_possibility INT NULL COMMENT '标杆企业可能性百分比',
+    is_deleted      TINYINT DEFAULT 0 COMMENT '是否删除',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+
+    INDEX idx_enterprise (enterprise_id),
+    INDEX idx_provider (provider_id),
+    INDEX idx_service_type (service_type),
+    INDEX idx_service_date (service_date),
+    INDEX idx_status (status),
+    FOREIGN KEY (enterprise_id) REFERENCES enterprises(id) ON DELETE CASCADE,
+    FOREIGN KEY (provider_id) REFERENCES providers(id),
+    FOREIGN KEY (responsible_id) REFERENCES users(id)
+) COMMENT='企业合作服务记录表';
+
+-- ============================================================
+-- 表19: operation_logs (操作日志)
 -- ============================================================
 CREATE TABLE operation_logs (
     id              BIGINT PRIMARY KEY AUTO_INCREMENT,

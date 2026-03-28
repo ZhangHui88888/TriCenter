@@ -58,4 +58,10 @@ public class OptionsController {
     public Result<RequirementConfigResponse> getRequirementConfig() {
         return Result.success(optionsService.getRequirementConfig());
     }
+
+    @Operation(summary = "获取服务商列表（下拉选择）")
+    @GetMapping("/providers")
+    public Result<List<OptionResponse>> getProviderOptions() {
+        return Result.success(optionsService.getProviderOptions());
+    }
 }

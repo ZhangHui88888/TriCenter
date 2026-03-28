@@ -6,24 +6,11 @@ import {
   Button,
   Space,
   Typography,
-  Modal,
-  Form,
-  Input,
   Select,
-  DatePicker,
   Tag,
-  Row,
-  Col,
-  message,
-  Popconfirm,
   Radio,
-  Alert,
-  Tooltip,
 } from 'antd';
 import {
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
   CustomerServiceOutlined,
   CalendarOutlined,
   CheckCircleOutlined,
@@ -42,7 +29,6 @@ import {
   EyeOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import dayjs from 'dayjs';
 import { serviceRecordApi, enterpriseApi, optionsApi } from '@/services/api';
 
 const { Title, Text } = Typography;
@@ -51,6 +37,8 @@ interface ServiceRecord {
   id: number;
   enterpriseId: number;
   enterpriseName?: string;
+  providerId?: number;
+  providerName?: string;
   serviceType: string;
   serviceName: string;
   serviceDate: string;
@@ -62,7 +50,27 @@ interface ServiceRecord {
   result?: string;
   stageFrom?: string;
   stageTo?: string;
+  projectLevel?: string;
+  feasibilityScore?: number;
+  assessmentData?: Record<string, number>;
 }
+
+const ASSESSMENT_DIMENSIONS = [
+  { key: 'scale', label: '企业规模与基础', weight: 0.15, desc: '营收规模、人员规模、外贸基础' },
+  { key: 'willingness', label: '合作意愿', weight: 0.2, desc: '决策层支持度、投入意愿、紧迫性' },
+  { key: 'cooperation', label: '企业配合度', weight: 0.15, desc: '响应速度、资料完整度、对接人稳定性' },
+  { key: 'marketFit', label: '产品市场匹配度', weight: 0.25, desc: '海外需求、认证合规、竞争优势' },
+  { key: 'resourceFit', label: '资源匹配度', weight: 0.15, desc: '三中心服务能力、服务商资源、政策支持' },
+  { key: 'riskControl', label: '风险可控度', weight: 0.1, desc: '知识产权、供应链、合规风险' },
+];
+
+const PROJECT_LEVELS = [
+  { code: 'S', label: 'S-重点孵化', color: '#7B61FF', desc: '孵化中心主导，专属导师团队' },
+  { code: 'A', label: 'A-商业化合作', color: '#396AFF', desc: '服务中心主导，匹配付费服务商' },
+  { code: 'B', label: 'B-普惠服务', color: '#16DBCC', desc: '标准化公共服务，批量覆盖' },
+  { code: 'C', label: 'C-培育观察', color: '#718EBF', desc: '纳入企业池，定期回访' },
+];
+
 
 const SERVICE_TYPES = [
   { value: 'training', label: '培训与赋能', icon: <BookOutlined />, color: '#396AFF' },
@@ -98,136 +106,63 @@ const getServiceTypeInfo = (type: string) =>
 const getStatusInfo = (status: string) =>
   SERVICE_STATUSES.find(s => s.value === status) || SERVICE_STATUSES[0];
 
-/** 合作服务后端接口实现后改为 true，否则会请求未实现接口触发全局「系统异常」提示 */
-const COOPERATION_SERVICE_BACKEND_READY = false;
-
 export default function ServiceRecords() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const paramEnterpriseId = searchParams.get('enterpriseId');
 
   const [records, setRecords] = useState<ServiceRecord[]>([]);
+  const [total, setTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editingRecord, setEditingRecord] = useState<ServiceRecord | null>(null);
-  const [submitting, setSubmitting] = useState(false);
   const [enterprises, setEnterprises] = useState<{ id: number; name: string }[]>([]);
-  const [userOptions, setUserOptions] = useState<{ label: string; value: number }[]>([]);
+  const [providerOptions, setProviderOptions] = useState<{ label: string; value: number }[]>([]);
   const [filterType, setFilterType] = useState<string | undefined>();
   const [filterStatus, setFilterStatus] = useState<string | undefined>();
+  const [filterProviderId, setFilterProviderId] = useState<number | undefined>();
   const [filterEnterpriseId, setFilterEnterpriseId] = useState<number | undefined>(
     paramEnterpriseId ? Number(paramEnterpriseId) : undefined
   );
-  const [form] = Form.useForm();
-
   const fetchRecords = useCallback(async () => {
     setLoading(true);
-    if (!COOPERATION_SERVICE_BACKEND_READY) {
-      setRecords([]);
-      setLoading(false);
-      return;
-    }
     try {
-      if (filterEnterpriseId) {
-        const res = await serviceRecordApi.getList(filterEnterpriseId);
-        const list = Array.isArray(res.data) ? res.data : res.data?.list || [];
-        setRecords(list.map((r: any) => ({ ...r, enterpriseId: filterEnterpriseId })));
-      } else {
-        const entRes = await enterpriseApi.getList({ page: 1, pageSize: 9999 });
-        const entList = entRes.data?.list || [];
-        const allRecords: ServiceRecord[] = [];
-        for (const ent of entList) {
-          try {
-            const res = await serviceRecordApi.getList(ent.id);
-            const list = Array.isArray(res.data) ? res.data : res.data?.list || [];
-            list.forEach((r: any) => allRecords.push({ ...r, enterpriseId: ent.id, enterpriseName: ent.name }));
-          } catch { /* skip */ }
-        }
-        setRecords(allRecords);
-      }
+      const res = await serviceRecordApi.getGlobalList({
+        page: currentPage,
+        pageSize,
+        enterpriseId: filterEnterpriseId,
+        providerId: filterProviderId,
+        serviceType: filterType,
+        status: filterStatus,
+      });
+      const data = res.data;
+      setRecords(data?.list || []);
+      setTotal(data?.total || 0);
     } catch {
       setRecords([]);
+      setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [filterEnterpriseId]);
+  }, [currentPage, pageSize, filterEnterpriseId, filterProviderId, filterType, filterStatus]);
 
   useEffect(() => {
     fetchRecords();
+  }, [fetchRecords]);
+
+  useEffect(() => {
     enterpriseApi.getList({ page: 1, pageSize: 9999 }).then(res => {
       const list = res.data?.list || [];
       setEnterprises(list.map((e: any) => ({ id: e.id, name: e.name })));
     }).catch(() => {});
-    optionsApi.getUsers().then(res => {
-      if (res.data) setUserOptions(res.data.map((u: any) => ({ label: u.label, value: u.value })));
+    optionsApi.getProviders().then(res => {
+      if (res.data) setProviderOptions(res.data.map((p: any) => ({ label: p.label, value: Number(p.value) })));
     }).catch(() => {});
-  }, [fetchRecords]);
+  }, []);
 
-  const filteredRecords = records.filter(r => {
-    if (filterType && r.serviceType !== filterType) return false;
-    if (filterStatus && r.status !== filterStatus) return false;
-    return true;
-  });
-
-  const handleOpenAdd = () => {
-    setEditingRecord(null);
-    form.resetFields();
-    form.setFieldsValue({
-      status: 'pending',
-      serviceDate: dayjs(),
-      enterpriseId: filterEnterpriseId,
-    });
-    setModalOpen(true);
-  };
-
-  const handleOpenEdit = (record: ServiceRecord) => {
-    setEditingRecord(record);
-    form.setFieldsValue({
-      ...record,
-      serviceDate: record.serviceDate ? dayjs(record.serviceDate) : undefined,
-    });
-    setModalOpen(true);
-  };
-
-  const handleDelete = async (record: ServiceRecord) => {
-    try {
-      await serviceRecordApi.delete(record.enterpriseId, record.id);
-      message.success('删除成功');
-      fetchRecords();
-    } catch {
-      message.error('删除失败');
-    }
-  };
-
-  const handleSubmit = async () => {
-    try {
-      const values = await form.validateFields();
-      setSubmitting(true);
-      const entId = values.enterpriseId || filterEnterpriseId;
-      if (!entId) {
-        message.error('请选择企业');
-        setSubmitting(false);
-        return;
-      }
-      const payload = { ...values, serviceDate: values.serviceDate?.format('YYYY-MM-DD') };
-      delete payload.enterpriseId;
-
-      if (editingRecord) {
-        await serviceRecordApi.update(entId, editingRecord.id, payload);
-        message.success('更新成功');
-      } else {
-        await serviceRecordApi.create(entId, payload);
-        message.success('创建成功');
-      }
-      setModalOpen(false);
-      form.resetFields();
-      fetchRecords();
-    } catch (err: any) {
-      if (err?.errorFields) return;
-      message.error(err?.message || '操作失败');
-    } finally {
-      setSubmitting(false);
-    }
+  const handleFilterChange = (setter: (v: any) => void) => (v: any) => {
+    setter(v);
+    setCurrentPage(1);
   };
 
   const currentEnterprise = filterEnterpriseId
@@ -323,6 +258,43 @@ export default function ServiceRecords() {
       },
     },
     {
+      title: '项目级别',
+      dataIndex: 'projectLevel',
+      key: 'projectLevel',
+      width: 130,
+      render: (level: string, rec: ServiceRecord) => {
+        if (!level) return <span style={{ color: '#bfbfbf', fontSize: 12 }}>未评估</span>;
+        const info = PROJECT_LEVELS.find(l => l.code === level) || PROJECT_LEVELS[3];
+        return (
+          <Tag
+            style={{
+              background: `${info.color}14`,
+              color: info.color,
+              border: `1px solid ${info.color}30`,
+              borderRadius: 6,
+              padding: '2px 8px',
+              fontWeight: 600,
+              fontSize: 12,
+            }}
+          >
+            {info.label}{rec.feasibilityScore ? ` ${rec.feasibilityScore}` : ''}
+          </Tag>
+        );
+      },
+    },
+    {
+      title: '服务商',
+      dataIndex: 'providerName',
+      key: 'providerName',
+      width: 140,
+      ellipsis: true,
+      render: (name: string) => (
+        <span style={{ color: name ? '#343C6A' : '#bfbfbf', fontSize: 13 }}>
+          {name || '-'}
+        </span>
+      ),
+    },
+    {
       title: '负责人',
       dataIndex: 'responsibleName',
       key: 'responsibleName',
@@ -336,47 +308,22 @@ export default function ServiceRecords() {
     {
       title: '操作',
       key: 'action',
-      width: 120,
+      width: 80,
       render: (_: unknown, record: ServiceRecord) => (
-        <Space size={4}>
-          <Button
-            type="text"
-            size="small"
-            icon={<EyeOutlined style={{ color: '#396AFF' }} />}
-            onClick={() => navigate(`/enterprise/${record.enterpriseId}`)}
-            style={{ borderRadius: 6 }}
-          />
-          <Button
-            type="text"
-            size="small"
-            icon={<EditOutlined style={{ color: '#16DBCC' }} />}
-            onClick={() => handleOpenEdit(record)}
-            style={{ borderRadius: 6 }}
-          />
-          <Popconfirm
-            title="确定删除这条服务记录吗？"
-            onConfirm={() => handleDelete(record)}
-            okText="确定"
-            cancelText="取消"
-          >
-            <Button type="text" size="small" danger icon={<DeleteOutlined />} style={{ borderRadius: 6 }} />
-          </Popconfirm>
-        </Space>
+        <Button
+          type="text"
+          size="small"
+          icon={<EyeOutlined style={{ color: '#396AFF' }} />}
+          aria-label="打开企业合作标签页"
+          onClick={() => navigate(`/enterprise/${record.enterpriseId}?tab=cooperation`)}
+          style={{ borderRadius: 6 }}
+        />
       ),
     },
   ];
 
   return (
     <div style={{ background: '#F5F7FA', minHeight: '100%', padding: 24, fontFamily: 'Inter, sans-serif' }}>
-      {!COOPERATION_SERVICE_BACKEND_READY && (
-        <Alert
-          type="info"
-          showIcon
-          message="该模块还没开发完成"
-          description="合作服务相关功能正在开发中，列表与新增等服务暂不可用。"
-          style={{ marginBottom: 16, borderRadius: 12 }}
-        />
-      )}
       {/* 页面标题 */}
       <div data-tour="service-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, padding: '0 4px' }}>
         <div>
@@ -398,25 +345,7 @@ export default function ServiceRecords() {
               : '管理所有企业与三中心的合作服务记录'}
           </Text>
         </div>
-        <Tooltip title={!COOPERATION_SERVICE_BACKEND_READY ? '该模块还没开发完成' : undefined}>
-          <span>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleOpenAdd}
-              disabled={!COOPERATION_SERVICE_BACKEND_READY}
-              style={{
-                borderRadius: 12,
-                height: 40,
-                fontWeight: 500,
-                background: '#396AFF',
-                border: 'none',
-              }}
-            >
-              新增服务
-            </Button>
-          </span>
-        </Tooltip>
+        <div />
       </div>
 
       {/* 筛选与状态切换栏 */}
@@ -425,42 +354,44 @@ export default function ServiceRecords() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
             <Radio.Group
               value={filterStatus || 'all'}
-              onChange={e => setFilterStatus(e.target.value === 'all' ? undefined : e.target.value)}
+              onChange={e => { handleFilterChange(setFilterStatus)(e.target.value === 'all' ? undefined : e.target.value); }}
               optionType="button"
               buttonStyle="solid"
               style={{ borderRadius: 12 }}
             >
-              <Radio.Button value="all">
-                全部服务 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => filterType ? r.serviceType === filterType : true).length}</span>
-              </Radio.Button>
-              <Radio.Button value="pending">
-                待启动 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => r.status === 'pending' && (filterType ? r.serviceType === filterType : true)).length}</span>
-              </Radio.Button>
-              <Radio.Button value="in_progress">
-                进行中 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => r.status === 'in_progress' && (filterType ? r.serviceType === filterType : true)).length}</span>
-              </Radio.Button>
-              <Radio.Button value="completed">
-                已完成 <span style={{ opacity: 0.8, marginLeft: 4 }}>{records.filter(r => r.status === 'completed' && (filterType ? r.serviceType === filterType : true)).length}</span>
-              </Radio.Button>
+              <Radio.Button value="all">全部服务</Radio.Button>
+              <Radio.Button value="pending">待启动</Radio.Button>
+              <Radio.Button value="in_progress">进行中</Radio.Button>
+              <Radio.Button value="completed">已完成</Radio.Button>
             </Radio.Group>
             
             <Space wrap size={16}>
               <Select
                 placeholder="按企业筛选"
-                style={{ width: 220, borderRadius: 12, background: '#F5F7FA', border: 'none' }}
+                style={{ width: 200, borderRadius: 12, background: '#F5F7FA', border: 'none' }}
                 allowClear
                 showSearch
                 optionFilterProp="label"
                 value={filterEnterpriseId}
-                onChange={(v) => setFilterEnterpriseId(v)}
+                onChange={handleFilterChange(setFilterEnterpriseId)}
                 options={enterprises.map(e => ({ label: e.name, value: e.id }))}
+              />
+              <Select
+                placeholder="服务商"
+                style={{ width: 180, borderRadius: 12, background: '#F5F7FA', border: 'none' }}
+                allowClear
+                showSearch
+                optionFilterProp="label"
+                value={filterProviderId}
+                onChange={handleFilterChange(setFilterProviderId)}
+                options={providerOptions}
               />
               <Select
                 placeholder="服务类型"
                 style={{ width: 150, borderRadius: 12, background: '#F5F7FA', border: 'none' }}
                 allowClear
                 value={filterType}
-                onChange={setFilterType}
+                onChange={handleFilterChange(setFilterType)}
                 options={SERVICE_TYPES.map(t => ({ label: t.label, value: t.value }))}
               />
             </Space>
@@ -471,17 +402,20 @@ export default function ServiceRecords() {
       {/* 列表 */}
       <div data-tour="service-table">
         <Card style={{ borderRadius: 25, border: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.04)', background: '#FFFFFF' }} styles={{ body: { padding: '8px 0' } }}>
-          {filteredRecords.length > 0 ? (
+          {records.length > 0 ? (
             <Table
               columns={columns}
-              dataSource={filteredRecords}
+              dataSource={records}
               rowKey="id"
               loading={loading}
               pagination={{
-                pageSize: 10,
-                showTotal: (total) => (
+                current: currentPage,
+                pageSize,
+                total,
+                onChange: (p, ps) => { setCurrentPage(p); setPageSize(ps); },
+                showTotal: (t) => (
                   <span style={{ color: '#718EBF' }}>
-                    共 <span style={{ color: '#396AFF', fontWeight: 600 }}>{total}</span> 条记录，涉及 <span style={{ color: '#FFBB38', fontWeight: 600 }}>{new Set(filteredRecords.map(r => r.enterpriseId)).size}</span> 家企业
+                    共 <span style={{ color: '#396AFF', fontWeight: 600 }}>{t}</span> 条记录
                   </span>
                 ),
                 showSizeChanger: true,
@@ -505,7 +439,18 @@ export default function ServiceRecords() {
                         </Tag>
                       </div>
                     )}
-                    {!record.contractNo && !record.description && !record.result && <Text type="secondary">暂无详细信息</Text>}
+                    {record.projectLevel && record.assessmentData && (
+                      <div style={{ marginTop: 4 }}>
+                        <Text type="secondary">可行性评估：</Text>
+                        {ASSESSMENT_DIMENSIONS.map(dim => {
+                          const score = (record.assessmentData as Record<string, number>)?.[dim.key];
+                          return score ? (
+                            <Tag key={dim.key} style={{ margin: '2px 4px', fontSize: 11 }}>{dim.label}: {score}分</Tag>
+                          ) : null;
+                        })}
+                      </div>
+                    )}
+                    {!record.contractNo && !record.description && !record.result && !record.projectLevel && <Text type="secondary">暂无详细信息</Text>}
                   </div>
                 ),
                 rowExpandable: () => true,
@@ -515,112 +460,12 @@ export default function ServiceRecords() {
           ) : (
             <div style={{ textAlign: 'center', padding: 80 }}>
               <CustomerServiceOutlined style={{ fontSize: 48, color: '#718EBF', marginBottom: 16, display: 'block' }} />
-              <Text type="secondary" style={{ fontSize: 15, color: '#718EBF' }}>
-                {COOPERATION_SERVICE_BACKEND_READY ? '暂无合作服务记录' : '该模块还没开发完成'}
-              </Text>
-              <br />
-              {COOPERATION_SERVICE_BACKEND_READY ? (
-                <Button type="link" icon={<PlusOutlined />} onClick={handleOpenAdd} style={{ marginTop: 8, color: '#396AFF', fontWeight: 500 }}>
-                  添加第一条服务记录
-                </Button>
-              ) : (
-                <Button type="link" disabled style={{ marginTop: 8, color: '#bfbfbf', fontWeight: 500, cursor: 'not-allowed' }}>
-                  添加第一条服务记录
-                </Button>
-              )}
+              <Text type="secondary" style={{ fontSize: 15, color: '#718EBF' }}>暂无合作服务记录</Text>
             </div>
           )}
         </Card>
       </div>
 
-      {/* 新增/编辑弹窗 */}
-      <Modal
-        title={
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#343C6A' }}>
-            <CustomerServiceOutlined style={{ color: '#396AFF' }} />
-            <span>{editingRecord ? '编辑服务记录' : '新增服务记录'}</span>
-          </div>
-        }
-        open={modalOpen}
-        onCancel={() => { setModalOpen(false); form.resetFields(); }}
-        width={700}
-        footer={
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <Button onClick={() => { setModalOpen(false); form.resetFields(); }} style={{ borderRadius: 12 }}>取消</Button>
-            <Button type="primary" loading={submitting} onClick={handleSubmit} style={{ background: '#396AFF', border: 'none', borderRadius: 12 }}>
-              {editingRecord ? '保存修改' : '创建记录'}
-            </Button>
-          </div>
-        }
-      >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
-          <Row gutter={16}>
-            {!filterEnterpriseId && (
-              <Col span={24}>
-                <Form.Item name="enterpriseId" label="所属企业" rules={[{ required: true, message: '请选择企业' }]}>
-                  <Select placeholder="搜索并选择企业" showSearch optionFilterProp="label" options={enterprises.map(e => ({ label: e.name, value: e.id }))} style={{ borderRadius: 12, background: '#F5F7FA', border: 'none' }} />
-                </Form.Item>
-              </Col>
-            )}
-            <Col span={12}>
-              <Form.Item name="serviceType" label="服务类型" rules={[{ required: true, message: '请选择服务类型' }]}>
-                <Select placeholder="请选择" options={SERVICE_TYPES.map(t => ({
-                  label: <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ color: t.color }}>{t.icon}</span>{t.label}</span>,
-                  value: t.value,
-                }))} style={{ borderRadius: 12, background: '#F5F7FA', border: 'none' }} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="serviceName" label="服务名称" rules={[{ required: true, message: '请输入服务名称' }]}>
-                <Input placeholder="如：亚马逊运营培训班（第3期）" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="serviceDate" label="服务日期" rules={[{ required: true, message: '请选择日期' }]}>
-                <DatePicker style={{ width: '100%', borderRadius: 12, background: '#F5F7FA', border: 'none' }} placeholder="选择日期" />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="status" label="服务状态" rules={[{ required: true, message: '请选择状态' }]}>
-                <Select placeholder="请选择" options={SERVICE_STATUSES.map(s => ({
-                  label: <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ color: s.color }}>{s.icon}</span>{s.label}</span>,
-                  value: s.value,
-                }))} style={{ borderRadius: 12, background: '#F5F7FA', border: 'none' }} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="responsibleId" label="负责人">
-                <Select placeholder="请选择对接人" allowClear showSearch optionFilterProp="label" options={userOptions} style={{ borderRadius: 12, background: '#F5F7FA', border: 'none' }} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item name="contractNo" label="合同/协议编号">
-                <Input placeholder="如有签约则填写" />
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item name="description" label="服务内容描述">
-                <Input.TextArea rows={3} placeholder="详细描述本次服务内容" />
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item name="result" label="服务成果/备注">
-                <Input.TextArea rows={2} placeholder="成果描述、后续跟进计划" />
-              </Form.Item>
-            </Col>
-            <Col span={24}>
-              <Form.Item name="stageTo" label="关联变更漏斗阶段（可选）">
-                <Select placeholder="如需同步变更企业阶段，请选择" allowClear options={FUNNEL_STAGES.map(s => ({
-                  label: <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: s.color }} />{s.name}
-                  </span>,
-                  value: s.code,
-                }))} style={{ borderRadius: 12, background: '#F5F7FA', border: 'none' }} />
-              </Form.Item>
-            </Col>
-          </Row>
-        </Form>
-      </Modal>
     </div>
   );
 }

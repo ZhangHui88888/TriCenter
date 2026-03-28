@@ -8,6 +8,7 @@ import com.tricenter.util.RequirementFilterHelper;
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -30,6 +31,7 @@ public class RequirementDimensionServiceImpl implements RequirementDimensionServ
     );
 
     private final RequirementDimensionMappingMapper mappingMapper;
+    private final JdbcTemplate jdbcTemplate;
 
     /** 缓存：dimensionKey -> dimensionValue -> requirementIds */
     private final AtomicReference<Map<String, Map<String, Set<String>>>> invertedCache =
@@ -37,7 +39,7 @@ public class RequirementDimensionServiceImpl implements RequirementDimensionServ
 
     @PostConstruct
     public void init() {
-        long count = mappingMapper.selectCount(null);
+        long count = countMappings();
         if (count == 0) {
             log.info("requirement_dimension_mapping 为空，从静态映射种子数据");
             seedFromStatic();
@@ -66,7 +68,7 @@ public class RequirementDimensionServiceImpl implements RequirementDimensionServ
 
     @Override
     public boolean hasStoredMappings() {
-        return mappingMapper.selectCount(null) > 0;
+        return countMappings() > 0;
     }
 
     @Override
@@ -96,14 +98,19 @@ public class RequirementDimensionServiceImpl implements RequirementDimensionServ
 
     @Override
     public Map<String, List<String>> getDimensionsForRequirement(String requirementId) {
-        List<RequirementDimensionMapping> rows = mappingMapper.selectList(
-                new LambdaQueryWrapper<RequirementDimensionMapping>()
-                        .eq(RequirementDimensionMapping::getRequirementId, requirementId)
-        );
         Map<String, List<String>> grouped = new LinkedHashMap<>();
-        for (RequirementDimensionMapping row : rows) {
-            grouped.computeIfAbsent(row.getDimensionKey(), k -> new ArrayList<>())
-                    .add(row.getDimensionValue());
+        List<Map<String, Object>> rows = jdbcTemplate.queryForList(
+                "SELECT dimension_key, dimension_value FROM requirement_dimension_mapping WHERE requirement_id = ? ORDER BY dimension_key ASC, dimension_value ASC",
+                requirementId
+        );
+        for (Map<String, Object> row : rows) {
+            String dimensionKey = row.get("dimension_key") != null ? String.valueOf(row.get("dimension_key")) : null;
+            String dimensionValue = row.get("dimension_value") != null ? String.valueOf(row.get("dimension_value")) : null;
+            if (!StringUtils.hasText(dimensionKey) || !StringUtils.hasText(dimensionValue)) {
+                continue;
+            }
+            grouped.computeIfAbsent(dimensionKey, k -> new ArrayList<>())
+                    .add(dimensionValue);
         }
         for (List<String> list : grouped.values()) {
             list.sort(String::compareTo);
@@ -153,13 +160,29 @@ public class RequirementDimensionServiceImpl implements RequirementDimensionServ
 
     @Override
     public void refreshCache() {
-        List<RequirementDimensionMapping> all = mappingMapper.selectList(null);
         Map<String, Map<String, Set<String>>> inv = new LinkedHashMap<>();
-        for (RequirementDimensionMapping row : all) {
-            inv.computeIfAbsent(row.getDimensionKey(), k -> new LinkedHashMap<>())
-                    .computeIfAbsent(row.getDimensionValue(), k -> new LinkedHashSet<>())
-                    .add(row.getRequirementId());
+        List<Map<String, Object>> all = jdbcTemplate.queryForList(
+                "SELECT requirement_id, dimension_key, dimension_value FROM requirement_dimension_mapping ORDER BY dimension_key ASC, dimension_value ASC, requirement_id ASC"
+        );
+        for (Map<String, Object> row : all) {
+            String requirementId = row.get("requirement_id") != null ? String.valueOf(row.get("requirement_id")) : null;
+            String dimensionKey = row.get("dimension_key") != null ? String.valueOf(row.get("dimension_key")) : null;
+            String dimensionValue = row.get("dimension_value") != null ? String.valueOf(row.get("dimension_value")) : null;
+            if (!StringUtils.hasText(requirementId) || !StringUtils.hasText(dimensionKey) || !StringUtils.hasText(dimensionValue)) {
+                continue;
+            }
+            inv.computeIfAbsent(dimensionKey, k -> new LinkedHashMap<>())
+                    .computeIfAbsent(dimensionValue, k -> new LinkedHashSet<>())
+                    .add(requirementId);
         }
         invertedCache.set(inv);
+    }
+
+    private long countMappings() {
+        Long count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM requirement_dimension_mapping",
+                Long.class
+        );
+        return count != null ? count : 0L;
     }
 }

@@ -43,6 +43,9 @@ public class Requirement {
     @TableField("sort_order")
     private Integer sortOrder;
 
+    @TableField("is_recommended")
+    private Integer isRecommended;
+
     @TableField("is_enabled")
     private Integer isEnabled;
 

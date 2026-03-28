@@ -17,6 +17,7 @@ import {
   BellOutlined,
   SettingOutlined,
   BarChartOutlined,
+  ApartmentOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useThemeStore } from '@/stores/themeStore';
@@ -28,11 +29,12 @@ const { Header, Sider, Content } = Layout;
 
 const menuItems: MenuProps['items'] = [
   { key: '/dashboard', icon: <DashboardOutlined />, label: '概览看板' },
+  { key: '/data-analysis', icon: <BarChartOutlined />, label: '数据分析' },
   { key: '/enterprise', icon: <ShopOutlined />, label: '企业管理' },
+  { key: '/providers', icon: <ApartmentOutlined />, label: '服务商管理' },
   { key: '/follow-up', icon: <FileTextOutlined />, label: '跟进记录' },
   { key: '/service-records', icon: <CustomerServiceOutlined />, label: '合作服务' },
   { key: '/market-research', icon: <SearchOutlined />, label: '市场调研' },
-  { key: '/data-analysis', icon: <BarChartOutlined />, label: '数据分析' },
   { key: '/dictionary', icon: <BookOutlined />, label: '数据字典' },
 ];
 
@@ -76,6 +78,7 @@ function MainLayout() {
     if (path.startsWith('/service-records')) return ['/service-records'];
     if (path.startsWith('/market-research')) return ['/market-research'];
     if (path.startsWith('/data-analysis')) return ['/data-analysis'];
+    if (path.startsWith('/providers')) return ['/providers'];
     return [path];
   };
 

@@ -19,9 +19,9 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAdjusters;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
 /**
@@ -40,6 +40,7 @@ public class DashboardServiceImpl implements DashboardService {
 
     private static final String CACHE_PREFIX = "dashboard:";
     private static final long CACHE_TTL_MINUTES = 10;
+    private final AtomicBoolean redisDegradedLogged = new AtomicBoolean(false);
     
     // 漏斗阶段配置
     private static final Map<String, String> STAGE_NAMES = new LinkedHashMap<>();
@@ -66,13 +67,13 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public DashboardOverviewResponse getOverview() {
         String cacheKey = CACHE_PREFIX + "overview";
-        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        DashboardOverviewResponse cached = getCachedValue(cacheKey, DashboardOverviewResponse.class);
         if (cached != null) {
-            return objectMapper.convertValue(cached, DashboardOverviewResponse.class);
+            return cached;
         }
 
         DashboardOverviewResponse response = doGetOverview();
-        redisTemplate.opsForValue().set(cacheKey, response, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        setCachedValue(cacheKey, response);
         return response;
     }
 
@@ -141,13 +142,13 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public List<FunnelStageResponse> getFunnelStats() {
         String cacheKey = CACHE_PREFIX + "funnel";
-        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        List<FunnelStageResponse> cached = getCachedValue(cacheKey, new TypeReference<List<FunnelStageResponse>>() {});
         if (cached != null) {
-            return objectMapper.convertValue(cached, new TypeReference<List<FunnelStageResponse>>() {});
+            return cached;
         }
 
         List<FunnelStageResponse> result = doGetFunnelStats();
-        redisTemplate.opsForValue().set(cacheKey, result, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        setCachedValue(cacheKey, result);
         return result;
     }
 
@@ -179,13 +180,13 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public List<DistrictStatsResponse> getDistrictStats() {
         String cacheKey = CACHE_PREFIX + "districts";
-        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        List<DistrictStatsResponse> cached = getCachedValue(cacheKey, new TypeReference<List<DistrictStatsResponse>>() {});
         if (cached != null) {
-            return objectMapper.convertValue(cached, new TypeReference<List<DistrictStatsResponse>>() {});
+            return cached;
         }
 
         List<DistrictStatsResponse> result = doGetDistrictStats();
-        redisTemplate.opsForValue().set(cacheKey, result, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        setCachedValue(cacheKey, result);
         return result;
     }
 
@@ -203,13 +204,13 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public List<IndustryStatsResponse> getIndustryStats() {
         String cacheKey = CACHE_PREFIX + "industries:l1-full";
-        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        List<IndustryStatsResponse> cached = getCachedValue(cacheKey, new TypeReference<List<IndustryStatsResponse>>() {});
         if (cached != null) {
-            return objectMapper.convertValue(cached, new TypeReference<List<IndustryStatsResponse>>() {});
+            return cached;
         }
 
         List<IndustryStatsResponse> result = doGetIndustryStats();
-        redisTemplate.opsForValue().set(cacheKey, result, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        setCachedValue(cacheKey, result);
         return result;
     }
 
@@ -263,13 +264,13 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public PendingFollowUpsResponse getPendingFollowUps() {
         String cacheKey = CACHE_PREFIX + "pending-follow-ups";
-        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        PendingFollowUpsResponse cached = getCachedValue(cacheKey, PendingFollowUpsResponse.class);
         if (cached != null) {
-            return objectMapper.convertValue(cached, PendingFollowUpsResponse.class);
+            return cached;
         }
 
         PendingFollowUpsResponse result = doGetPendingFollowUps();
-        redisTemplate.opsForValue().set(cacheKey, result, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        setCachedValue(cacheKey, result);
         return result;
     }
 
@@ -315,9 +316,6 @@ public class DashboardServiceImpl implements DashboardService {
         
         // 本周需回访（基于最近跟进记录的next_step字段，简化处理）
         // 这里简化为：查询最近7天有跟进且有下一步计划的企业
-        LocalDate weekStart = today.with(TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY));
-        LocalDate weekEnd = weekStart.plusDays(6);
-        
         LambdaQueryWrapper<FollowUpRecord> followUpQuery = new LambdaQueryWrapper<>();
         followUpQuery.isNotNull(FollowUpRecord::getNextPlan)
             .ne(FollowUpRecord::getNextPlan, "")
@@ -359,13 +357,13 @@ public class DashboardServiceImpl implements DashboardService {
     @Override
     public List<MonthlyTrendResponse> getMonthlyTrend() {
         String cacheKey = CACHE_PREFIX + "monthly-trend";
-        Object cached = redisTemplate.opsForValue().get(cacheKey);
+        List<MonthlyTrendResponse> cached = getCachedValue(cacheKey, new TypeReference<List<MonthlyTrendResponse>>() {});
         if (cached != null) {
-            return objectMapper.convertValue(cached, new TypeReference<List<MonthlyTrendResponse>>() {});
+            return cached;
         }
 
         List<MonthlyTrendResponse> result = doGetMonthlyTrend();
-        redisTemplate.opsForValue().set(cacheKey, result, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+        setCachedValue(cacheKey, result);
         return result;
     }
 
@@ -397,12 +395,66 @@ public class DashboardServiceImpl implements DashboardService {
         return result;
     }
 
+    private <T> T getCachedValue(String cacheKey, Class<T> targetType) {
+        try {
+            Object cached = redisTemplate.opsForValue().get(cacheKey);
+            onRedisAvailable();
+            if (cached == null) {
+                return null;
+            }
+            return objectMapper.convertValue(cached, targetType);
+        } catch (Exception e) {
+            logRedisDegraded("读取缓存", e);
+            return null;
+        }
+    }
+
+    private <T> T getCachedValue(String cacheKey, TypeReference<T> targetType) {
+        try {
+            Object cached = redisTemplate.opsForValue().get(cacheKey);
+            onRedisAvailable();
+            if (cached == null) {
+                return null;
+            }
+            return objectMapper.convertValue(cached, targetType);
+        } catch (Exception e) {
+            logRedisDegraded("读取缓存", e);
+            return null;
+        }
+    }
+
+    private void setCachedValue(String cacheKey, Object value) {
+        try {
+            redisTemplate.opsForValue().set(cacheKey, value, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
+            onRedisAvailable();
+        } catch (Exception e) {
+            logRedisDegraded("写入缓存", e);
+        }
+    }
+
+    private void onRedisAvailable() {
+        if (redisDegradedLogged.compareAndSet(true, false)) {
+            log.info("Redis连接已恢复，Dashboard缓存重新启用");
+        }
+    }
+
+    private void logRedisDegraded(String action, Exception e) {
+        if (redisDegradedLogged.compareAndSet(false, true)) {
+            log.warn("Redis不可用，Dashboard缓存已降级，{}将直接走数据库: {}", action, e.getMessage());
+        }
+    }
+
     @Override
     public void evictAllCache() {
-        Set<String> keys = redisTemplate.keys(CACHE_PREFIX + "*");
-        if (keys != null && !keys.isEmpty()) {
-            redisTemplate.delete(keys);
-            log.info("已清除看板缓存，共{}个key", keys.size());
+        try {
+            Set<String> keys = redisTemplate.keys(CACHE_PREFIX + "*");
+            onRedisAvailable();
+            if (keys != null && !keys.isEmpty()) {
+                redisTemplate.delete(keys);
+                log.info("已清除看板缓存，共{}个key", keys.size());
+            }
+        } catch (Exception e) {
+            logRedisDegraded("清理缓存", e);
         }
     }
 }

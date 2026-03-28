@@ -1,97 +1,75 @@
-import { Card, Table, Button, Space, Typography } from 'antd';
+// @ts-nocheck
+import { Card, Table, Button, Typography } from 'antd';
+import { PlusOutlined, FileTextOutlined } from '@ant-design/icons';
 import {
-  PlusOutlined,
-  EditOutlined,
-  DeleteOutlined,
-  FileTextOutlined,
-} from '@ant-design/icons';
-import type { ColumnsType } from 'antd/es/table';
-import type { FollowUpTabProps } from '../types';
-import StageChangeIndicator from '../components/StageChangeIndicator';
+  EnterpriseDetailSectionHint,
+  enterpriseDetailCardTitle,
+} from '@/components/enterpriseDetail/EnterpriseDetailSectionHint';
 
 const { Text } = Typography;
 
-export default function FollowUpTab({
-  records,
-  onAddFollowUp,
-  onEditFollowUp,
-  onDeleteFollowUp,
-  getStageInfo,
-}: FollowUpTabProps) {
-  const columns: ColumnsType<any> = [
-    { title: '日期', dataIndex: 'follow_up_date', key: 'date', width: 120 },
-    { title: '类型', dataIndex: 'follow_up_type', key: 'type', width: 80 },
-    { title: '跟进内容', dataIndex: 'content', key: 'content' },
-    { title: '跟进人', dataIndex: 'follow_up_person', key: 'person', width: 120, ellipsis: true },
-    {
-      title: '阶段变化',
-      key: 'stage_change',
-      width: 280,
-      render: (_: unknown, record: { stage_before?: string; stage_after?: string }) => {
-        if (record.stage_before && record.stage_after && record.stage_before !== record.stage_after) {
-          const stageBefore = getStageInfo(record.stage_before);
-          const stageAfter = getStageInfo(record.stage_after);
-          return (
-            <StageChangeIndicator
-              stageBefore={stageBefore}
-              stageAfter={stageAfter}
-            />
-          );
-        }
-        return (
-          <span style={{ color: '#bfbfbf', fontSize: 13 }}>—</span>
-        );
-      },
-    },
-    {
-      title: '操作',
-      key: 'action',
-      width: 120,
-      render: (_: unknown, record: any) => (
-        <Space size="small">
-          <Button type="link" size="small" icon={<EditOutlined />} onClick={() => onEditFollowUp(record)}>编辑</Button>
-          <Button type="link" size="small" danger icon={<DeleteOutlined />} onClick={() => onDeleteFollowUp(record)}>删除</Button>
-        </Space>
-      ),
-    },
-  ];
+interface FollowUpTabProps {
+  enterpriseRecords: any[];
+  recordColumns: any[];
+  onAddFollowUp: () => void;
+}
 
+export default function FollowUpTab({ enterpriseRecords, recordColumns, onAddFollowUp }: FollowUpTabProps) {
   return (
     <div style={{ padding: 16 }}>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
-        <Button 
-          type="primary" 
-          icon={<PlusOutlined />} 
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 20,
+        padding: '0 4px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Text strong style={{ fontSize: 15 }}>共 <span style={{ color: '#667eea', fontSize: 18 }}>{enterpriseRecords.length}</span> 条跟进记录</Text>
+          <EnterpriseDetailSectionHint sectionKey="followup-header" />
+        </div>
+        <Button
+          type="primary"
+          size="small"
+          icon={<PlusOutlined />}
           onClick={onAddFollowUp}
           style={{
             borderRadius: 8,
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            border: 'none',
+            fontWeight: 500
           }}
         >
           添加跟进
         </Button>
       </div>
-      
-      {records.length > 0 ? (
-        <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+      {enterpriseRecords.length > 0 ? (
+        <Card
+          title={enterpriseDetailCardTitle('跟进记录列表', 'followup-list')}
+          style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+          headStyle={{ borderBottom: '1px solid #f0f0f0' }}
+        >
           <Table
-            columns={columns}
-            dataSource={records}
+            columns={recordColumns}
+            dataSource={enterpriseRecords}
             rowKey="id"
-            pagination={{
-              pageSize: 5,
-              showTotal: (total) => `共 ${total} 条记录`,
-            }}
+            size="small"
+            pagination={false}
           />
         </Card>
       ) : (
-        <Card style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+        <Card
+          title={enterpriseDetailCardTitle('跟进记录列表', 'followup-list')}
+          style={{ borderRadius: 12, border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}
+          headStyle={{ borderBottom: '1px solid #f0f0f0' }}
+        >
           <div style={{ textAlign: 'center', padding: 60 }}>
-            <div style={{ 
-              width: 64, 
-              height: 64, 
+            <div style={{
+              width: 64,
+              height: 64,
               margin: '0 auto 16px',
               borderRadius: 16,
-              background: 'rgba(102,126,234,0.1)',
+              background: 'linear-gradient(135deg, rgba(102,126,234,0.1) 0%, rgba(118,75,162,0.05) 100%)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center'

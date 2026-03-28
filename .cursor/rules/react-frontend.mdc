@@ -10,6 +10,23 @@ globs: ["frontend/**/*.tsx", "frontend/**/*.ts"]
 - Props 使用 TypeScript interface 定义
 - 组件文件名使用 PascalCase，工具文件名使用 camelCase
 
+## 组件拆分（强制）
+- **单文件上限 300 行**：任何组件文件超过 300 行时，必须立即拆分，不允许"先写完再重构"
+- **页面组件结构**：复杂页面（含多 Tab/多 Modal）必须按以下结构组织：
+  ```
+  pages/XxxPage/
+  ├── index.tsx        # 入口，只做 re-export
+  ├── XxxPage.tsx      # 主组件，管理状态和组装子组件（<500 行）
+  ├── tabs/            # 每个 Tab 一个文件
+  ├── modals/          # 每个 Modal 一个文件
+  ├── constants.ts     # 常量配置
+  └── utils.ts         # 工具函数
+  ```
+- **禁止单体组件**：不允许在一个文件中放多个 Tab 的 JSX 或多个 Modal 的 JSX
+- **新增 Tab/Modal 时**：必须创建独立文件，不允许往主组件追加 JSX
+- **Props 传递**：简单展示型组件用 `data + onXxx` 回调；复杂交互型组件传入 `state + setter`
+- **内联样式**：重复出现 3 次以上的样式对象应抽取为常量或 CSS Module
+
 ## TypeScript
 - 所有变量和函数参数必须有类型标注，禁止 `any`
 - API 响应类型定义集中管理

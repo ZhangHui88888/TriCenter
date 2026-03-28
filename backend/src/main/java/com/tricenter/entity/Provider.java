@@ -63,6 +63,10 @@ public class Provider {
     /** 资质证书描述 */
     private String qualification;
     
+    /** 需求能力：可解决的需求ID数组 */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private List<String> capabilityRequirementIds;
+    
     // ========== 合作信息 ==========
     /** 合作开始日期 */
     private LocalDate cooperationStartDate;

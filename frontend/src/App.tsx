@@ -1,6 +1,6 @@
 import { lazy, Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { ConfigProvider, Spin } from 'antd'
+import { App as AntdApp, ConfigProvider, Spin } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import MainLayout from './layouts/MainLayout'
 import AuthGuard from './components/AuthGuard'
@@ -14,6 +14,7 @@ const MarketResearch = lazy(() => import('./pages/MarketResearch'))
 const DataDictionary = lazy(() => import('./pages/DataDictionary'))
 const ServiceRecords = lazy(() => import('./pages/ServiceRecords'))
 const DataAnalysis = lazy(() => import('./pages/DataAnalysis'))
+const ProviderList = lazy(() => import('./pages/ProviderList'))
 import { useThemeStore } from './stores/themeStore'
 import { lightTheme, darkTheme } from './theme/themeConfig'
 
@@ -23,7 +24,8 @@ function App() {
 
   return (
     <ConfigProvider theme={themeConfig} locale={zhCN}>
-      <div className={mode === 'dark' ? 'dark-mode' : 'light-mode'}>
+      <AntdApp>
+        <div className={mode === 'dark' ? 'dark-mode' : 'light-mode'}>
         <BrowserRouter
           future={{
             v7_startTransition: true,
@@ -53,6 +55,7 @@ function App() {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<Dashboard />} />
                 <Route path="enterprise" element={<EnterpriseList />} />
+                <Route path="providers" element={<ProviderList />} />
                 <Route path="enterprise/:id" element={<EnterpriseDetail />} />
                 <Route path="market-research" element={<MarketResearch />} />
                 <Route path="follow-up" element={<FollowUpRecords />} />
@@ -63,7 +66,8 @@ function App() {
             </Routes>
           </Suspense>
         </BrowserRouter>
-      </div>
+        </div>
+      </AntdApp>
     </ConfigProvider>
   )
 }

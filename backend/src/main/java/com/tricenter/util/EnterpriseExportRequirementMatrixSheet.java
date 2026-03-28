@@ -32,7 +32,8 @@ import java.util.Set;
  */
 public final class EnterpriseExportRequirementMatrixSheet {
 
-    private static final int FIXED_COLS = 4;
+    /** 阶段、分类、需求ID、需求名称、要点说明、具体说明（与需求文档结构一致） */
+    private static final int FIXED_COLS = 6;
     /** 筛选说明合并行数（0..FILTER_MERGE_END） */
     private static final int FILTER_MERGE_END = 2;
     /** 表头所在行（0-based） */
@@ -64,6 +65,8 @@ public final class EnterpriseExportRequirementMatrixSheet {
         CellStyle headerStyle = buildHeaderStyle(wb);
         CellStyle dataStyle = buildDataStyle(wb);
         CellStyle dataAltStyle = buildDataAltStyle(wb);
+        CellStyle dataWrapStyle = buildDataWrapStyle(wb);
+        CellStyle dataWrapAltStyle = buildDataWrapAltStyle(wb);
         // 独立样式对象并居中，避免 cloneStyleFrom 在少数环境下的兼容问题
         CellStyle dataCenterStyle = buildDataStyle(wb);
         dataCenterStyle.setAlignment(HorizontalAlignment.CENTER);
@@ -72,7 +75,7 @@ public final class EnterpriseExportRequirementMatrixSheet {
 
         String filterText = buildExportFilterSummary(request, dictionaryCache)
                 + "\n企业数量：" + enterprises.size()
-                + "\n说明：矩阵列为标准需求项（是/否）；自定义需求未逐行列出，请查看企业详情。";
+                + "\n说明：左侧为文档序号顺序的标准需求（含要点与具体说明）；右侧列为企业，单元格为是否命中该需求；自定义需求未逐行列出，请查看企业详情。";
 
         Row r0 = sheet.createRow(0);
         Cell c0 = r0.createCell(0);
@@ -95,7 +98,7 @@ public final class EnterpriseExportRequirementMatrixSheet {
         }
 
         Row headerRow = sheet.createRow(HEADER_ROW_INDEX);
-        String[] fixedHeaders = {"阶段", "分类", "需求名称", "需求ID"};
+        String[] fixedHeaders = {"阶段", "分类", "需求ID", "需求名称", "要点说明", "具体说明"};
         for (int i = 0; i < FIXED_COLS; i++) {
             Cell hc = headerRow.createCell(i);
             hc.setCellValue(fixedHeaders[i]);
@@ -132,8 +135,10 @@ public final class EnterpriseExportRequirementMatrixSheet {
 
             setCell(row, 0, nz(item.getPhase()), base);
             setCell(row, 1, nz(item.getCategory()), base);
-            setCell(row, 2, nz(item.getName()), base);
-            setCell(row, 3, nz(item.getId()), base);
+            setCell(row, 2, nz(item.getId()), base);
+            setCell(row, 3, nz(item.getName()), base);
+            setCell(row, 4, nz(item.getDescription()), alt ? dataWrapAltStyle : dataWrapStyle);
+            setCell(row, 5, nz(item.getDetailDescription()), alt ? dataWrapAltStyle : dataWrapStyle);
 
             String reqId = item.getId();
             for (int c = 0; c < enterprises.size(); c++) {
@@ -147,8 +152,10 @@ public final class EnterpriseExportRequirementMatrixSheet {
 
         sheet.setColumnWidth(0, 14 * 256);
         sheet.setColumnWidth(1, 14 * 256);
-        sheet.setColumnWidth(2, 36 * 256);
-        sheet.setColumnWidth(3, 14 * 256);
+        sheet.setColumnWidth(2, 12 * 256);
+        sheet.setColumnWidth(3, 28 * 256);
+        sheet.setColumnWidth(4, 22 * 256);
+        sheet.setColumnWidth(5, 58 * 256);
         for (int i = 0; i < enterprises.size(); i++) {
             sheet.setColumnWidth(FIXED_COLS + i, 12 * 256);
         }
@@ -220,6 +227,20 @@ public final class EnterpriseExportRequirementMatrixSheet {
         st.setFillPattern(FillPatternType.SOLID_FOREGROUND);
         st.setVerticalAlignment(VerticalAlignment.CENTER);
         borderThin(st);
+        return st;
+    }
+
+    private static CellStyle buildDataWrapStyle(XSSFWorkbook wb) {
+        CellStyle st = buildDataStyle(wb);
+        st.setWrapText(true);
+        st.setVerticalAlignment(VerticalAlignment.TOP);
+        return st;
+    }
+
+    private static CellStyle buildDataWrapAltStyle(XSSFWorkbook wb) {
+        CellStyle st = buildDataAltStyle(wb);
+        st.setWrapText(true);
+        st.setVerticalAlignment(VerticalAlignment.TOP);
         return st;
     }
 

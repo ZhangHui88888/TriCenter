@@ -318,6 +318,20 @@ INSERT INTO system_options (category, value, label, sort_order) VALUES
 ('requirement_category', '4.4', '新品规划', 404),
 ('requirement_category', '4.5', '规模化与降本增效', 405),
 ('requirement_category', '4.6', 'ESG与可持续', 406);
+
+-- ==================== 服务分类 (provider_category) ====================
+INSERT INTO system_options (category, value, label, sort_order) VALUES
+('provider_category', 'logistics', '物流仓储', 1),
+('provider_category', 'marketing', '营销推广', 2),
+('provider_category', 'consulting', '咨询培训', 3),
+('provider_category', 'it_service', 'IT技术服务', 4),
+('provider_category', 'payment', '跨境支付', 5),
+('provider_category', 'certification', '检测认证', 6),
+('provider_category', 'legal', '法务合规', 7),
+('provider_category', 'finance', '金融服务', 8),
+('provider_category', 'supply_chain', '供应链服务', 9),
+('provider_category', 'others', '其他', 99);
+
 -- ============================================================
 -- 常州跨境电商三中心 - 企业信息管理系统
 -- 行业分类初始化数据 (industry_categories)
@@ -1368,3 +1382,32 @@ INSERT INTO stage_change_logs (enterprise_id, stage_from, stage_to, reason, oper
 -- ============================================================
 -- ALTER TABLE enterprises
 --     ADD COLUMN domestic_revenue_wan DECIMAL(18,4) NULL COMMENT '国内营收(万元)，精确数值' AFTER domestic_revenue_id;
+
+-- ============================================================
+-- 结构补丁：providers.capability_requirement_ids（服务商需求能力字段）
+-- 适用：已有库、providers 表无本列时。全新库请直接执行。
+-- 注意：MySQL 不支持 IF NOT EXISTS，若列已存在会报错，可忽略或注释掉本行。
+-- ============================================================
+ALTER TABLE providers ADD COLUMN capability_requirement_ids JSON COMMENT '需求能力：可解决的需求ID数组(关联requirements表id)' AFTER qualification;
+
+-- ============================================================
+-- 需求标记：通用必选（is_universal）与增强项（is_enhanced）
+-- 与 frontend/src/data/requirementsData.ts 中的静态 ID 列表保持一致
+-- ============================================================
+UPDATE requirements SET is_universal = 1 WHERE id IN (
+  '1.4.2', '1.7.1', '1.7.2', '1.7.3', '1.7.4', '1.7.5',
+  '3.4.1', '3.4.2',
+  '3.2.2', '3.2.3',
+  '1.6.2',
+  '3.3.1', '3.3.3',
+  '3.4.4',
+  '1.2.1', '1.4.4'
+);
+
+UPDATE requirements SET is_enhanced = 1 WHERE id IN (
+  '4.1.2', '4.1.3', '4.1.6',
+  '3.3.4', '3.3.5',
+  '3.4.5',
+  '3.1.8', '4.3.3',
+  '3.2.4', '3.2.5'
+);

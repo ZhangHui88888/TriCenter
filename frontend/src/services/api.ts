@@ -1,5 +1,17 @@
+import { AxiosHeaders, AxiosRequestConfig } from 'axios';
 import request from './request';
 import type { Enterprise, FollowUpRecord } from '@/types';
+
+/**
+ * FormData 上传：实例默认 Content-Type: application/json 会破坏 multipart；
+ * 使用 AxiosHeaders 将 Content-Type 设为 false，由浏览器自动带 boundary。
+ */
+function formDataRequestOptions(extra: Record<string, unknown> = {}) {
+  const { headers: rawHeaders, ...rest } = extra as { headers?: unknown } & Record<string, unknown>;
+  const headers = AxiosHeaders.from(rawHeaders as any);
+  headers.set('Content-Type', false as any);
+  return { ...rest, headers };
+}
 
 // 企业管理 API
 export const enterpriseApi = {
@@ -57,10 +69,7 @@ export const enterpriseApi = {
   import: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return request.post('/enterprises/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 0,
-    });
+    return request.post('/enterprises/import', formData, formDataRequestOptions({ timeout: 0 }));
   },
 
   // 导出企业（与列表相同查询参数；双 Sheet：企业列表 + 需求分析矩阵）
@@ -84,14 +93,50 @@ export const serviceRecordApi = {
   getList: (enterpriseId: number) =>
     request.get(`/enterprises/${enterpriseId}/services`),
 
+  getGlobalList: (params?: {
+    page?: number;
+    pageSize?: number;
+    enterpriseId?: number;
+    providerId?: number;
+    serviceType?: string;
+    status?: string;
+  }) => request.get('/service-records', { params }),
+
   create: (enterpriseId: number, data: any) =>
     request.post(`/enterprises/${enterpriseId}/services`, data),
 
-  update: (enterpriseId: number, serviceId: number, data: any) =>
-    request.put(`/enterprises/${enterpriseId}/services/${serviceId}`, data),
+  update: (
+    enterpriseId: number,
+    serviceId: number,
+    data: any,
+    config?: AxiosRequestConfig & { skipGlobalErrorToast?: boolean },
+  ) => request.put(`/enterprises/${enterpriseId}/services/${serviceId}`, data, config),
 
   delete: (enterpriseId: number, serviceId: number) =>
     request.delete(`/enterprises/${enterpriseId}/services/${serviceId}`),
+};
+
+/** 合作服务记录附件（文件/图片）上传与下载，需登录 */
+export const cooperationUploadApi = {
+  uploadAttachment: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return request.post(
+      '/upload/cooperation-attachment',
+      fd,
+      formDataRequestOptions({ timeout: 120000, skipGlobalErrorToast: true }),
+    );
+  },
+
+  downloadAttachment: (storedFileName: string, downloadName?: string) =>
+    request.get(
+      `/upload/cooperation-attachment/download/${encodeURIComponent(storedFileName)}`,
+      {
+        responseType: 'blob',
+        params: downloadName ? { name: downloadName } : {},
+        timeout: 0,
+      },
+    ),
 };
 
 // 跟进记录 API
@@ -229,10 +274,7 @@ export const surveyExcelApi = {
   import: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return request.post('/survey-excel/import', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      timeout: 0,
-    });
+    return request.post('/survey-excel/import', formData, formDataRequestOptions({ timeout: 0 }));
   },
 
   // 下载调研导入模板（全量企业多 Sheet，生成可能超过默认 10s）
@@ -265,10 +307,20 @@ export const optionsApi = {
 
   // 获取需求配置（需求列表+标记+维度映射，企业详情需求分析用）
   getRequirementConfig: () => request.get<RequirementConfigData>('/options/requirements/config'),
+
+  getProviders: () => request.get('/options/providers'),
 };
 
 export interface RequirementConfigData {
-  requirements: Array<{ id: string; name: string; description: string; phase: string; category: string }>;
+  requirements: Array<{
+    id: string;
+    name: string;
+    description: string;
+    detailDescription?: string;
+    phase: string;
+    category: string;
+    isRecommended?: number;
+  }>;
   universalRequiredIds: string[];
   universalEnhancedIds: string[];
   dimensionRequirementMapping: Record<string, Record<string, string[]>>;
@@ -298,6 +350,26 @@ export interface TreeCategoryItem {
   linkedRequirementId?: string | null;
 }
 
+/** 服务商管理 API */
+export const providerApi = {
+  getList: (params?: {
+    page?: number;
+    pageSize?: number;
+    keyword?: string;
+    category?: string;
+    cooperationStatus?: string;
+    district?: string;
+  }) => request.get('/providers', { params }),
+
+  getDetail: (id: number) => request.get(`/providers/${id}`),
+
+  create: (data: any) => request.post('/providers', data),
+
+  update: (id: number, data: any) => request.put(`/providers/${id}`, data),
+
+  delete: (id: number) => request.delete(`/providers/${id}`),
+};
+
 /** 数据字典管理（新增选项等，写入 system_options 并刷新服务端缓存） */
 export const dictionaryApi = {
   addOption: (
@@ -317,8 +389,12 @@ export const dictionaryApi = {
 /** 数据字典：标准需求项 + 企业画像五维映射（requirement_dimension_mapping） */
 export const requirementItemAdminApi = {
   list: () => request.get<unknown[]>('/dictionary/requirement-items'),
+  getRecommended: (id: string) =>
+    request.get<{ isRecommended?: number }>(`/dictionary/requirement-items/${encodeURIComponent(id)}/recommended`),
   getDimensions: (id: string) =>
     request.get<Record<string, string[]>>(`/dictionary/requirement-items/${encodeURIComponent(id)}/dimensions`),
   putDimensions: (id: string, body: Record<string, string[]>) =>
     request.put(`/dictionary/requirement-items/${encodeURIComponent(id)}/dimensions`, body),
+  toggleRecommended: (id: string, isRecommended: boolean) =>
+    request.patch(`/dictionary/requirement-items/${encodeURIComponent(id)}/recommended`, { isRecommended }),
 };

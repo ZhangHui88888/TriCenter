@@ -595,6 +595,7 @@ function MarketResearch() {
 
       {/* ========== 缺失字段提示弹窗 ========== */}
       <Modal
+        maskClosable={false}
         title={
           <span>
             <WarningOutlined style={{ color: '#d97706', marginRight: 8 }} />
@@ -644,6 +645,7 @@ function MarketResearch() {
 
       {/* ========== API Key 设置弹窗 ========== */}
       <Modal
+        maskClosable={false}
         title={
           <span>
             <RobotOutlined style={{ color: '#1a56db', marginRight: 8 }} />

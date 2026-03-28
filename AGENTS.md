@@ -45,7 +45,7 @@ bash deploy.sh
 
 - **Git**：Conventional Commits，分支 `main` + `feature/*`
 - **后端**：Alibaba Java Coding Guidelines
-- **前端**：ESLint，Axios 封装 (`src/services/request.ts`)
+- **前端**：ESLint，Axios 封装 (`src/services/request.ts`)，**组件文件上限 300 行**，复杂页面按 `tabs/modals/constants/utils` 拆分
 - **API 文档**：Knife4j (Swagger) `http://localhost:8081/doc.html`
 
 ## 外部依赖

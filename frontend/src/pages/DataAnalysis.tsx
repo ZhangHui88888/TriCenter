@@ -538,6 +538,7 @@ function DataAnalysis() {
       )}
       {/* ── 高级筛选弹窗 ── */}
       <Modal
+        maskClosable={false}
         title={<div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><FilterOutlined style={{ color: D.cyan }} /><span>高级筛选条件</span></div>}
         open={isFilterModalOpen}
         onCancel={() => setIsFilterModalOpen(false)}

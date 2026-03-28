@@ -370,11 +370,14 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             // 需求分析 Sheet：右侧企业列数（空模板时为 1 列占位，便于复制扩展）
             final int reqEnterpriseColumns = enterprises.isEmpty() ? 1 : enterprises.size();
             // 构建四级表头：左侧固定为需求信息，右侧每列一个企业
+            // EasyExcel 复杂头：外层每项为一列，内层为该列自上而下的表头单元格
             List<List<String>> reqHead = new ArrayList<>();
             reqHead.add(Arrays.asList("需求信息", "需求信息", "需求阶段", "需求阶段"));
             reqHead.add(Arrays.asList("需求信息", "需求信息", "需求分类", "需求分类"));
             reqHead.add(Arrays.asList("需求信息", "需求信息", "需求ID", "需求ID"));
             reqHead.add(Arrays.asList("需求信息", "需求信息", "需求名称", "需求名称"));
+            reqHead.add(Arrays.asList("要点说明", "要点说明", "要点说明", "要点说明"));
+            reqHead.add(Arrays.asList("具体说明", "具体说明", "具体说明", "具体说明"));
             if (enterprises.isEmpty()) {
                 // 无企业时仍给一列占位，便于线下复制整列扩展为多企业
                 reqHead.add(Arrays.asList("企业信息", "企业信息", "企业名称", "（请填写；可复制本列向右扩展）"));
@@ -392,12 +395,14 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                     sheet.setColumnWidth(0, 16 * 256);
                     sheet.setColumnWidth(1, 18 * 256);
                     sheet.setColumnWidth(2, 14 * 256);
-                    sheet.setColumnWidth(3, 40 * 256);
-                    for (int i = 4; i < 4 + reqEnterpriseColumns; i++) {
+                    sheet.setColumnWidth(3, 36 * 256);
+                    sheet.setColumnWidth(4, 22 * 256);
+                    sheet.setColumnWidth(5, 48 * 256);
+                    for (int i = 6; i < 6 + reqEnterpriseColumns; i++) {
                         sheet.setColumnWidth(i, 24 * 256);
                     }
-                    // 仅冻结前4列（需求维度），横向滚动时保持左侧需求信息可见
-                    sheet.createFreezePane(4, 0);
+                    // 冻结前6列（需求维度含说明），横向滚动时保持左侧可见
+                    sheet.createFreezePane(6, 0);
                 }
             };
 
@@ -412,7 +417,9 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             reqHint.add("填写说明");
             reqHint.add("");
             reqHint.add("");
-            reqHint.add("每行一条需求；企业列填写“是/否”；最后一行“自定义需求”可自由填写");
+            reqHint.add("每行一条需求；企业列填「是/否」；最后一行「自定义需求」可自由填写");
+            reqHint.add("要点、具体说明已按标准文档预置");
+            reqHint.add("可修改后分发");
             for (int i = 0; i < reqEnterpriseColumns; i++) {
                 reqHint.add("填：是/否");
             }
@@ -423,6 +430,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             reqExample.add("品牌建设");
             reqExample.add("R-DEMO");
             reqExample.add("示例需求");
+            reqExample.add("示例要点");
+            reqExample.add("示例具体说明文字");
             for (int i = 0; i < reqEnterpriseColumns; i++) {
                 reqExample.add(i % 3 == 0 ? "是" : "否"); // 交替填写示例
             }
@@ -434,6 +443,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 row.add(req.getCategory());
                 row.add(req.getId());
                 row.add(req.getName());
+                row.add(req.getDescription() != null ? req.getDescription() : "");
+                row.add(req.getDetailDescription() != null ? req.getDetailDescription() : "");
                 for (int i = 0; i < reqEnterpriseColumns; i++) {
                     row.add(""); // 空白待填写
                 }
@@ -445,6 +456,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             customReqRow.add("");
             customReqRow.add("");
             customReqRow.add("自定义需求（自由填写）");
+            customReqRow.add("");
+            customReqRow.add("");
             for (int i = 0; i < reqEnterpriseColumns; i++) {
                 customReqRow.add("");
             }
