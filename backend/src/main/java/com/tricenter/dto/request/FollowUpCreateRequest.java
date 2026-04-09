@@ -14,19 +14,19 @@ import java.time.LocalDate;
 @Schema(description = "新增跟进记录请求")
 public class FollowUpCreateRequest {
     
-    @Schema(description = "企业ID", required = true)
+    @Schema(description = "企业ID", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "企业ID不能为空")
     private Integer enterpriseId;
     
-    @Schema(description = "跟进类型: 电话/视频/拜访/会议", required = true)
+    @Schema(description = "跟进类型: 电话/视频/拜访/会议", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "跟进类型不能为空")
     private String followType;
     
-    @Schema(description = "跟进日期", required = true)
+    @Schema(description = "跟进日期", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull(message = "跟进日期不能为空")
     private LocalDate followDate;
     
-    @Schema(description = "跟进内容", required = true)
+    @Schema(description = "跟进内容", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "跟进内容不能为空")
     private String content;
     

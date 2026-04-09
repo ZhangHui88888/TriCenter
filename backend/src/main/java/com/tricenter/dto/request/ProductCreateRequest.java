@@ -13,7 +13,7 @@ import java.util.List;
 @Schema(description = "创建产品请求")
 public class ProductCreateRequest {
     
-    @Schema(description = "产品名称", required = true)
+    @Schema(description = "产品名称", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "产品名称不能为空")
     @Size(max = 200, message = "产品名称不能超过200个字符")
     private String name;

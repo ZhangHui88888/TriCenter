@@ -34,6 +34,8 @@ public class EnterpriseCreateRequest {
     
     private Integer sourceId;
     
+    private Integer sourceProviderId;
+    
     private String website;
     
     // 主要联系人信息（可选）

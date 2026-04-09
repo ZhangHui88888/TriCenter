@@ -61,7 +61,11 @@ export default function BasicInfoTab({ enterprise, openEditModal }: BasicInfoTab
               ? enterprise.last_year_revenue
               : enterprise.crossborder_revenue || '-'}
           </Descriptions.Item>
-          <Descriptions.Item label="企业来源">{enterprise.source || '-'}</Descriptions.Item>
+          <Descriptions.Item label="企业来源">
+            {enterprise.source
+              ? (enterprise.source_provider ? `${enterprise.source} - ${enterprise.source_provider}` : enterprise.source)
+              : '-'}
+          </Descriptions.Item>
           <Descriptions.Item label="官网">
             {enterprise.website ? (
               <a
@@ -76,6 +80,9 @@ export default function BasicInfoTab({ enterprise, openEditModal }: BasicInfoTab
           </Descriptions.Item>
           <Descriptions.Item label="进出口经营权">
             {enterprise.has_import_export_license ? '有' : '无'}
+          </Descriptions.Item>
+          <Descriptions.Item label="进出口收发货人代码">
+            <span style={{ fontFamily: 'monospace' }}>{enterprise.import_export_code || '-'}</span>
           </Descriptions.Item>
           <Descriptions.Item label="ISO认证">{enterprise.iso_certifications || '-'}</Descriptions.Item>
           <Descriptions.Item label="AEO认证等级">{enterprise.aeo_certification || '-'}</Descriptions.Item>

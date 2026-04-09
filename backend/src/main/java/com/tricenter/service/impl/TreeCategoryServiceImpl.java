@@ -303,7 +303,6 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
         };
     }
 
-    @SuppressWarnings("unchecked")
     private <T> List<TreeCategoryResponse> listFromMapper(BaseMapper<T> mapper, Class<T> clazz) {
         List<T> all = mapper.selectList(null);
         return all.stream().map(entity -> {

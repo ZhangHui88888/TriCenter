@@ -40,7 +40,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     private final EnterpriseMapper enterpriseMapper;
     private final EnterpriseContactMapper contactMapper;
     private final EnterpriseProductMapper productMapper;
-    private final EnterprisePatentMapper patentMapper;
+
     private final IndustryCategoryMapper industryCategoryMapper;
     private final ProductCategoryMapper productCategoryMapper;
     private final SystemOptionMapper systemOptionMapper;
@@ -693,7 +693,16 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             // 企业来源
             if (e.getSourceId() != null) {
                 SystemOption opt = systemOptionMapper.selectById(e.getSourceId());
-                if (opt != null) data.setSource(opt.getLabel());
+                if (opt != null) {
+                    String sourceLabel = opt.getLabel();
+                    if (e.getSourceProviderId() != null) {
+                        SystemOption providerOpt = systemOptionMapper.selectById(e.getSourceProviderId());
+                        if (providerOpt != null) {
+                            sourceLabel = sourceLabel + " - " + providerOpt.getLabel();
+                        }
+                    }
+                    data.setSource(sourceLabel);
+                }
             }
 
             // 品牌

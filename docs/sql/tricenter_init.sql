@@ -86,7 +86,13 @@ INSERT INTO system_options (category, value, label, sort_order) VALUES
 ('source', 'survey', '调研', 1),
 ('source', 'referral', '转介绍', 2),
 ('source', 'inquiry', '主动咨询', 3),
-('source', 'activity', '活动', 4);
+('source', 'activity', '活动', 4),
+('source', 'provider', '服务商', 5);
+
+-- ==================== 企业来源-服务商子分类 (source_provider) ====================
+INSERT INTO system_options (category, value, label, sort_order) VALUES
+('source_provider', 'zhihuatong', '智慧通', 1),
+('source_provider', 'czguanjie', '常州冠捷', 2);
 
 -- ==================== 外贸模式 (trade_mode) ====================
 INSERT INTO system_options (category, value, label, sort_order) VALUES

@@ -896,7 +896,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             enterprise.setDomesticRevenueId(request.getDomesticRevenueId());
             enterprise.setDomesticRevenueWan(null);
         }
-        if (request.getSourceId() != null) enterprise.setSourceId(request.getSourceId());
+        if (request.getSourceId() != null) {
+            enterprise.setSourceId(request.getSourceId());
+            enterprise.setSourceProviderId(request.getSourceProviderId());
+        }
         
         // 品牌信息
         if (request.getHasOwnBrand() != null) enterprise.setHasOwnBrand(request.getHasOwnBrand());
@@ -907,6 +910,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (request.getTargetCountryIds() != null) enterprise.setTargetCountryIds(request.getTargetCountryIds());
         if (request.getTradeModeId() != null) enterprise.setTradeModeId(request.getTradeModeId());
         if (request.getHasImportExportLicense() != null) enterprise.setHasImportExportLicense(request.getHasImportExportLicense());
+        if (request.getImportExportCode() != null) enterprise.setImportExportCode(request.getImportExportCode());
         if (request.getIsoCertifications() != null) enterprise.setIsoCertifications(request.getIsoCertifications());
         if (request.getAeoCertification() != null) enterprise.setAeoCertification(request.getAeoCertification());
         if (request.getOtherCertifications() != null) enterprise.setOtherCertifications(request.getOtherCertifications());
@@ -1135,6 +1139,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setDomesticRevenueId(enterprise.getDomesticRevenueId());
         response.setDomesticRevenueWan(enterprise.getDomesticRevenueWan());
         response.setSourceId(enterprise.getSourceId());
+        response.setSourceProviderId(enterprise.getSourceProviderId());
         String stageCode = StageCodeUtil.normalize(enterprise.getStage());
         response.setStage(stageCode);
         response.setIndustryName(dictionaryCache.getIndustryName(enterprise.getIndustryId()));
@@ -1149,6 +1154,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setDomesticRevenueLabel(resolveDomesticRevenueLabel(enterprise));
         response.setCrossBorderRevenueLabel(resolveCrossBorderRevenueLabel(enterprise));
         response.setSourceLabel(dictionaryCache.getOptionLabel(enterprise.getSourceId()));
+        response.setSourceProviderLabel(dictionaryCache.getOptionLabel(enterprise.getSourceProviderId()));
         response.setTradeModeLabel(dictionaryCache.getOptionLabel(enterprise.getTradeModeId()));
         response.setTradeTeamModeLabel(dictionaryCache.getOptionLabel(enterprise.getTradeTeamModeId()));
         
@@ -1179,6 +1185,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setTargetRegionIds(enterprise.getTargetRegionIds());
         response.setTargetCountryIds(enterprise.getTargetCountryIds());
         response.setTradeModeId(enterprise.getTradeModeId());
+        response.setImportExportCode(enterprise.getImportExportCode());
         response.setHasImportExportLicense(enterprise.getHasImportExportLicense() != null && enterprise.getHasImportExportLicense() == 1);
         response.setIsoCertifications(enterprise.getIsoCertifications());
         response.setAeoCertification(enterprise.getAeoCertification());

@@ -37,6 +37,8 @@ public class EnterpriseDetailResponse {
     private String crossBorderRevenueLabel;
     private Integer sourceId;
     private String sourceLabel;
+    private Integer sourceProviderId;
+    private String sourceProviderLabel;
     private String stage;
     private String stageName;
     private String stageColor;
@@ -54,6 +56,7 @@ public class EnterpriseDetailResponse {
     private Integer tradeModeId;
     private String tradeModeLabel;
     private Boolean hasImportExportLicense;
+    private String importExportCode;
     private String isoCertifications;
     private String aeoCertification;
     private String otherCertifications;

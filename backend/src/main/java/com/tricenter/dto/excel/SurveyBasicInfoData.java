@@ -2,7 +2,7 @@ package com.tricenter.dto.excel;
 
 import com.alibaba.excel.annotation.ExcelProperty;
 import com.alibaba.excel.annotation.write.style.ColumnWidth;
-import com.alibaba.excel.annotation.write.style.HeadStyle;
+
 import lombok.Data;
 
 /**

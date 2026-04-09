@@ -64,6 +64,10 @@ public class Enterprise {
     /** 企业来源ID */
     private Integer sourceId;
     
+    /** 企业来源-服务商二级分类ID(仅source为"服务商"时使用) */
+    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    private Integer sourceProviderId;
+    
     /** 漏斗阶段 */
     private String stage;
     
@@ -88,6 +92,9 @@ public class Enterprise {
     
     /** 是否有进出口资质 */
     private Integer hasImportExportLicense;
+    
+    /** 进出口收发货人代码 */
+    private String importExportCode;
     
     /** ISO认证情况 */
     private String isoCertifications;

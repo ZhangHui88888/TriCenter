@@ -26,6 +26,7 @@ interface EditEnterpriseModalProps {
   industryCategories: any[];
   staffSizeOptions: any[];
   sourceOptions: any[];
+  sourceProviderOptions: any[];
   onClose: () => void;
   onSuccess: (updatedEnterprise: any) => void;
 }
@@ -36,10 +37,13 @@ export default function EditEnterpriseModal({
   industryCategories,
   staffSizeOptions,
   sourceOptions,
+  sourceProviderOptions,
   onClose,
   onSuccess,
 }: EditEnterpriseModalProps) {
   const [form] = Form.useForm();
+  const sourceIdValue = Form.useWatch('source_id', form);
+  const isProviderSource = sourceOptions.some((o: any) => o.value === sourceIdValue && o.label === '服务商');
 
   useEffect(() => {
     if (open && enterprise) {
@@ -62,6 +66,7 @@ export default function EditEnterpriseModal({
         domestic_revenue_wan: enterprise.domestic_revenue_wan ?? undefined,
         crossborder_revenue_wan: enterprise.last_year_revenue ?? undefined,
         source_id: enterprise.source_id,
+        source_provider_id: enterprise.source_provider_id,
         website: enterprise.website,
         iso_certifications: enterprise.iso_certifications ?? '',
         aeo_certification: enterprise.aeo_certification ?? '',
@@ -70,6 +75,7 @@ export default function EditEnterpriseModal({
           enterprise.has_import_export_license === true ||
           enterprise.has_import_export_license === 1 ||
           enterprise.has_import_export_license === '1',
+        import_export_code: enterprise.import_export_code ?? '',
       });
     }
   }, [open, enterprise, industryCategories, form]);
@@ -102,8 +108,10 @@ export default function EditEnterpriseModal({
         domesticRevenueWan: parseWan(values.domestic_revenue_wan),
         lastYearRevenue: parseWan(values.crossborder_revenue_wan),
         sourceId: values.source_id,
+        sourceProviderId: isProviderSource ? (values.source_provider_id ?? null) : null,
         hasImportExportLicense:
           values.hasImportExportLicense === true || values.hasImportExportLicense === 1 ? 1 : 0,
+        importExportCode: (values.import_export_code ?? '').trim(),
         isoCertifications: (values.iso_certifications ?? '').trim(),
         aeoCertification: (values.aeo_certification ?? '').trim(),
         otherCertifications: (values.other_certifications ?? '').trim(),
@@ -134,10 +142,13 @@ export default function EditEnterpriseModal({
           last_year_revenue: data.lastYearRevenue != null ? Number(data.lastYearRevenue) : undefined,
           source: data.sourceLabel,
           source_id: data.sourceId,
+          source_provider: data.sourceProviderLabel,
+          source_provider_id: data.sourceProviderId,
           iso_certifications: data.isoCertifications,
           aeo_certification: data.aeoCertification,
           other_certifications: data.otherCertifications,
           has_import_export_license: data.hasImportExportLicense,
+          import_export_code: data.importExportCode,
         });
       }
       message.success('企业信息更新成功');
@@ -266,10 +277,27 @@ export default function EditEnterpriseModal({
             </Form.Item>
           </Col>
           <Col span={12}>
-            <Form.Item name="source_id" label="企业来源">
-              <Select placeholder="请选择" options={sourceOptions} allowClear />
+            <Form.Item name="import_export_code" label="进出口收发货人代码">
+              <Input placeholder="请输入收发货人代码" maxLength={20} />
             </Form.Item>
           </Col>
+          <Col span={isProviderSource ? 6 : 12}>
+            <Form.Item name="source_id" label="企业来源">
+              <Select
+                placeholder="请选择"
+                options={sourceOptions}
+                allowClear
+                onChange={() => form.setFieldValue('source_provider_id', undefined)}
+              />
+            </Form.Item>
+          </Col>
+          {isProviderSource && (
+            <Col span={6}>
+              <Form.Item name="source_provider_id" label="服务商">
+                <Select placeholder="请选择服务商" options={sourceProviderOptions} allowClear />
+              </Form.Item>
+            </Col>
+          )}
           <Col span={12}>
             <Form.Item name="website" label="官网">
               <Input placeholder="请输入官网地址" />

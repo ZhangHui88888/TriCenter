@@ -151,6 +151,7 @@ CREATE TABLE enterprises (
     domestic_revenue_id     INT COMMENT '国内营收ID(关联system_options表,category=revenue，历史档位，优先以 domestic_revenue_wan 为准)',
     domestic_revenue_wan    DECIMAL(18,4) NULL COMMENT '国内营收(万元)，精确数值',
     source_id               INT COMMENT '企业来源ID(关联system_options表,category=source)',
+    source_provider_id      INT COMMENT '企业来源-服务商二级分类ID(关联system_options表,category=source_provider，仅source为"服务商"时使用)',
     
     -- 漏斗阶段
     stage                   VARCHAR(20) DEFAULT 'POTENTIAL' COMMENT '漏斗阶段',
@@ -164,6 +165,7 @@ CREATE TABLE enterprises (
     target_country_ids      JSON COMMENT '主要销售国家代码数组(ISO 3166-1 alpha-2)',
     trade_mode_id           INT COMMENT '外贸模式ID(关联system_options表,category=trade_mode)',
     has_import_export_license TINYINT DEFAULT 0 COMMENT '是否有进出口资质',
+    import_export_code      VARCHAR(20) COMMENT '进出口收发货人代码',
     iso_certifications      VARCHAR(500) COMMENT 'ISO认证情况（如ISO9001:2015）',
     aeo_certification       VARCHAR(50) COMMENT '海关AEO认证等级',
     other_certifications    VARCHAR(500) COMMENT '其他资质证书',
@@ -241,7 +243,8 @@ CREATE TABLE enterprises (
     INDEX idx_created (created_at),
     INDEX idx_booking_user (booking_user_id),
     FOREIGN KEY (industry_id) REFERENCES industry_categories(id),
-    FOREIGN KEY (source_id) REFERENCES system_options(id)
+    FOREIGN KEY (source_id) REFERENCES system_options(id),
+    FOREIGN KEY (source_provider_id) REFERENCES system_options(id)
 ) COMMENT='企业主表';
 
 -- ------------------------------------------------------------
@@ -261,6 +264,12 @@ CREATE TABLE enterprises (
 -- ALTER TABLE enterprises
 --     DROP COLUMN desired_support,
 --     DROP COLUMN cooperation_demands;
+-- ------------------------------------------------------------
+-- 生产环境「仅升级」时：若 enterprises 尚无 source_provider_id，单独执行：
+-- ALTER TABLE enterprises
+--     ADD COLUMN source_provider_id INT NULL COMMENT '企业来源-服务商二级分类ID(关联system_options表,category=source_provider)' AFTER source_id,
+--     ADD CONSTRAINT fk_enterprises_source_provider FOREIGN KEY (source_provider_id) REFERENCES system_options(id);
+-- 同时需插入 source_provider 字典数据（见下方 INSERT）。
 -- ------------------------------------------------------------
 
 -- ============================================================
@@ -700,7 +709,13 @@ INSERT INTO system_options (category, value, label, sort_order) VALUES
 ('source', 'survey', '调研', 1),
 ('source', 'referral', '转介绍', 2),
 ('source', 'inquiry', '主动咨询', 3),
-('source', 'activity', '活动', 4);
+('source', 'activity', '活动', 4),
+('source', 'provider', '服务商', 5);
+
+-- ==================== 企业来源-服务商子分类 (source_provider) ====================
+INSERT INTO system_options (category, value, label, sort_order) VALUES
+('source_provider', 'zhihuatong', '智慧通', 1),
+('source_provider', 'czguanjie', '常州冠捷', 2);
 
 -- ==================== 外贸模式 (trade_mode) ====================
 INSERT INTO system_options (category, value, label, sort_order) VALUES
@@ -2438,3 +2453,7 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 -- | user    | admin123 | user    | 普通用户   |
 -- ============================================================
 
+-- ============================================================
+-- 生产环境升级：新增 import_export_code 字段
+-- ALTER TABLE enterprises ADD COLUMN import_export_code VARCHAR(20) COMMENT '进出口收发货人代码' AFTER has_import_export_license;
+-- ============================================================

@@ -37,6 +37,7 @@ public class EnterpriseUpdateRequest {
     private Boolean domesticRevenueWanTouched;
 
     private Integer sourceId;
+    private Integer sourceProviderId;
     
     // 品牌信息
     private Integer hasOwnBrand;
@@ -47,6 +48,7 @@ public class EnterpriseUpdateRequest {
     private List<String> targetCountryIds;
     private Integer tradeModeId;
     private Integer hasImportExportLicense;
+    private String importExportCode;
     private String isoCertifications;
     private String aeoCertification;
     private String otherCertifications;

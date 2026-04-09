@@ -12,7 +12,7 @@ import lombok.Data;
 @Schema(description = "专利请求")
 public class PatentRequest {
     
-    @Schema(description = "专利名称", required = true)
+    @Schema(description = "专利名称", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank(message = "专利名称不能为空")
     @Size(max = 200, message = "专利名称不能超过200个字符")
     private String name;

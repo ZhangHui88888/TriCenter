@@ -337,6 +337,7 @@ function EnterpriseDetail() {
   // 选项数据状态
   const [staffSizeOptions, setStaffSizeOptions] = useState<any[]>([]);
   const [sourceOptions, setSourceOptions] = useState<any[]>([]);
+  const [sourceProviderOptions, setSourceProviderOptions] = useState<any[]>([]);
   const [regionOptions, setRegionOptions] = useState<any[]>([]);
   const [tradeModeOptions, setTradeModeOptions] = useState<any[]>([]);
   const [tradeTeamModeOptions, setTradeTeamModeOptions] = useState<any[]>([]);
@@ -382,10 +383,11 @@ function EnterpriseDetail() {
       const startedAt = performance.now();
       logEnterpriseDetail('start dictionary options load');
       try {
-        const [staffSize, source, region, tradeMode, tradeTeamMode, certification, automationLevel, logistics] =
+        const [staffSize, source, sourceProvider, region, tradeMode, tradeTeamMode, certification, automationLevel, logistics] =
           await Promise.all([
             optionsApi.getOptions('staff_size'),
             optionsApi.getOptions('source'),
+            optionsApi.getOptions('source_provider'),
             optionsApi.getOptions('region'),
             optionsApi.getOptions('trade_mode'),
             optionsApi.getOptions('trade_team_mode'),
@@ -395,6 +397,7 @@ function EnterpriseDetail() {
           ]);
         if (staffSize.data) setStaffSizeOptions(staffSize.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (source.data) setSourceOptions(source.data.map((o: any) => ({ label: o.label, value: o.id })));
+        if (sourceProvider.data) setSourceProviderOptions(sourceProvider.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (region.data) setRegionOptions(region.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (tradeMode.data) setTradeModeOptions(tradeMode.data.map((o: any) => ({ label: o.label, value: o.id })));
         if (tradeTeamMode.data) setTradeTeamModeOptions(tradeTeamMode.data.map((o: any) => ({ label: o.label, value: o.id })));
@@ -457,6 +460,8 @@ function EnterpriseDetail() {
             crossborder_revenue: data.crossBorderRevenueLabel,
             source: data.sourceLabel,
             source_id: data.sourceId,
+            source_provider: data.sourceProviderLabel,
+            source_provider_id: data.sourceProviderId,
             funnel_stage: data.stage,
             stage_name: data.stageName,
             stage_color: data.stageColor,
@@ -468,6 +473,7 @@ function EnterpriseDetail() {
             trade_mode_id: data.tradeModeId,
             trade_mode: data.tradeModeLabel,
             has_import_export_license: data.hasImportExportLicense,
+            import_export_code: data.importExportCode,
             iso_certifications: data.isoCertifications,
             aeo_certification: data.aeoCertification,
             other_certifications: data.otherCertifications,
@@ -1680,6 +1686,7 @@ function EnterpriseDetail() {
         industryCategories={industryCategories}
         staffSizeOptions={staffSizeOptions}
         sourceOptions={sourceOptions}
+        sourceProviderOptions={sourceProviderOptions}
         onClose={() => setIsEditEnterpriseOpen(false)}
         onSuccess={(updated) => setEnterprise((prev) => prev ? { ...prev, ...updated } : prev)}
       />

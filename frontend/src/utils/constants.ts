@@ -59,6 +59,7 @@ export const ENTERPRISE_SOURCES = [
   '转介绍',
   '主动咨询',
   '活动',
+  '服务商',
 ];
 
 export const FOLLOW_UP_TYPES = [
