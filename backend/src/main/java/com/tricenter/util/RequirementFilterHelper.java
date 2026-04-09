@@ -240,6 +240,7 @@ public final class RequirementFilterHelper {
     public static Set<String> calculateEffectiveRequirementIds(
             Object dimensionSelections,
             Object removedRequirements,
+            Object addedRequirements,
             Object customRequirements
     ) {
         Set<String> effectiveIds = new LinkedHashSet<>(UNIVERSAL_REQUIRED_IDS);
@@ -251,6 +252,7 @@ public final class RequirementFilterHelper {
 
         dimensionalIds.removeAll(normalizeStringSet(removedRequirements));
         effectiveIds.addAll(dimensionalIds);
+        effectiveIds.addAll(normalizeStringSet(addedRequirements));
         effectiveIds.addAll(extractCustomRequirementIds(customRequirements));
         return effectiveIds;
     }

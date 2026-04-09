@@ -1,6 +1,6 @@
 import { AxiosHeaders, AxiosRequestConfig } from 'axios';
 import request from './request';
-import type { Enterprise, FollowUpRecord } from '@/types';
+import type { Enterprise, FollowUpRecord, ProviderDetail, ProviderListItem, ProviderUpdatePayload } from '@/types';
 
 /**
  * FormData 上传：实例默认 Content-Type: application/json 会破坏 multipart；
@@ -28,7 +28,6 @@ export const enterpriseApi = {
     enterpriseType?: string;
     staffSizeId?: number;
     domesticRevenueId?: number;
-    crossBorderRevenueId?: number;
     crossBorderRevenueMinWan?: number;
     crossBorderRevenueMaxWan?: number;
     sourceId?: number;
@@ -40,6 +39,7 @@ export const enterpriseApi = {
     logisticsPartnerIds?: string;
     lastFollowupDays?: number;
     requirementIds?: string;
+    hasAnyRequirement?: number;
     mainPlatforms?: string;
     targetMarkets?: string;
     createdDateStart?: string;
@@ -359,13 +359,13 @@ export const providerApi = {
     category?: string;
     cooperationStatus?: string;
     district?: string;
-  }) => request.get('/providers', { params }),
+  }) => request.get<{ list: ProviderListItem[]; total: number; page: number; pageSize: number }>('/providers', { params }),
 
-  getDetail: (id: number) => request.get(`/providers/${id}`),
+  getDetail: (id: number) => request.get<ProviderDetail>(`/providers/${id}`),
 
   create: (data: any) => request.post('/providers', data),
 
-  update: (id: number, data: any) => request.put(`/providers/${id}`, data),
+  update: (id: number, data: ProviderUpdatePayload) => request.put(`/providers/${id}`, data),
 
   delete: (id: number) => request.delete(`/providers/${id}`),
 };

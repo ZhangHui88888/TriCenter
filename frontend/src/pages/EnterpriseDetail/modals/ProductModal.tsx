@@ -1,28 +1,12 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Modal, Form, Row, Col, Input, Select, Cascader, Card, message } from 'antd';
 import { productApi, enterpriseApi } from '@/services/api';
+import { getCountryNameOptions, getRegionByCountryName, REGION_LABEL_MAP } from '@/data/countries';
 import {
   findProductCategoryPath,
   stripTrailingPercentForInput,
   ensurePercentSuffix,
 } from '../utils';
-
-const COUNTRY_OPTIONS = [
-  { label: '美国', value: '美国' },
-  { label: '加拿大', value: '加拿大' },
-  { label: '英国', value: '英国' },
-  { label: '德国', value: '德国' },
-  { label: '法国', value: '法国' },
-  { label: '日本', value: '日本' },
-  { label: '韩国', value: '韩国' },
-  { label: '澳大利亚', value: '澳大利亚' },
-  { label: '新加坡', value: '新加坡' },
-  { label: '马来西亚', value: '马来西亚' },
-  { label: '泰国', value: '泰国' },
-  { label: '越南', value: '越南' },
-  { label: '印度', value: '印度' },
-  { label: '阿联酋', value: '阿联酋' },
-];
 
 interface ProductModalProps {
   open: boolean;
@@ -52,6 +36,25 @@ export default function ProductModal({
   onSuccess,
 }: ProductModalProps) {
   const [form] = Form.useForm();
+
+  const handleCountriesChange = useCallback(
+    (selectedCountryNames: string[]) => {
+      const regionCodes = new Set(
+        selectedCountryNames.map(getRegionByCountryName).filter(Boolean) as string[],
+      );
+      const regionIdsFromCountries = [...regionCodes]
+        .map((code) => {
+          const label = REGION_LABEL_MAP[code];
+          return regionOptions.find((o: any) => o.label === label)?.value;
+        })
+        .filter((id): id is number => id != null);
+
+      const current: number[] = form.getFieldValue('target_region_ids') || [];
+      const merged = [...new Set([...current, ...regionIdsFromCountries])];
+      form.setFieldsValue({ target_region_ids: merged });
+    },
+    [form, regionOptions],
+  );
 
   useEffect(() => {
     if (open && editingRecord) {
@@ -214,7 +217,10 @@ export default function ProductModal({
                 mode="tags"
                 placeholder="输入或选择国家/地区名称"
                 allowClear
-                options={COUNTRY_OPTIONS}
+                showSearch
+                optionFilterProp="label"
+                options={getCountryNameOptions()}
+                onChange={handleCountriesChange}
               />
             </Form.Item>
           </Col>

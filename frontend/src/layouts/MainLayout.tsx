@@ -14,8 +14,6 @@ import {
   BookOutlined,
   SearchOutlined,
   CustomerServiceOutlined,
-  BellOutlined,
-  SettingOutlined,
   BarChartOutlined,
   ApartmentOutlined,
 } from '@ant-design/icons';
@@ -157,24 +155,6 @@ function MainLayout() {
                 style={{ background: mode === 'dark' ? '#396AFF' : '#d9d9d9' }}
               />
             </Tooltip>
-            <div style={{
-              width: 50, height: 50, borderRadius: '50%',
-              background: '#F5F7FA', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#396AFF', fontSize: 20,
-            }}>
-              <SettingOutlined />
-            </div>
-            <div style={{
-              width: 50, height: 50, borderRadius: '50%', position: 'relative',
-              background: '#F5F7FA', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#FE5C73', fontSize: 20,
-            }}>
-              <BellOutlined />
-              <div style={{
-                position: 'absolute', top: 6, right: 6, width: 8, height: 8,
-                borderRadius: 4, background: '#FE5C73', border: '2px solid #fff',
-              }} />
-            </div>
             <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar

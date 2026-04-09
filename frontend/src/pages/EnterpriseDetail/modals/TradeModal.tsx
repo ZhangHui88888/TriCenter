@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Modal, Form, Select, Input, Row, Col, message } from 'antd';
 import request from '@/services/request';
+import { CUSTOMS_DECLARATION_MODE_OPTIONS } from '@/utils/constants';
 
 interface TradeModalProps {
   open: boolean;
@@ -109,7 +110,7 @@ export default function TradeModal({
           </Col>
           <Col span={12}>
             <Form.Item name="customsDeclarationMode" label="报关申报主体模式">
-              <Select options={[{ label: '自营', value: '自营' }, { label: '代理', value: '代理' }]} />
+              <Select options={CUSTOMS_DECLARATION_MODE_OPTIONS} />
             </Form.Item>
           </Col>
           <Col span={12}>

@@ -26,6 +26,105 @@ export interface Contact {
   remark?: string;
 }
 
+export interface ProviderListItem {
+  id: number;
+  name: string;
+  category?: string;
+  categoryName?: string;
+  district?: string;
+  cooperationStatus?: string;
+  cooperationStartDate?: string;
+  contractEndDate?: string;
+  serviceRating?: number | null;
+  totalServiceCount?: number | null;
+  totalServedEnterprises?: number | null;
+  primaryContactName?: string;
+  primaryContactPhone?: string;
+  capabilityRequirementIds?: string[];
+  createdAt?: string;
+}
+
+export interface ProviderContactInfo {
+  id?: number;
+  name?: string;
+  phone?: string;
+  position?: string;
+  isPrimary?: number;
+  email?: string;
+  wechat?: string;
+  remark?: string;
+}
+
+export interface ProviderServiceAreaInfo {
+  id?: number;
+  areaName?: string;
+  description?: string;
+  sortOrder?: number;
+}
+
+export interface ProviderEditableContact {
+  id?: number;
+  name: string;
+  phone: string;
+  position?: string;
+  isPrimary: boolean;
+  email?: string;
+  wechat?: string;
+  remark?: string;
+}
+
+export interface ProviderUpdatePayload {
+  name: string;
+  category?: string;
+  description?: string;
+  creditCode?: string;
+  province?: string;
+  city?: string;
+  district?: string;
+  address?: string;
+  website?: string;
+  serviceScope?: string;
+  serviceTags?: number[];
+  staffSizeId?: number | null;
+  qualification?: string;
+  capabilityRequirementIds?: string[];
+  cooperationStartDate?: string | null;
+  cooperationStatus?: string;
+  contractEndDate?: string | null;
+  contacts?: ProviderEditableContact[];
+}
+
+export interface ProviderDetail {
+  id: number;
+  name: string;
+  category?: string;
+  categoryName?: string;
+  description?: string;
+  creditCode?: string;
+  province?: string;
+  city?: string;
+  district?: string;
+  address?: string;
+  website?: string;
+  serviceScope?: string;
+  serviceTags?: number[];
+  staffSizeId?: number | null;
+  staffSizeName?: string;
+  qualification?: string;
+  capabilityRequirementIds?: string[];
+  cooperationStartDate?: string;
+  cooperationStatus?: string;
+  contractEndDate?: string;
+  serviceRating?: number | null;
+  totalServiceCount?: number | null;
+  totalServedEnterprises?: number | null;
+  bookingProviderId?: number | null;
+  createdAt?: string;
+  updatedAt?: string;
+  contacts?: ProviderContactInfo[];
+  serviceAreas?: ProviderServiceAreaInfo[];
+}
+
 export interface Enterprise {
   id: number;
   enterprise_name: string;
@@ -77,6 +176,30 @@ export interface FollowUpRecord {
   stage_before?: FunnelStage;
   stage_after?: FunnelStage;
   created_at?: string;
+}
+
+export interface ServiceRecordItem {
+  id: number;
+  enterpriseId: number;
+  enterpriseName?: string;
+  providerId?: number;
+  providerName?: string;
+  serviceType: string;
+  serviceName: string;
+  serviceDate: string;
+  status: string;
+  responsibleId?: number;
+  responsibleName?: string;
+  contractNo?: string;
+  description?: string;
+  result?: string;
+  stageFrom?: string;
+  stageTo?: string;
+  projectLevel?: string;
+  feasibilityScore?: number;
+  benchmarkPossibility?: number;
+  assessmentData?: Record<string, number> | null;
+  attachments?: Array<Record<string, unknown>> | null;
 }
 
 export interface ConversionData {

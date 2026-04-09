@@ -104,6 +104,7 @@ export const COUNTRIES: Country[] = [
   { value: 'CY', label: '塞浦路斯', region: 'europe' },
 
   // ==================== 东亚 (east_asia) ====================
+  { value: 'CN', label: '中国', region: 'east_asia' },
   { value: 'JP', label: '日本', region: 'east_asia' },
   { value: 'KR', label: '韩国', region: 'east_asia' },
   { value: 'KP', label: '朝鲜', region: 'east_asia' },
@@ -240,6 +241,28 @@ export const COUNTRIES: Country[] = [
 ];
 
 /**
+ * 区域代码 → 中文名称映射（与 system_options.region 对齐）
+ */
+export const REGION_LABEL_MAP: Record<string, string> = {
+  north_america: '北美',
+  south_america: '南美',
+  europe: '欧洲',
+  east_asia: '东亚',
+  southeast_asia: '东南亚',
+  south_asia: '南亚',
+  middle_east: '中东',
+  africa: '非洲',
+  oceania: '大洋洲',
+};
+
+/**
+ * 根据国家中文名获取所属区域代码
+ */
+export const getRegionByCountryName = (countryName: string): string | undefined => {
+  return COUNTRIES.find(c => c.label === countryName)?.region;
+};
+
+/**
  * 根据区域代码获取国家列表
  */
 export const getCountriesByRegion = (regionCode: string): Country[] => {
@@ -265,6 +288,10 @@ export const getCountryLabel = (code: string): string => {
  */
 export const getCountryOptions = () => {
   return COUNTRIES.map(c => ({ value: c.value, label: c.label }));
+};
+
+export const getCountryNameOptions = () => {
+  return COUNTRIES.map(c => ({ value: c.label, label: c.label }));
 };
 
 /**

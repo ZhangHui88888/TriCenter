@@ -48,6 +48,12 @@ export const ENTERPRISE_TYPE_OPTIONS = ENTERPRISE_TYPES.map(type => ({
   value: type,
 }));
 
+export const CUSTOMS_DECLARATION_MODE_OPTIONS = [
+  { label: '自营', value: '自营' },
+  { label: '代理', value: '代理' },
+  { label: '暂无申报', value: '暂无申报' },
+];
+
 export const ENTERPRISE_SOURCES = [
   '调研',
   '转介绍',

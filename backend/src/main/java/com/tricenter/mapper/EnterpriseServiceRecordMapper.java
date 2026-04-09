@@ -2,13 +2,14 @@ package com.tricenter.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tricenter.entity.EnterpriseServiceRecord;
 import org.apache.ibatis.annotations.*;
 import org.apache.ibatis.type.JdbcType;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 
 import java.util.List;
+import java.util.Map;
 
 @Mapper
 public interface EnterpriseServiceRecordMapper extends BaseMapper<EnterpriseServiceRecord> {
@@ -79,4 +80,16 @@ public interface EnterpriseServiceRecordMapper extends BaseMapper<EnterpriseServ
                                                      @Param("providerId") Integer providerId,
                                                      @Param("serviceType") String serviceType,
                                                      @Param("status") String status);
+
+    @Select("<script>" +
+            "SELECT r.provider_id AS providerId, COUNT(*) AS totalServiceCount, COUNT(DISTINCT r.enterprise_id) AS totalServedEnterprises " +
+            "FROM enterprise_service_records r " +
+            "WHERE r.is_deleted = 0 AND r.provider_id IS NOT NULL " +
+            "AND r.provider_id IN " +
+            "<foreach collection='providerIds' item='providerId' open='(' separator=',' close=')'>" +
+            "#{providerId}" +
+            "</foreach> " +
+            "GROUP BY r.provider_id" +
+            "</script>")
+    List<Map<String, Object>> selectProviderStats(@Param("providerIds") List<Integer> providerIds);
 }

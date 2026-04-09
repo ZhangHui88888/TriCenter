@@ -13,11 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -114,6 +110,48 @@ public class DictionaryCacheService {
     public String getIndustryName(Integer id) {
         IndustryCategory industry = getIndustryById(id);
         return industry != null ? industry.getName() : null;
+    }
+
+    /**
+     * 获取指定行业分类ID及其所有后代分类ID（用于筛选时包含子分类）
+     */
+    public Set<Integer> getIndustryDescendantIds(Integer id) {
+        Set<Integer> result = new LinkedHashSet<>();
+        if (id == null) return result;
+        result.add(id);
+        Queue<Integer> queue = new LinkedList<>();
+        queue.add(id);
+        while (!queue.isEmpty()) {
+            Integer parentId = queue.poll();
+            for (IndustryCategory cat : industryIdMap.values()) {
+                if (parentId.equals(cat.getParentId()) && !result.contains(cat.getId())) {
+                    result.add(cat.getId());
+                    queue.add(cat.getId());
+                }
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 获取指定产品品类ID及其所有后代品类ID（用于筛选时包含子分类）
+     */
+    public Set<Integer> getProductCategoryDescendantIds(Integer id) {
+        Set<Integer> result = new LinkedHashSet<>();
+        if (id == null) return result;
+        result.add(id);
+        Queue<Integer> queue = new LinkedList<>();
+        queue.add(id);
+        while (!queue.isEmpty()) {
+            Integer parentId = queue.poll();
+            for (ProductCategory cat : productIdMap.values()) {
+                if (parentId.equals(cat.getParentId()) && !result.contains(cat.getId())) {
+                    result.add(cat.getId());
+                    queue.add(cat.getId());
+                }
+            }
+        }
+        return result;
     }
 
     /**

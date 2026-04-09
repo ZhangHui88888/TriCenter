@@ -9,12 +9,13 @@ const Login = lazy(() => import('./pages/Login'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const EnterpriseList = lazy(() => import('./pages/EnterpriseList'))
 const EnterpriseDetail = lazy(() => import('./pages/EnterpriseDetail'))
+const ProviderDetail = lazy(() => import('./pages/ProviderDetail'))
 const FollowUpRecords = lazy(() => import('./pages/FollowUpRecords'))
 const MarketResearch = lazy(() => import('./pages/MarketResearch'))
 const DataDictionary = lazy(() => import('./pages/DataDictionary'))
 const ServiceRecords = lazy(() => import('./pages/ServiceRecords'))
 const DataAnalysis = lazy(() => import('./pages/DataAnalysis'))
-const ProviderList = lazy(() => import('./pages/ProviderList'))
+const ProviderList = lazy(() => import('./pages/provider/ProviderListPage'))
 import { useThemeStore } from './stores/themeStore'
 import { lightTheme, darkTheme } from './theme/themeConfig'
 
@@ -57,6 +58,7 @@ function App() {
                 <Route path="enterprise" element={<EnterpriseList />} />
                 <Route path="providers" element={<ProviderList />} />
                 <Route path="enterprise/:id" element={<EnterpriseDetail />} />
+                <Route path="providers/:id" element={<ProviderDetail />} />
                 <Route path="market-research" element={<MarketResearch />} />
                 <Route path="follow-up" element={<FollowUpRecords />} />
                 <Route path="service-records" element={<ServiceRecords />} />

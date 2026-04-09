@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, DatePicker, Row, Col, Rate, Collapse, message } from 'antd';
 import { CustomerServiceOutlined, StarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { serviceRecordApi, optionsApi } from '@/services/api';
+import { enterpriseApi, serviceRecordApi, optionsApi } from '@/services/api';
 import {
   ASSESSMENT_DIMENSIONS, SERVICE_TYPES_DATA, SERVICE_STATUSES_DATA, FUNNEL_STAGES,
   calcFeasibilityScore, calcProjectLevel,
@@ -15,17 +15,19 @@ import CooperationAttachmentsEditor, {
 
 interface ServiceRecordModalProps {
   open: boolean;
-  enterpriseId: number;
+  enterpriseId?: number;
+  providerId?: number;
   editingRecord: any | null;
   onClose: () => void;
   onSuccess: () => void;
 }
 
-export default function ServiceRecordModal({ open, enterpriseId, editingRecord, onClose, onSuccess }: ServiceRecordModalProps) {
+export default function ServiceRecordModal({ open, enterpriseId, providerId, editingRecord, onClose, onSuccess }: ServiceRecordModalProps) {
   const [form] = Form.useForm();
   const [submitting, setSubmitting] = useState(false);
   const [userOptions, setUserOptions] = useState<{ label: string; value: number }[]>([]);
   const [providerOptions, setProviderOptions] = useState<{ label: string; value: number }[]>([]);
+  const [enterpriseOptions, setEnterpriseOptions] = useState<{ label: string; value: number }[]>([]);
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([]);
 
   useEffect(() => {
@@ -36,7 +38,13 @@ export default function ServiceRecordModal({ open, enterpriseId, editingRecord, 
     optionsApi.getProviders().then(res => {
       if (res.data) setProviderOptions(res.data.map((p: any) => ({ label: p.label, value: Number(p.value) })));
     }).catch(() => {});
-  }, [open]);
+    if (enterpriseId == null) {
+      enterpriseApi.getList({ page: 1, pageSize: 9999 }).then(res => {
+        const list = res.data?.list || [];
+        setEnterpriseOptions(list.map((item: any) => ({ label: item.name, value: item.id })));
+      }).catch(() => {});
+    }
+  }, [open, enterpriseId]);
 
   useEffect(() => {
     if (!open) return;
@@ -46,19 +54,39 @@ export default function ServiceRecordModal({ open, enterpriseId, editingRecord, 
       delete recordFields.attachments;
       form.setFieldsValue({
         ...recordFields,
+        enterpriseId: editingRecord.enterpriseId,
+        providerId: editingRecord.providerId ?? providerId,
         serviceDate: editingRecord.serviceDate ? dayjs(editingRecord.serviceDate) : undefined,
       });
+      setAttachments(normalizeAttachmentList(editingRecord.attachments));
     } else {
       form.resetFields();
-      form.setFieldsValue({ status: 'pending', serviceDate: dayjs() });
+      form.setFieldsValue({
+        enterpriseId,
+        providerId,
+        status: 'pending',
+        serviceDate: dayjs(),
+      });
+      setAttachments([]);
     }
-  }, [open, editingRecord, form]);
+  }, [open, editingRecord, form, enterpriseId, providerId]);
 
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
+      const targetEnterpriseId = enterpriseId ?? editingRecord?.enterpriseId ?? values.enterpriseId;
+      if (!targetEnterpriseId) {
+        message.error('请选择企业');
+        return;
+      }
       setSubmitting(true);
-      const payload = { ...values, serviceDate: values.serviceDate?.format('YYYY-MM-DD'), attachments };
+      const payload = {
+        ...values,
+        providerId: providerId ?? values.providerId ?? null,
+        serviceDate: values.serviceDate?.format('YYYY-MM-DD'),
+        attachments,
+      };
+      delete payload.enterpriseId;
       // 标杆企业可能性在企业详情「合作」Tab 调整；此处保留单条记录上原值，避免更新时被后端写成 null
       if (editingRecord) {
         payload.benchmarkPossibility = editingRecord.benchmarkPossibility;
@@ -83,10 +111,10 @@ export default function ServiceRecordModal({ open, enterpriseId, editingRecord, 
       }
 
       if (editingRecord) {
-        await serviceRecordApi.update(enterpriseId, editingRecord.id, payload);
+        await serviceRecordApi.update(targetEnterpriseId, editingRecord.id, payload);
         message.success('更新成功');
       } else {
-        await serviceRecordApi.create(enterpriseId, payload);
+        await serviceRecordApi.create(targetEnterpriseId, payload);
         message.success('创建成功');
       }
       onSuccess();
@@ -121,6 +149,13 @@ export default function ServiceRecordModal({ open, enterpriseId, editingRecord, 
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
         <Row gutter={16}>
+          {enterpriseId == null && (
+            <Col span={24}>
+              <Form.Item name="enterpriseId" label="合作企业" rules={[{ required: true, message: '请选择企业' }]}>
+                <Select placeholder="请选择企业" showSearch optionFilterProp="label" options={enterpriseOptions} disabled={editingRecord != null} />
+              </Form.Item>
+            </Col>
+          )}
           <Col span={12}>
             <Form.Item name="serviceType" label="服务类型" rules={[{ required: true, message: '请选择' }]}>
               <Select placeholder="请选择" options={SERVICE_TYPES_DATA.map(t => ({ label: t.label, value: t.value }))} />
@@ -143,7 +178,7 @@ export default function ServiceRecordModal({ open, enterpriseId, editingRecord, 
           </Col>
           <Col span={12}>
             <Form.Item name="providerId" label="服务商">
-              <Select placeholder="选择服务商（可选）" allowClear showSearch optionFilterProp="label" options={providerOptions} />
+              <Select placeholder="选择服务商（可选）" allowClear showSearch optionFilterProp="label" options={providerOptions} disabled={providerId != null} />
             </Form.Item>
           </Col>
           <Col span={12}>

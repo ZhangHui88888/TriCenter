@@ -21,7 +21,7 @@ export const dictionaryCategories: DictionaryCategory[] = [
   { key: 'stage', name: '漏斗阶段', description: '企业主表.stage' },
   { key: 'district', name: '区域', description: '企业主表.district' },
   { key: 'staff_size', name: '人员规模', description: '企业主表.staff_size_id' },
-  { key: 'revenue', name: '营收规模', description: '企业主表.domestic_revenue_id；跨境营收以 cross_border_revenue_wan(万元) 为主，cross_border_revenue_id 为历史档位' },
+  { key: 'revenue', name: '营收规模', description: '企业主表.domestic_revenue_id；跨境营收统一使用 last_year_revenue(万元)' },
   { key: 'source', name: '企业来源', description: '企业主表.source_id' },
   { key: 'enterprise_type', name: '企业类型', description: '企业主表.enterprise_type' },
   { key: 'trade_mode', name: '外贸模式', description: '企业主表.trade_mode_id' },
@@ -119,7 +119,11 @@ export const dictionaryData: DictionaryItem[] = [
   { id: 81, category: 'region', value: 'europe', label: '欧洲', sort_order: 2, is_enabled: true, created_at: '2025-01-01' },
   { id: 82, category: 'region', value: 'southeast_asia', label: '东南亚', sort_order: 3, is_enabled: true, created_at: '2025-01-01' },
   { id: 83, category: 'region', value: 'east_asia', label: '东亚', sort_order: 4, is_enabled: true, created_at: '2025-01-01' },
-  { id: 84, category: 'region', value: 'middle_east', label: '中东', sort_order: 5, is_enabled: true, created_at: '2025-01-01' },
+  { id: 84, category: 'region', value: 'south_asia', label: '南亚', sort_order: 5, is_enabled: true, created_at: '2025-01-01' },
+  { id: 85, category: 'region', value: 'middle_east', label: '中东', sort_order: 6, is_enabled: true, created_at: '2025-01-01' },
+  { id: 86, category: 'region', value: 'africa', label: '非洲', sort_order: 7, is_enabled: true, created_at: '2025-01-01' },
+  { id: 87, category: 'region', value: 'south_america', label: '南美', sort_order: 8, is_enabled: true, created_at: '2025-01-01' },
+  { id: 88, category: 'region', value: 'oceania', label: '大洋洲', sort_order: 9, is_enabled: true, created_at: '2025-01-01' },
 
   // 产品认证
   { id: 90, category: 'certification', value: 'CE', label: 'CE认证', sort_order: 1, is_enabled: true, created_at: '2025-01-01' },

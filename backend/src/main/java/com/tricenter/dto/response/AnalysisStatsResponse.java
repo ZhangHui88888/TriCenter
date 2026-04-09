@@ -3,6 +3,7 @@ package com.tricenter.dto.response;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -12,6 +13,8 @@ import java.util.List;
 public class AnalysisStatsResponse {
 
     private int totalCount;
+    /** 出口总贸易额（万元），即筛选企业的 last_year_revenue 之和 */
+    private BigDecimal totalExportRevenueWan;
     private List<NameCount> districtStats;
     private List<NameCount> typeStats;
     private List<NameCount> platformStats;

@@ -1,16 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Modal, Form, Select, Input, Cascader, message } from 'antd';
 import request from '@/services/request';
-
-const COUNTRY_OPTIONS = [
-  { label: '美国', value: '美国' }, { label: '加拿大', value: '加拿大' },
-  { label: '英国', value: '英国' }, { label: '德国', value: '德国' },
-  { label: '法国', value: '法国' }, { label: '日本', value: '日本' },
-  { label: '韩国', value: '韩国' }, { label: '澳大利亚', value: '澳大利亚' },
-  { label: '新加坡', value: '新加坡' }, { label: '马来西亚', value: '马来西亚' },
-  { label: '泰国', value: '泰国' }, { label: '越南', value: '越南' },
-  { label: '印度', value: '印度' }, { label: '阿联酋', value: '阿联酋' },
-];
+import { getCountryNameOptions } from '@/data/countries';
 
 const REGION_OPTIONS = [
   { label: '北美', value: '北美' }, { label: '欧洲', value: '欧洲' },
@@ -196,7 +187,9 @@ export default function TradeChangeModal({
                 <Form.Item name="name" label={getFieldValue('type') === 'country' ? '国家' : '区域'} rules={[{ required: true, message: '请选择' }]}>
                   <Select
                     placeholder={getFieldValue('type') === 'country' ? '请选择国家' : '请选择区域'}
-                    options={getFieldValue('type') === 'country' ? COUNTRY_OPTIONS : REGION_OPTIONS}
+                    showSearch={getFieldValue('type') === 'country'}
+                    optionFilterProp="label"
+                    options={getFieldValue('type') === 'country' ? getCountryNameOptions() : REGION_OPTIONS}
                   />
                 </Form.Item>
               )}

@@ -6,6 +6,7 @@ import {
   Button,
   Input,
   Select,
+  Cascader,
   InputNumber,
   DatePicker,
   Space,
@@ -16,6 +17,7 @@ import {
   Typography,
   message,
   Spin,
+  Checkbox,
 } from 'antd';
 import {
   SearchOutlined,
@@ -42,6 +44,7 @@ import {
   REVENUE_SCALES,
   CROSSBORDER_PLATFORMS,
   TRANSFORMATION_WILLINGNESS,
+  CUSTOMS_DECLARATION_MODE_OPTIONS,
 } from '@/utils/constants';
 import ReactECharts from 'echarts-for-react';
 import { enterpriseApi, optionsApi, surveyExcelApi, dashboardApi } from '@/services/api';
@@ -69,7 +72,6 @@ type EnterpriseListQueryParams = {
   enterpriseType?: string;
   staffSizeId?: number;
   domesticRevenueId?: number;
-  crossBorderRevenueId?: number;
   crossBorderRevenueMinWan?: number;
   crossBorderRevenueMaxWan?: number;
   sourceId?: number;
@@ -87,6 +89,7 @@ type EnterpriseListQueryParams = {
   logisticsPartnerIds?: string;
   lastFollowupDays?: number;
   requirementIds?: string;
+  hasAnyRequirement?: number;
   mainPlatforms?: string;
   targetMarkets?: string;
   hasForeignTrade?: number;
@@ -321,7 +324,7 @@ function EnterpriseList() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [industryFilter, setIndustryFilter] = useState<number | undefined>();
+  const [industryFilter, setIndustryFilter] = useState<(string | number)[] | undefined>();
   const [form] = Form.useForm();
   const [filterForm] = Form.useForm();
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -351,7 +354,7 @@ function EnterpriseList() {
   const [logisticsOptions, setLogisticsOptions] = useState<SelectOption[]>([]);
   const [tradeModeOptions, setTradeModeOptions] = useState<SelectOption[]>([]);
   const [tradeTeamModeOptions, setTradeTeamModeOptions] = useState<SelectOption[]>([]);
-  const [productCategoryOptions, setProductCategoryOptions] = useState<SelectOption[]>([]);
+  const [productCategoryOptions, setProductCategoryOptions] = useState<any[]>([]);
   const [regionOptions, setRegionOptions] = useState<SelectOption[]>([]);
   const [certificationOptions, setCertificationOptions] = useState<SelectOption[]>([]);
 
@@ -390,10 +393,12 @@ function EnterpriseList() {
     keyword: nameKw,
     stage: filters.funnel_stage || stageFilter || undefined,
     district: filters.district || districtFilter || undefined,
-    industryId:
-      filters.industry_id != null && filters.industry_id !== ''
-        ? Number(filters.industry_id)
-        : industryFilter,
+    industryId: (() => {
+      const path = filters.industry_id ?? industryFilter;
+      if (Array.isArray(path) && path.length > 0) return Number(path[path.length - 1]);
+      if (path != null && path !== '') return Number(path);
+      return undefined;
+    })(),
     province: filters.province || undefined,
     city: filters.city || undefined,
     enterpriseType: filters.enterprise_type || undefined,
@@ -442,6 +447,7 @@ function EnterpriseList() {
     requirementIds: requirementIds.length > 0
       ? requirementIds.join(',')
       : undefined,
+    hasAnyRequirement: filters.has_any_requirement ? 1 : undefined,
     mainPlatforms: Array.isArray(filters.main_platforms) && filters.main_platforms.length > 0
       ? filters.main_platforms.join(',')
       : undefined,
@@ -464,7 +470,12 @@ function EnterpriseList() {
     paymentMethod: Array.isArray(filters.payment_method) && filters.payment_method.length > 0
       ? filters.payment_method.join(',')
       : undefined,
-    productCategoryId: filters.product_category_id || undefined,
+    productCategoryId: (() => {
+      const path = filters.product_category_id;
+      if (Array.isArray(path) && path.length > 0) return Number(path[path.length - 1]);
+      if (path != null && path !== '') return Number(path);
+      return undefined;
+    })(),
     targetRegionId: filters.target_region_id || undefined,
     targetCountryCode: filters.target_country_code || undefined,
     productCertificationId: filters.product_certification_id || undefined,
@@ -680,17 +691,15 @@ function EnterpriseList() {
         setDistricts(districtRes.data.map((d: any) => d.label));
       }
       
-      // 行业选项（扁平化处理）
+      // 行业选项（保留树形结构，转为 Cascader 格式）
       if (industryRes.data) {
-        const flatIndustries: any[] = [];
-        const flatten = (items: any[]) => {
-          items.forEach(item => {
-            flatIndustries.push({ id: item.id, name: item.name });
-            if (item.children) flatten(item.children);
-          });
-        };
-        flatten(industryRes.data);
-        setIndustries(flatIndustries);
+        const toCascader = (items: any[]): any[] =>
+          items.map(item => ({
+            value: item.id,
+            label: item.name,
+            ...(item.children?.length ? { children: toCascader(item.children) } : {}),
+          }));
+        setIndustries(toCascader(industryRes.data));
       }
 
       if (staffSizeRes.data) {
@@ -722,15 +731,13 @@ function EnterpriseList() {
       }
 
       if (productCategoryRes.data) {
-        const flatCategories: SelectOption[] = [];
-        const flattenCat = (items: any[]) => {
-          items.forEach((item: any) => {
-            flatCategories.push({ label: item.name, value: item.id });
-            if (item.children) flattenCat(item.children);
-          });
-        };
-        flattenCat(productCategoryRes.data);
-        setProductCategoryOptions(flatCategories);
+        const toCascaderCat = (items: any[]): any[] =>
+          items.map(item => ({
+            value: item.id,
+            label: item.name,
+            ...(item.children?.length ? { children: toCascaderCat(item.children) } : {}),
+          }));
+        setProductCategoryOptions(toCascaderCat(productCategoryRes.data));
       }
 
       if (regionRes.data) {
@@ -878,6 +885,7 @@ function EnterpriseList() {
     'funnel_stage',
     'last_followup_days',
     'requirements',
+    'has_any_requirement',
     'has_erp',
     'has_foreign_trade',
     'trade_mode',
@@ -1027,7 +1035,9 @@ function EnterpriseList() {
     }
     setAdvancedFilters(supported);
     setIndustryFilter(
-      normalizedValues.industry_id != null && normalizedValues.industry_id !== '' ? Number(normalizedValues.industry_id) : undefined
+      Array.isArray(normalizedValues.industry_id) && normalizedValues.industry_id.length > 0
+        ? normalizedValues.industry_id
+        : undefined
     );
     if (typeof normalizedValues.enterprise_name === 'string') {
       setSearchTerm(normalizedValues.enterprise_name.trim());
@@ -1047,6 +1057,10 @@ function EnterpriseList() {
   const handleResetFilters = () => {
     filterForm.resetFields();
     setAdvancedFilters({});
+    setIndustryFilter(undefined);
+    setDistrictFilter('');
+    setStageFilter('');
+    setSearchTerm('');
     setPage(1);
     void fetchEnterprises(1, pageSize, {});
     void fetchOverviewStats({});
@@ -1296,13 +1310,20 @@ function EnterpriseList() {
                 onChange={(value) => setDistrictFilter(value || '')}
                 options={districts.map(d => ({ label: d, value: d }))}
               />
-              <Select
+              <Cascader
                 placeholder="所属行业"
-                style={{ width: 130, height: 40 }}
+                style={{ width: 160, height: 40 }}
                 allowClear
                 value={industryFilter}
-                onChange={(value) => setIndustryFilter(value)}
-                options={industries.map(i => ({ label: i.name, value: i.id }))}
+                onChange={(value) => setIndustryFilter(value?.length ? value : undefined)}
+                options={industries}
+                changeOnSelect
+                showSearch={{
+                  filter: (inputValue, path) =>
+                    path.some(option =>
+                      (option.label as string).toLowerCase().includes(inputValue.toLowerCase())
+                    ),
+                }}
               />
               <Button
                 type="primary"
@@ -1886,13 +1907,17 @@ function EnterpriseList() {
                     </Col>
                     <Col span={8}>
                       <Form.Item name="industry_id" label="所属行业">
-                        <Select
+                        <Cascader
                           placeholder="请选择"
                           allowClear
-                          options={industries.map((o: { id: number; name: string }) => ({
-                            label: o.name,
-                            value: o.id,
-                          }))}
+                          options={industries}
+                          changeOnSelect
+                          showSearch={{
+                            filter: (inputValue, path) =>
+                              path.some(option =>
+                                (option.label as string).toLowerCase().includes(inputValue.toLowerCase())
+                              ),
+                          }}
                         />
                       </Form.Item>
                     </Col>
@@ -2031,12 +2056,12 @@ function EnterpriseList() {
                     </Col>
                     <Col span={8}>
                       <Form.Item name="product_category_id" label="产品品类">
-                        <Select
+                        <Cascader
                           placeholder="请选择"
                           allowClear
-                          showSearch
-                          optionFilterProp="label"
                           options={productCategoryOptions}
+                          changeOnSelect
+                          showSearch={{ filter: (input: string, path: any[]) => path.some((opt: any) => (opt.label as string).toLowerCase().includes(input.toLowerCase())) }}
                         />
                       </Form.Item>
                     </Col>
@@ -2113,10 +2138,7 @@ function EnterpriseList() {
                         <Select
                           placeholder="请选择"
                           allowClear
-                          options={[
-                            { label: '自营', value: '自营' },
-                            { label: '代理', value: '代理' },
-                          ]}
+                          options={CUSTOMS_DECLARATION_MODE_OPTIONS}
                         />
                       </Form.Item>
                     </Col>
@@ -2314,8 +2336,11 @@ function EnterpriseList() {
                 label: '需求分析',
                 children: (
                   <div>
-                    <div style={{ marginBottom: 12, color: '#666', fontSize: 13 }}>
-                      选择需求项，筛选具有相关需求的企业
+                    <div style={{ marginBottom: 12, color: '#666', fontSize: 13, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>选择需求项，筛选具有相关需求的企业</span>
+                      <Form.Item name="has_any_requirement" valuePropName="checked" noStyle>
+                        <Checkbox>仅看有需求企业</Checkbox>
+                      </Form.Item>
                     </div>
                     {['战略规划与资源准备', '渠道搭建与商品上线', '营销推广与规模增长', '品牌深耕与持续优化'].map(phase => {
                       const phaseRequirements = requirements.filter(r => r.phase === phase);

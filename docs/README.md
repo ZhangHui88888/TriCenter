@@ -38,6 +38,9 @@ docs/
 | [市场调研模块设计文档.md](./design/市场调研模块设计文档.md) | 市场调研模块需求设计：总览、数据查询、AI分析、竞品分析、报告模板 |
 | [调研报告字段映射分析.md](./design/调研报告字段映射分析.md) | 调研报告所需企业字段与数据库字段的对照分析，含缺失字段建议 |
 | [服务商管理页面设计.md](./design/服务商管理页面设计.md) | 服务商管理页面设计：列表筛选、CRUD、后端接口 |
+| [Trooly AI企业分析报告.md](./design/Trooly%20AI企业分析报告.md) | 基于企业手册提炼的 Trooly AI 优势、劣势、风险与合作建议报告 |
+| [Trooly AI合作沟通提问清单.md](./design/Trooly%20AI合作沟通提问清单.md) | 与 Trooly 会前准备的甲方提问提纲，聚焦样本质量、访谈可信度、交付与合作风险 |
+| [企业数据导入字段映射.md](./design/企业数据导入字段映射.md) | Excel 企业数据批量导入字段映射：36列→企业详情页各标签页字段对照与待确认问题 |
 
 ## `tech/` — 技术文档
 
@@ -73,9 +76,8 @@ docs/
 
 | 文档 | 说明 |
 |------|------|
-| [schema.sql](./sql/schema.sql) | 表结构定义（19张表：users、enterprises、follow_ups、providers、market_reports 等） |
-| [init.sql](./sql/init.sql) | 初始化数据（系统选项、行业分类、产品品类、需求、默认用户） |
+| [tricenter_schema.sql](./sql/tricenter_schema.sql) | 表结构定义（19张表：users、enterprises、follow_ups、providers、market_reports 等） |
+| [tricenter_init.sql](./sql/tricenter_init.sql) | 初始化数据（系统选项、行业分类、产品品类、需求、默认用户） |
 | scripts/ | 上线后每次更新的迁移脚本 |
-| [scripts/04_add_market_reports.sql](./sql/scripts/04_add_market_reports.sql) | 新增市场调研报告表 |
-| [scripts/05_add_provider_capability.sql](./sql/scripts/05_add_provider_capability.sql) | providers 表新增 capability_requirement_ids 字段 + 服务分类字典数据 |
 | [scripts/06_add_requirement_recommended.sql](./sql/scripts/06_add_requirement_recommended.sql) | requirements 表新增 is_recommended 字段（推荐需求优先展示） |
+| [scripts/06_merge_crossborder_revenue.sql](./sql/scripts/06_merge_crossborder_revenue.sql) | 跨境营收字段统一：废弃 cross_border_revenue_wan/id，合并到 last_year_revenue |

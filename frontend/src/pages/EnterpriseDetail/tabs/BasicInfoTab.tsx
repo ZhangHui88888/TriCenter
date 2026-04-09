@@ -57,8 +57,8 @@ export default function BasicInfoTab({ enterprise, openEditModal }: BasicInfoTab
               : enterprise.domestic_revenue || '-'}
           </Descriptions.Item>
           <Descriptions.Item label="跨境营收(万元)">
-            {enterprise.crossborder_revenue_wan != null && enterprise.crossborder_revenue_wan !== ''
-              ? enterprise.crossborder_revenue_wan
+            {enterprise.last_year_revenue != null && enterprise.last_year_revenue !== ''
+              ? enterprise.last_year_revenue
               : enterprise.crossborder_revenue || '-'}
           </Descriptions.Item>
           <Descriptions.Item label="企业来源">{enterprise.source || '-'}</Descriptions.Item>

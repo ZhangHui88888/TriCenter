@@ -199,6 +199,7 @@ function EnterpriseDetail() {
   const [selectedCrossborderPlatforms, setSelectedCrossborderPlatforms] = useState<string[]>([]);
   const [selectedStage, setSelectedStage] = useState('');
   const [removedRequirements, setRemovedRequirements] = useState<string[]>([]);
+  const [addedRequirements, setAddedRequirements] = useState<string[]>([]);
   const [customRequirements, setCustomRequirements] = useState<{id: string; name: string; description: string; phase: string; category: string}[]>([]);
   const [isCustomRequirementModalOpen, setIsCustomRequirementModalOpen] = useState(false);
   const [isRestoreRequirementModalOpen, setIsRestoreRequirementModalOpen] = useState(false);
@@ -454,8 +455,6 @@ function EnterpriseDetail() {
             domestic_revenue_id: data.domesticRevenueId,
             domestic_revenue_wan: data.domesticRevenueWan != null ? Number(data.domesticRevenueWan) : undefined,
             crossborder_revenue: data.crossBorderRevenueLabel,
-            crossborder_revenue_wan: data.crossBorderRevenueWan != null ? Number(data.crossBorderRevenueWan) : undefined,
-            crossborder_revenue_id: data.crossBorderRevenueId,
             source: data.sourceLabel,
             source_id: data.sourceId,
             funnel_stage: data.stage,
@@ -515,6 +514,7 @@ function EnterpriseDetail() {
             tricenter_concerns: data.tricenterConcerns,
             dimension_selections: data.dimensionSelections,
             removed_requirements: data.removedRequirements,
+            added_requirements: data.addedRequirements,
             custom_requirements: data.customRequirements,
             products: data.products || [],
             overviewMergedTargetRegionNames: data.overviewMergedTargetRegionNames,
@@ -667,6 +667,9 @@ function EnterpriseDetail() {
     }
     if (enterprise.removed_requirements && Array.isArray(enterprise.removed_requirements)) {
       setRemovedRequirements(enterprise.removed_requirements);
+    }
+    if (enterprise.added_requirements && Array.isArray(enterprise.added_requirements)) {
+      setAddedRequirements(enterprise.added_requirements);
     }
     if (enterprise.custom_requirements && Array.isArray(enterprise.custom_requirements)) {
       setCustomRequirements(enterprise.custom_requirements);
@@ -1380,7 +1383,7 @@ function EnterpriseDetail() {
     {
       key: 'requirements',
       label: enterpriseDetailTabLabel('需求分析', 'requirements'),
-      children: <RequirementsTab reqConfig={reqConfig} dimensionSelections={dimensionSelections} setDimensionSelections={setDimensionSelections} removedRequirements={removedRequirements} setRemovedRequirements={setRemovedRequirements} customRequirements={customRequirements} setCustomRequirements={setCustomRequirements} isCustomRequirementModalOpen={isCustomRequirementModalOpen} setIsCustomRequirementModalOpen={setIsCustomRequirementModalOpen} isRestoreRequirementModalOpen={isRestoreRequirementModalOpen} setIsRestoreRequirementModalOpen={setIsRestoreRequirementModalOpen} restoreCategory={restoreCategory} setRestoreCategory={setRestoreCategory} customRequirementForm={customRequirementForm} saveEnterpriseFields={saveEnterpriseFields} />,
+      children: <RequirementsTab reqConfig={reqConfig} dimensionSelections={dimensionSelections} setDimensionSelections={setDimensionSelections} removedRequirements={removedRequirements} setRemovedRequirements={setRemovedRequirements} addedRequirements={addedRequirements} setAddedRequirements={setAddedRequirements} customRequirements={customRequirements} setCustomRequirements={setCustomRequirements} isCustomRequirementModalOpen={isCustomRequirementModalOpen} setIsCustomRequirementModalOpen={setIsCustomRequirementModalOpen} customRequirementForm={customRequirementForm} saveEnterpriseFields={saveEnterpriseFields} />,
     },
     {
       key: 'policy',
@@ -1445,7 +1448,7 @@ function EnterpriseDetail() {
         {/* 顶部装饰条 */}
         <div style={{ 
           height: 4, 
-          background: `linear-gradient(90deg, ${stageInfo.color} 0%, ${stageInfo.color}60 50%, transparent 100%)`,
+          background: 'linear-gradient(90deg, #396aff 0%, rgba(57,106,255,0.38) 50%, transparent 100%)',
         }} />
         
         <div style={{ padding: '28px 32px' }}>
@@ -1457,15 +1460,15 @@ function EnterpriseDetail() {
                 width: 72,
                 height: 72,
                 borderRadius: 18,
-                background: `linear-gradient(145deg, ${stageInfo.color}15 0%, ${stageInfo.color}30 100%)`,
+                background: 'linear-gradient(145deg, rgba(57,106,255,0.10) 0%, rgba(57,106,255,0.24) 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 fontSize: 32,
                 fontWeight: 700,
-                color: stageInfo.color,
-                border: `2px solid ${stageInfo.color}25`,
-                boxShadow: `0 8px 24px ${stageInfo.color}15`,
+                color: '#396aff',
+                border: '2px solid rgba(57,106,255,0.16)',
+                boxShadow: '0 8px 24px rgba(57,106,255,0.12)',
                 position: 'relative',
               }}>
                 {enterprise.enterprise_name.charAt(0)}
@@ -1477,7 +1480,7 @@ function EnterpriseDetail() {
                   width: 18,
                   height: 18,
                   borderRadius: '50%',
-                  background: stageInfo.color,
+                  background: '#396aff',
                   border: '3px solid #fff',
                   boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
                 }} />

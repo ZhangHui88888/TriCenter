@@ -61,14 +61,6 @@ public class Enterprise {
     @TableField(updateStrategy = FieldStrategy.ALWAYS)
     private BigDecimal domesticRevenueWan;
     
-    /** 跨境营收ID */
-    @TableField(updateStrategy = FieldStrategy.ALWAYS)
-    private Integer crossBorderRevenueId;
-
-    /** 跨境营收(万元)，精确数值；与 crossBorderRevenueId 二选一优先使用本字段 */
-    @TableField(updateStrategy = FieldStrategy.ALWAYS)
-    private BigDecimal crossBorderRevenueWan;
-    
     /** 企业来源ID */
     private Integer sourceId;
     
@@ -249,6 +241,10 @@ public class Enterprise {
     /** 已移除的需求ID列表 */
     @TableField(typeHandler = JacksonTypeHandler.class)
     private Object removedRequirements;
+    
+    /** 手动添加到默认清单的需求ID列表 */
+    @TableField(typeHandler = JacksonTypeHandler.class)
+    private Object addedRequirements;
     
     /** 自定义需求列表 */
     @TableField(typeHandler = JacksonTypeHandler.class)

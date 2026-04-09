@@ -121,6 +121,7 @@ public final class EnterpriseExportRequirementMatrixSheet {
             Set<String> ids = requirementMatchEngine.calculateEffectiveRequirementIds(
                     e.getDimensionSelections(),
                     e.getRemovedRequirements(),
+                    e.getAddedRequirements(),
                     e.getCustomRequirements());
             effectiveByEnterprise.put(e.getId(), ids);
         }
@@ -316,12 +317,6 @@ public final class EnterpriseExportRequirementMatrixSheet {
             String label = dict.getOptionLabel(request.getDomesticRevenueId());
             if (StringUtils.hasText(label)) {
                 parts.add("国内营收：" + label);
-            }
-        }
-        if (request.getCrossBorderRevenueId() != null && request.getCrossBorderRevenueId() > 0) {
-            String label = dict.getOptionLabel(request.getCrossBorderRevenueId());
-            if (StringUtils.hasText(label)) {
-                parts.add("跨境营收：" + label);
             }
         }
         if (request.getCrossBorderRevenueMinWan() != null || request.getCrossBorderRevenueMaxWan() != null) {

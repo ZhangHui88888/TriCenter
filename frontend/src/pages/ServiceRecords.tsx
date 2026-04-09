@@ -110,6 +110,7 @@ export default function ServiceRecords() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const paramEnterpriseId = searchParams.get('enterpriseId');
+  const paramProviderId = searchParams.get('providerId');
 
   const [records, setRecords] = useState<ServiceRecord[]>([]);
   const [total, setTotal] = useState(0);
@@ -120,7 +121,9 @@ export default function ServiceRecords() {
   const [providerOptions, setProviderOptions] = useState<{ label: string; value: number }[]>([]);
   const [filterType, setFilterType] = useState<string | undefined>();
   const [filterStatus, setFilterStatus] = useState<string | undefined>();
-  const [filterProviderId, setFilterProviderId] = useState<number | undefined>();
+  const [filterProviderId, setFilterProviderId] = useState<number | undefined>(
+    paramProviderId ? Number(paramProviderId) : undefined
+  );
   const [filterEnterpriseId, setFilterEnterpriseId] = useState<number | undefined>(
     paramEnterpriseId ? Number(paramEnterpriseId) : undefined
   );
@@ -160,6 +163,12 @@ export default function ServiceRecords() {
     }).catch(() => {});
   }, []);
 
+  useEffect(() => {
+    setFilterEnterpriseId(paramEnterpriseId ? Number(paramEnterpriseId) : undefined);
+    setFilterProviderId(paramProviderId ? Number(paramProviderId) : undefined);
+    setCurrentPage(1);
+  }, [paramEnterpriseId, paramProviderId]);
+
   const handleFilterChange = (setter: (v: any) => void) => (v: any) => {
     setter(v);
     setCurrentPage(1);
@@ -169,8 +178,14 @@ export default function ServiceRecords() {
     ? enterprises.find(e => e.id === filterEnterpriseId)
     : null;
 
-  const columns: ColumnsType<ServiceRecord> = [
-    ...(!filterEnterpriseId ? [{
+  const currentProvider = filterProviderId
+    ? providerOptions.find(p => p.value === filterProviderId)
+    : null;
+
+  const columns: ColumnsType<ServiceRecord> = [];
+
+  if (!filterEnterpriseId) {
+    columns.push({
       title: '企业名称',
       dataIndex: 'enterpriseName',
       key: 'enterpriseName',
@@ -186,7 +201,10 @@ export default function ServiceRecords() {
           {name || '-'}
         </Button>
       ),
-    }] : []) as ColumnsType<ServiceRecord>,
+    });
+  }
+
+  columns.push(
     {
       title: '服务类型',
       dataIndex: 'serviceType',
@@ -224,8 +242,8 @@ export default function ServiceRecords() {
       dataIndex: 'serviceDate',
       key: 'serviceDate',
       width: 120,
-      sorter: (a, b) => (a.serviceDate || '').localeCompare(b.serviceDate || ''),
-      defaultSortOrder: 'descend',
+      sorter: (a: ServiceRecord, b: ServiceRecord) => (a.serviceDate || '').localeCompare(b.serviceDate || ''),
+      defaultSortOrder: 'descend' as const,
       render: (date: string) => (
         <span style={{ fontSize: 13, color: '#718EBF' }}>
           <CalendarOutlined style={{ marginRight: 4 }} />{date || '-'}
@@ -282,18 +300,35 @@ export default function ServiceRecords() {
         );
       },
     },
-    {
+  );
+
+  if (!filterProviderId) {
+    columns.push({
       title: '服务商',
       dataIndex: 'providerName',
       key: 'providerName',
       width: 140,
       ellipsis: true,
-      render: (name: string) => (
-        <span style={{ color: name ? '#343C6A' : '#bfbfbf', fontSize: 13 }}>
-          {name || '-'}
-        </span>
+      render: (name: string, record: ServiceRecord) => (
+        record.providerId ? (
+          <Button
+            type="link"
+            size="small"
+            style={{ padding: 0, fontWeight: 500, color: '#343C6A' }}
+            onClick={() => navigate(`/providers/${record.providerId}`)}
+          >
+            {name || '-'}
+          </Button>
+        ) : (
+          <span style={{ color: name ? '#343C6A' : '#bfbfbf', fontSize: 13 }}>
+            {name || '-'}
+          </span>
+        )
       ),
-    },
+    });
+  }
+
+  columns.push(
     {
       title: '负责人',
       dataIndex: 'responsibleName',
@@ -320,7 +355,7 @@ export default function ServiceRecords() {
         />
       ),
     },
-  ];
+  );
 
   return (
     <div style={{ background: '#F5F7FA', minHeight: '100%', padding: 24, fontFamily: 'Inter, sans-serif' }}>
@@ -337,12 +372,25 @@ export default function ServiceRecords() {
                 返回企业详情
               </Button>
             )}
+            {!paramEnterpriseId && paramProviderId && (
+              <Button
+                icon={<ArrowLeftOutlined />}
+                onClick={() => navigate(`/providers/${paramProviderId}`)}
+                style={{ borderRadius: 12 }}
+              >
+                返回服务商详情
+              </Button>
+            )}
             <Title level={4} style={{ margin: 0, fontWeight: 700, color: '#343C6A' }}>合作服务档案</Title>
           </div>
           <Text type="secondary" style={{ color: '#718EBF' }}>
-            {currentEnterprise
-              ? `${currentEnterprise.name} — 合作与服务历史记录`
-              : '管理所有企业与三中心的合作服务记录'}
+            {currentEnterprise && currentProvider
+              ? `${currentEnterprise.name} × ${currentProvider.label} — 合作与服务历史记录`
+              : currentEnterprise
+                ? `${currentEnterprise.name} — 合作与服务历史记录`
+                : currentProvider
+                  ? `${currentProvider.label} — 合作与服务历史记录`
+                  : '管理所有企业与三中心的合作服务记录'}
           </Text>
         </div>
         <div />

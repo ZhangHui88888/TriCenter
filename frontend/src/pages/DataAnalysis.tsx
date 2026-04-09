@@ -409,7 +409,7 @@ function DataAnalysis() {
                 { label: '筛选企业数', value: totalCount, unit: '家', color: D.cyan },
                 { label: '已签约企业', value: funnelStats.find(s => s.code === 'SIGNED')?.count || 0, unit: '家', color: D.pink },
                 { label: '覆盖行业', value: industryStats.filter(s => s.count > 0).length, unit: '个', color: D.purple },
-                { label: '跨境平台', value: platformStats.length, unit: '个', color: D.teal },
+                { label: '出口总贸易额', value: analysisStats?.totalExportRevenueWan ?? 0, unit: '万元', color: D.teal },
               ].map(m => (
                 <Col xs={12} lg={6} key={m.label}>
                   <div style={{ ...cardStyle, textAlign: 'center' }}>

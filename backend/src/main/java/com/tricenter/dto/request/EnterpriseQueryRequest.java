@@ -57,13 +57,10 @@ public class EnterpriseQueryRequest {
     /** 国内营收ID */
     private Integer domesticRevenueId;
 
-    /** 跨境营收ID */
-    private Integer crossBorderRevenueId;
-
-    /** 跨境营收(万元) 下限（含） */
+    /** 跨境/外贸营收(万元) 下限（含），查询 last_year_revenue */
     private BigDecimal crossBorderRevenueMinWan;
 
-    /** 跨境营收(万元) 上限（含） */
+    /** 跨境/外贸营收(万元) 上限（含），查询 last_year_revenue */
     private BigDecimal crossBorderRevenueMaxWan;
     
     /** 企业来源ID */
@@ -104,6 +101,9 @@ public class EnterpriseQueryRequest {
 
     /** 需求ID，多个逗号分隔 */
     private String requirementIds;
+
+    /** 是否有任意需求（1=筛选有需求的企业） */
+    private Integer hasAnyRequirement;
 
     /** 主要跨境平台关键词，多个逗号分隔 */
     private String mainPlatforms;

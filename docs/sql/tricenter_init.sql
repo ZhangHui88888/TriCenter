@@ -311,6 +311,7 @@ INSERT INTO system_options (category, value, label, sort_order) VALUES
 ('requirement_category', '3.4', '合规与风险的持续运营', 304),
 ('requirement_category', '3.5', '定价与利润管理', 305),
 ('requirement_category', '3.6', '外部服务商管理', 306),
+('requirement_category', '3.7', '代运营', 307),
 -- 第四阶段分类
 ('requirement_category', '4.1', '履约升级与交付体验', 401),
 ('requirement_category', '4.2', '私域与会员运营', 402),
@@ -590,6 +591,11 @@ INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VA
 (17, 0, '照明灯具', 1, '17', 17),
 (18, 0, '安防器材', 1, '18', 18),
 (19, 0, '新能源', 1, '19', 19),
+(20, 0, '化工材料', 1, '20', 20),
+(21, 0, '家用电器', 1, '21', 21),
+(22, 0, '软件与信息服务', 1, '22', 22),
+(23, 0, '包装印刷', 1, '23', 23),
+(24, 0, '精密制造', 1, '24', 24),
 (99, 0, '其他', 1, '99', 99);
 
 -- ==================== 园艺工具（二级品类） ====================
@@ -781,6 +787,501 @@ INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VA
 (1902, 19, '储能电池', 2, '19/1902', 2),
 (1903, 19, '电动车配件', 2, '19/1903', 3),
 (1904, 19, '充电设备', 2, '19/1904', 4);
+
+-- ==================== 化工材料（二级品类） ====================
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(2001, 20, '塑料制品', 2, '20/2001', 1),
+(2002, 20, '橡胶制品', 2, '20/2002', 2),
+(2003, 20, '涂料油墨', 2, '20/2003', 3),
+(2004, 20, '胶粘制品', 2, '20/2004', 4),
+(2005, 20, '阻燃材料', 2, '20/2005', 5),
+(2006, 20, '新材料', 2, '20/2006', 6),
+(2007, 20, '化工原料', 2, '20/2007', 7);
+
+-- ==================== 家用电器（二级品类） ====================
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(2101, 21, '大家电', 2, '21/2101', 1),
+(2102, 21, '小家电', 2, '21/2102', 2),
+(2103, 21, '厨房电器', 2, '21/2103', 3),
+(2104, 21, '个护电器', 2, '21/2104', 4),
+(2105, 21, '环境电器', 2, '21/2105', 5),
+(2106, 21, '制冷设备', 2, '21/2106', 6);
+
+-- ==================== 软件与信息服务（二级品类） ====================
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(2201, 22, '企业软件', 2, '22/2201', 1),
+(2202, 22, '电商服务', 2, '22/2202', 2),
+(2203, 22, '金融科技', 2, '22/2203', 3),
+(2204, 22, '医疗信息化', 2, '22/2204', 4),
+(2205, 22, 'IT咨询与外包', 2, '22/2205', 5),
+(2206, 22, '人力资源服务', 2, '22/2206', 6);
+
+-- ==================== 包装印刷（二级品类） ====================
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(2301, 23, '包装材料', 2, '23/2301', 1),
+(2302, 23, '印刷制品', 2, '23/2302', 2),
+(2303, 23, '广告展示', 2, '23/2303', 3),
+(2304, 23, '标签标识', 2, '23/2304', 4);
+
+-- ==================== 精密制造（二级品类） ====================
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(2401, 24, '航空零部件', 2, '24/2401', 1),
+(2402, 24, '精密铸锻件', 2, '24/2402', 2),
+(2403, 24, '3D打印', 2, '24/2403', 3),
+(2404, 24, '精密加工', 2, '24/2404', 4),
+(2405, 24, '模具', 2, '24/2405', 5);
+
+-- ==================== 其他（二级品类） ====================
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(9901, 99, '成人用品', 2, '99/9901', 1),
+(9902, 99, '金融保险', 2, '99/9902', 2),
+(9903, 99, '贸易批发', 2, '99/9903', 3),
+(9904, 99, '外贸服务', 2, '99/9904', 4),
+(9905, 99, '工程服务', 2, '99/9905', 5),
+(9906, 99, '综合商品', 2, '99/9906', 6);
+
+-- ==================== 新增二级品类（补充产品匹配） ====================
+
+-- 园艺工具（新增二级品类）
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(200, 1, '园艺用品', 2, '1/200', 21);
+
+-- 电动工具（新增二级品类）
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(209, 2, '小电动工具', 2, '2/209', 9),
+(210, 2, '无刷角磨机', 2, '2/210', 10),
+(211, 2, '无刷直磨机', 2, '2/211', 11),
+(212, 2, '无刷磁力钻', 2, '2/212', 12),
+(213, 2, '无刷开槽机', 2, '2/213', 13),
+(214, 2, '无刷切割机', 2, '2/214', 14);
+
+-- 家居用品（新增二级品类）
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(308, 3, '家居', 2, '3/308', 8),
+(309, 3, '生活家居', 2, '3/309', 9),
+(310, 3, '办公用品', 2, '3/310', 10),
+(311, 3, '日用百货', 2, '3/311', 11),
+(312, 3, '婴儿用品', 2, '3/312', 12);
+
+-- 户外运动（新增二级品类）
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(408, 4, '体育用品', 2, '4/408', 8);
+
+
+-- 纺织服装（新增二级品类）
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(707, 7, '服装', 2, '7/707', 7),
+(708, 7, '针织服装', 2, '7/708', 8),
+(709, 7, '服装加工', 2, '7/709', 9);
+
+-- 建材五金（新增二级品类）
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(807, 8, '电工电料', 2, '8/807', 7);
+
+-- 箱包皮具（新增二级品类）
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(1206, 12, '箱包', 2, '12/1206', 6);
+
+-- 宠物用品（新增二级品类）
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(1606, 16, '宠物', 2, '16/1606', 6);
+
+-- 照明灯具（新增二级品类）
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(1706, 17, '灯具', 2, '17/1706', 6);
+
+-- 新能源（新增二级品类）
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(1905, 19, '新能源航空动力系统', 2, '19/1905', 5),
+(1906, 19, '辅助电动力系统', 2, '19/1906', 6);
+
+-- 化工材料（新增二级品类）
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(2008, 20, '环保产品', 2, '20/2008', 8);
+
+-- ==================== 新增三级品类（补充产品匹配） ====================
+
+-- 园艺装饰品
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(10308, 103, '园艺网', 3, '1/103/10308', 8);
+
+-- 厨房用品
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(30106, 301, '厨房用具', 3, '3/301/30106', 6);
+
+-- 卫浴用品
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(30201, 302, '智能马桶', 3, '3/302/30201', 1),
+(30202, 302, '整体卫浴', 3, '3/302/30202', 2);
+
+-- 收纳整理
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(30301, 303, '收纳箱', 3, '3/303/30301', 1);
+
+-- 家居装饰
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(30401, 304, '暖炉', 3, '3/304/30401', 1);
+
+-- 清洁用品
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(30501, 305, '刷子', 3, '3/305/30501', 1);
+
+-- 家纺布艺
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(30601, 306, '家纺', 3, '3/306/30601', 1),
+(30602, 306, '遮阳幕', 3, '3/306/30602', 2),
+(30603, 306, '保温幕', 3, '3/306/30603', 3),
+(30604, 306, '遮阳网', 3, '3/306/30604', 4),
+(30605, 306, '地垫', 3, '3/306/30605', 5),
+(30606, 306, '保健枕', 3, '3/306/30606', 6);
+
+-- 家具
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(30701, 307, '小家具', 3, '3/307/30701', 1),
+(30702, 307, '钢木家具', 3, '3/307/30702', 2),
+(30703, 307, '办公家具', 3, '3/307/30703', 3),
+(30704, 307, '家具柜', 3, '3/307/30704', 4),
+(30705, 307, '学习桌椅', 3, '3/307/30705', 5),
+(30706, 307, '升降桌', 3, '3/307/30706', 6),
+(30707, 307, '电脑桌', 3, '3/307/30707', 7),
+(30708, 307, '板式书架', 3, '3/307/30708', 8),
+(30709, 307, '绘图桌', 3, '3/307/30709', 9),
+(30710, 307, '缝纫桌', 3, '3/307/30710', 10),
+(30711, 307, '裁剪桌', 3, '3/307/30711', 11),
+(30712, 307, '金属桌椅', 3, '3/307/30712', 12),
+(30713, 307, '折叠床', 3, '3/307/30713', 13),
+(30714, 307, '电动床', 3, '3/307/30714', 14),
+(30715, 307, '沙发', 3, '3/307/30715', 15),
+(30716, 307, '钢木小家具', 3, '3/307/30716', 16),
+(30717, 307, '翻斗换鞋凳', 3, '3/307/30717', 17),
+(30718, 307, '板式家居', 3, '3/307/30718', 18);
+
+-- 露营装备
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(40101, 401, '烧烤炉', 3, '4/401/40101', 1);
+
+-- 骑行装备
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(40501, 405, '摩托车头盔', 3, '4/405/40501', 1);
+
+-- 健身器材
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(40701, 407, '瑜伽用品', 3, '4/407/40701', 1),
+(40702, 407, '健身产品', 3, '4/407/40702', 2);
+
+-- 汽车电子
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(50101, 501, '汽车用小电器', 3, '5/501/50101', 1),
+(50102, 501, '汽车应用电机', 3, '5/501/50102', 2);
+
+-- 汽车内饰
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(50201, 502, '内饰', 3, '5/502/50201', 1);
+
+-- 汽车外饰
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(50301, 503, '车灯', 3, '5/503/50301', 1),
+(50302, 503, '皮卡配件保险杠', 3, '5/503/50302', 2),
+(50303, 503, '尾灯', 3, '5/503/50303', 3),
+(50304, 503, '行李架', 3, '5/503/50304', 4);
+
+-- 维修保养
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(50401, 504, '水封', 3, '5/504/50401', 1),
+(50402, 504, '汽车空调压缩机', 3, '5/504/50402', 2);
+
+-- 汽车改装
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(50501, 505, '汽车改装件', 3, '5/505/50501', 1),
+(50502, 505, '改装车灯', 3, '5/505/50502', 2);
+
+-- 消费电子
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(60106, 601, '电声元器件', 3, '6/601/60106', 6),
+(60107, 601, '电源组', 3, '6/601/60107', 7);
+
+-- 智能硬件
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(60201, 602, '信息面板', 3, '6/602/60201', 1),
+(60202, 602, '传感器', 3, '6/602/60202', 2),
+(60203, 602, '电子标签', 3, '6/602/60203', 3),
+(60204, 602, '环网柜部件', 3, '6/602/60204', 4),
+(60205, 602, '环网柜', 3, '6/602/60205', 5),
+(60206, 602, '智能游学终端', 3, '6/602/60206', 6),
+(60207, 602, '智能家居', 3, '6/602/60207', 7),
+(60208, 602, '控制器', 3, '6/602/60208', 8);
+
+-- 电脑配件
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(60301, 603, '电路板', 3, '6/603/60301', 1),
+(60302, 603, '配线架', 3, '6/603/60302', 2),
+(60303, 603, '理线器', 3, '6/603/60303', 3),
+(60304, 603, '光纤', 3, '6/603/60304', 4),
+(60305, 603, '光纤配线架', 3, '6/603/60305', 5),
+(60306, 603, '连接器', 3, '6/603/60306', 6);
+
+-- 数码影音
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(60501, 605, '测距仪', 3, '6/605/60501', 1),
+(60502, 605, '显示器材', 3, '6/605/60502', 2);
+
+-- 男装
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(70101, 701, '牛仔', 3, '7/701/70101', 1),
+(70102, 701, '羽绒服', 3, '7/701/70102', 2),
+(70103, 701, '衬衫', 3, '7/701/70103', 3),
+(70104, 701, 'T恤', 3, '7/701/70104', 4),
+(70105, 701, '外套', 3, '7/701/70105', 5),
+(70106, 701, '牛仔休闲服装', 3, '7/701/70106', 6);
+
+-- 运动服饰
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(70401, 704, '功能性防护工作服', 3, '7/704/70401', 1),
+(70402, 704, '功能性防火服装', 3, '7/704/70402', 2);
+
+-- 配饰
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(70601, 706, '服装面料', 3, '7/706/70601', 1),
+(70602, 706, '针织面料', 3, '7/706/70602', 2),
+(70603, 706, '针织牛仔面料', 3, '7/706/70603', 3),
+(70604, 706, '高档面料', 3, '7/706/70604', 4),
+(70605, 706, '色织布', 3, '7/706/70605', 5),
+(70606, 706, '灯芯绒', 3, '7/706/70606', 6),
+(70607, 706, '台球布', 3, '7/706/70607', 7);
+
+-- 门窗五金
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(80101, 801, '开关', 3, '8/801/80101', 1),
+(80102, 801, '插座', 3, '8/801/80102', 2);
+
+-- 水暖管件
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(80201, 802, '液压管件', 3, '8/802/80201', 1),
+(80202, 802, '半导体管件', 3, '8/802/80202', 2);
+
+-- 手动工具
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(80401, 804, '工具', 3, '8/804/80401', 1),
+(80402, 804, '五金工具', 3, '8/804/80402', 2),
+(80403, 804, '钻头五金工具', 3, '8/804/80403', 3),
+(80404, 804, '砂轮片', 3, '8/804/80404', 4);
+
+-- 建筑材料
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(80501, 805, '铸件', 3, '8/805/80501', 1),
+(80502, 805, '涂料', 3, '8/805/80502', 2);
+
+-- 装饰材料
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(80601, 806, '亚克力装饰材料', 3, '8/806/80601', 1),
+(80602, 806, '地板', 3, '8/806/80602', 2);
+
+-- 通用机械
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(90101, 901, '电机', 3, '9/901/90101', 1),
+(90102, 901, '轧辊', 3, '9/901/90102', 2),
+(90103, 901, '齿轮', 3, '9/901/90103', 3),
+(90104, 901, '水泵', 3, '9/901/90104', 4),
+(90105, 901, '机械零部件', 3, '9/901/90105', 5),
+(90106, 901, '工业机器人', 3, '9/901/90106', 6),
+(90107, 901, '超声波设备', 3, '9/901/90107', 7),
+(90108, 901, '柴油发电机组', 3, '9/901/90108', 8),
+(90109, 901, '液压举升系统', 3, '9/901/90109', 9),
+(90110, 901, '微特电机', 3, '9/901/90110', 10),
+(90111, 901, '发电机冲片', 3, '9/901/90111', 11),
+(90112, 901, '伺服装置', 3, '9/901/90112', 12),
+(90113, 901, '无刷电机', 3, '9/901/90113', 13),
+(90114, 901, '深井水泵', 3, '9/901/90114', 14),
+(90115, 901, '油泵及水泵', 3, '9/901/90115', 15),
+(90116, 901, '汽车衡', 3, '9/901/90116', 16),
+(90117, 901, '真空设备', 3, '9/901/90117', 17),
+(90118, 901, '零配件', 3, '9/901/90118', 18);
+
+-- 农业机械
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(90201, 902, '农业机具', 3, '9/902/90201', 1);
+
+-- 节日礼品
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(110601, 1106, '定制化促销礼品', 3, '11/1106/110601', 1);
+
+-- 功能箱包
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(120501, 1205, '环保袋', 3, '12/1205/120501', 1);
+
+-- 医疗设备
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(150101, 1501, '外科手术器械', 3, '15/1501/150101', 1),
+(150102, 1501, '吻合器', 3, '15/1501/150102', 2),
+(150103, 1501, '皮肤吻合器', 3, '15/1501/150103', 3),
+(150104, 1501, '穿刺器', 3, '15/1501/150104', 4),
+(150105, 1501, '取样钳', 3, '15/1501/150105', 5),
+(150106, 1501, '脊椎麻醉穿刺针', 3, '15/1501/150106', 6),
+(150107, 1501, '制药装备', 3, '15/1501/150107', 7),
+(150108, 1501, '制药干燥设备', 3, '15/1501/150108', 8);
+
+-- 医疗耗材
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(150201, 1502, '输液器', 3, '15/1502/150201', 1),
+(150202, 1502, '一次性注射器', 3, '15/1502/150202', 2),
+(150203, 1502, '注射器', 3, '15/1502/150203', 3),
+(150204, 1502, '尿袋', 3, '15/1502/150204', 4),
+(150205, 1502, '扩张器', 3, '15/1502/150205', 5),
+(150206, 1502, '导管', 3, '15/1502/150206', 6),
+(150207, 1502, 'PVC袋', 3, '15/1502/150207', 7),
+(150208, 1502, '引流袋', 3, '15/1502/150208', 8),
+(150209, 1502, '冲洗连接带', 3, '15/1502/150209', 9),
+(150210, 1502, '一次性医疗器材', 3, '15/1502/150210', 10),
+(150211, 1502, '一次性医疗用品', 3, '15/1502/150211', 11);
+
+-- 室内照明
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(170101, 1701, '三防灯', 3, '17/1701/170101', 1);
+
+-- 户外照明
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(170201, 1702, '路灯', 3, '17/1702/170201', 1),
+(170202, 1702, '户外灯', 3, '17/1702/170202', 2),
+(170203, 1702, '户外灯具', 3, '17/1702/170203', 3);
+
+-- 门禁系统
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(180201, 1802, '门禁卡', 3, '18/1802/180201', 1);
+
+-- 太阳能产品
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(190101, 1901, '光伏封装胶膜', 3, '19/1901/190101', 1),
+(190102, 1901, '高性能薄膜', 3, '19/1901/190102', 2),
+(190103, 1901, '光伏玻璃', 3, '19/1901/190103', 3),
+(190104, 1901, '光伏设备', 3, '19/1901/190104', 4);
+
+-- 电动车配件
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(190301, 1903, '电动自行车', 3, '19/1903/190301', 1),
+(190302, 1903, 'ebike', 3, '19/1903/190302', 2),
+(190303, 1903, '电动摩托车', 3, '19/1903/190303', 3),
+(190304, 1903, '电动滑板', 3, '19/1903/190304', 4);
+
+-- 塑料制品
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(200101, 2001, '地膜', 3, '20/2001/200101', 1),
+(200102, 2001, '塑料齿轮', 3, '20/2001/200102', 2),
+(200103, 2001, '塑料件', 3, '20/2001/200103', 3);
+
+-- 胶粘制品
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(200401, 2004, '工业胶带', 3, '20/2004/200401', 1);
+
+-- 阻燃材料
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(200501, 2005, '水菱镁阻燃剂', 3, '20/2005/200501', 1);
+
+-- 新材料
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(200601, 2006, '抗震新材料', 3, '20/2006/200601', 1),
+(200602, 2006, '纳米材料', 3, '20/2006/200602', 2);
+
+-- 大家电
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(210101, 2101, '移动空调', 3, '21/2101/210101', 1),
+(210102, 2101, '空调恒温系统', 3, '21/2101/210102', 2);
+
+-- 环境电器
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(210501, 2105, '除湿机', 3, '21/2105/210501', 1);
+
+-- 制冷设备
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(210601, 2106, '蒸发器', 3, '21/2106/210601', 1),
+(210602, 2106, '冷凝器', 3, '21/2106/210602', 2);
+
+-- 企业软件
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(220101, 2201, 'ERP', 3, '22/2201/220101', 1),
+(220102, 2201, 'MES', 3, '22/2201/220102', 2),
+(220103, 2201, 'QMS', 3, '22/2201/220103', 3),
+(220104, 2201, 'PLM', 3, '22/2201/220104', 4),
+(220105, 2201, 'BPM', 3, '22/2201/220105', 5),
+(220106, 2201, 'HRM', 3, '22/2201/220106', 6);
+
+-- 电商服务
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(220201, 2202, '出海企业服务', 3, '22/2202/220201', 1),
+(220202, 2202, '电商供应链管理', 3, '22/2202/220202', 2),
+(220203, 2202, '电商代运营', 3, '22/2202/220203', 3);
+
+-- 金融科技
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(220301, 2203, '支付系统', 3, '22/2203/220301', 1);
+
+-- 医疗信息化
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(220401, 2204, '医院运营平台', 3, '22/2204/220401', 1);
+
+-- IT咨询与外包
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(220501, 2205, '数智化产品开发', 3, '22/2205/220501', 1),
+(220502, 2205, '系统集成', 3, '22/2205/220502', 2),
+(220503, 2205, '网络系统集成', 3, '22/2205/220503', 3),
+(220504, 2205, '软硬件开发', 3, '22/2205/220504', 4),
+(220505, 2205, '云计算设备', 3, '22/2205/220505', 5),
+(220506, 2205, '互联网数据服务', 3, '22/2205/220506', 6),
+(220507, 2205, '物联网技术服务', 3, '22/2205/220507', 7),
+(220508, 2205, '工业互联网数据服务', 3, '22/2205/220508', 8),
+(220509, 2205, '网站设计', 3, '22/2205/220509', 9);
+
+-- 人力资源服务
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(220601, 2206, '人力资源管理咨询', 3, '22/2206/220601', 1);
+
+-- 包装材料
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(230101, 2301, '镀锡薄板', 3, '23/2301/230101', 1);
+
+-- 广告展示
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(230301, 2303, '活动展架', 3, '23/2303/230301', 1),
+(230302, 2303, '展台', 3, '23/2303/230302', 2),
+(230303, 2303, '易拉宝', 3, '23/2303/230303', 3),
+(230304, 2303, '展架', 3, '23/2303/230304', 4);
+
+-- 航空零部件
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(240101, 2401, '飞机坐具餐板', 3, '24/2401/240101', 1),
+(240102, 2401, '飞机坐具零件', 3, '24/2401/240102', 2);
+
+-- 3D打印
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(240301, 2403, '微纳3D打印系统', 3, '24/2403/240301', 1);
+
+-- 精密加工
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(240401, 2404, '电梯导轨', 3, '24/2404/240401', 1),
+(240402, 2404, '精密轴承', 3, '24/2404/240402', 2),
+(240403, 2404, '精密切削刀具', 3, '24/2404/240403', 3);
+
+-- 金融保险
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(990201, 9902, '保险', 3, '99/9902/990201', 1);
+
+-- 贸易批发
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(990301, 9903, '批发', 3, '99/9903/990301', 1);
+
+-- 外贸服务
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(990401, 9904, '外贸代理', 3, '99/9904/990401', 1),
+(990402, 9904, '货物进出口', 3, '99/9904/990402', 2);
+
+-- 工程服务
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(990501, 9905, '工程', 3, '99/9905/990501', 1);
+
+-- 综合商品
+INSERT INTO product_categories (id, parent_id, name, level, path, sort_order) VALUES
+(990601, 9906, '综合类', 3, '99/9906/990601', 1),
+(990602, 9906, '大件', 3, '99/9906/990602', 2);
+
 -- ============================================================
 -- 常州跨境电商三中心 - 企业信息管理系统
 -- 需求初始化数据 (requirements)
@@ -888,18 +1389,21 @@ INSERT INTO requirements (id, name, description, detail_description, phase, cate
 ('1.8.1', '组织架构设计', '跨境电商部门设置、岗位分工',
 '设计跨境电商团队架构，明确运营、供应链、营销、客服、财务等岗位职责与协作机制。',
 'phase_1', '1.8', 1),
-('1.8.2', '人才招聘与培养', '专业技能、语言能力',
-'招聘具备平台运营、海外营销、跨境物流等专业技能的人才，重视外语能力与跨文化沟通能力，建立培训体系，以及人才考证的需求。',
+('1.8.2', '人才招聘', '专业技能、语言能力',
+'招聘具备平台运营、海外营销、跨境物流等专业技能的人才，重视外语能力与跨文化沟通能力。',
 'phase_1', '1.8', 2),
-('1.8.3', '自建团队/代运营选择', '团队模式选择',
-'根据企业资源与战略重要性，选择自建团队（掌控力强但成本高）或代运营（快速启动但依赖外部），或采用混合模式。',
+('1.8.3', '人才培养', '培训体系、技能认证',
+'建立培训体系，覆盖岗位技能与跨文化沟通能力提升，支持人才考证需求。',
 'phase_1', '1.8', 3),
-('1.8.4', '跨时区与远程协作', '会议安排、异步协作、文化融合',
-'若有海外团队或合作伙伴，制定跨时区会议规范，使用异步协作工具（如Loom、Notion），尊重文化差异建立信任。',
+('1.8.4', '自建团队/代运营选择', '团队模式选择',
+'根据企业资源与战略重要性，选择自建团队（掌控力强但成本高）或代运营（快速启动但依赖外部），或采用混合模式。',
 'phase_1', '1.8', 4),
-('1.8.5', '办公场地与工位', '自有办公室、共享工位、产业园入驻',
+('1.8.5', '跨时区与远程协作', '会议安排、异步协作、文化融合',
+'若有海外团队或合作伙伴，制定跨时区会议规范，使用异步协作工具（如Loom、Notion），尊重文化差异建立信任。',
+'phase_1', '1.8', 5),
+('1.8.6', '办公场地与工位', '自有办公室、共享工位、产业园入驻',
 '根据团队规模与成本考量，选择自有办公室、联合办公空间或入驻跨境电商产业园/孵化器，享受政策扶持、资源对接与行业氛围。',
-'phase_1', '1.8', 5);
+'phase_1', '1.8', 6);
 
 -- ============================================================
 -- 第二阶段：启动期 — 渠道搭建与商品上线
@@ -1071,6 +1575,48 @@ INSERT INTO requirements (id, name, description, detail_description, phase, cate
 ('3.6.3', '合同与结算', '服务协议、SLA、账期管理',
 '签订服务协议明确服务范围与责任，约定SLA（服务水平协议）指标，管理账期与付款节奏。',
 'phase_3', '3.6', 3);
+
+-- 3.7 代运营
+INSERT INTO requirements (id, name, description, detail_description, phase, category, sort_order) VALUES
+('3.7.1', '代运营独立站', 'Shopify、Magento、BigCommerce等',
+'委托专业服务商运营品牌独立站，涵盖建站搭建、主题设计、SEO优化、广告投放、转化率优化、日常维护与数据分析。',
+'phase_3', '3.7', 1),
+('3.7.2', '代运营亚马逊（Amazon）', 'Amazon店铺全托管',
+'委托服务商管理亚马逊店铺，包括Listing优化、FBA/FBM策略、广告投放与竞价、品牌旗舰店搭建、A+页面制作、Review管理、库存与补货建议。',
+'phase_3', '3.7', 2),
+('3.7.3', '代运营TikTok Shop', 'TikTok电商运营',
+'委托服务商运营TikTok Shop店铺，涵盖短视频内容制作与投放、直播运营、达人合作对接、商品上架与优化、店铺数据分析与增长策略。',
+'phase_3', '3.7', 3),
+('3.7.4', '代运营速卖通（AliExpress）', 'AliExpress店铺运营',
+'委托服务商管理速卖通店铺，包括商品上架与多语言优化、站内活动报名、直通车广告投放、客服响应与纠纷处理、数据监控与运营策略调整。',
+'phase_3', '3.7', 4),
+('3.7.5', '代运营eBay', 'eBay店铺运营',
+'委托服务商运营eBay店铺，涵盖商品刊登与SEO优化、Promoted Listings广告、Best Offer策略、卖家绩效管理、退货政策优化。',
+'phase_3', '3.7', 5),
+('3.7.6', '代运营Shopee', 'Shopee东南亚/拉美市场运营',
+'委托服务商管理Shopee店铺（东南亚/拉美市场），包括商品上架与本地化、Shopee Ads投放、平台活动报名、聊聊客服管理、物流与履约协调。',
+'phase_3', '3.7', 6),
+('3.7.7', '代运营Lazada', 'Lazada东南亚市场运营',
+'委托服务商运营Lazada店铺（东南亚市场），涵盖商品内容优化、Sponsored Solutions广告、大促活动参与、售后与评价管理。',
+'phase_3', '3.7', 7),
+('3.7.8', '代运营Temu', 'Temu店铺运营',
+'委托服务商管理Temu店铺，包括选品与定价策略、商品素材制作、平台合规要求适配、订单履约与物流对接、销售数据分析与优化。',
+'phase_3', '3.7', 8),
+('3.7.9', '代运营SHEIN', 'SHEIN平台运营',
+'委托服务商运营SHEIN平台（含SHEIN Marketplace），涵盖产品开发建议、图片与详情页制作、平台规则合规、库存与发货管理、销售表现跟踪。',
+'phase_3', '3.7', 9),
+('3.7.10', '代运营Walmart', 'Walmart Marketplace运营',
+'委托服务商管理Walmart Marketplace店铺，包括商品上架与内容优化、Walmart Connect广告投放、WFS管理、价格竞争力维护、绩效指标达标。',
+'phase_3', '3.7', 10),
+('3.7.11', '代运营Mercado Libre', 'Mercado Libre拉美市场运营',
+'委托服务商运营Mercado Libre店铺（拉美市场），涵盖西/葡语商品本地化、Product Ads广告、Mercado Envíos物流对接、售后与退换货管理、市场趋势分析。',
+'phase_3', '3.7', 11),
+('3.7.12', '代运营Ozon', 'Ozon俄罗斯及独联体市场运营',
+'委托服务商管理Ozon店铺（俄罗斯及独联体市场），包括俄语商品内容制作、平台广告投放、FBO/FBS物流策略、合规与清关协调、销售与库存管理。',
+'phase_3', '3.7', 12),
+('3.7.13', '代运营阿里国际站（Alibaba.com）', 'Alibaba.com B2B店铺运营',
+'委托服务商运营阿里国际站B2B店铺，涵盖产品发布与关键词优化、P4P直通车广告、RFQ报价管理、询盘跟进与转化、信保订单管理与数据分析。',
+'phase_3', '3.7', 13);
 
 
 -- ============================================================
@@ -1382,13 +1928,6 @@ INSERT INTO stage_change_logs (enterprise_id, stage_from, stage_to, reason, oper
 -- ============================================================
 -- ALTER TABLE enterprises
 --     ADD COLUMN domestic_revenue_wan DECIMAL(18,4) NULL COMMENT '国内营收(万元)，精确数值' AFTER domestic_revenue_id;
-
--- ============================================================
--- 结构补丁：providers.capability_requirement_ids（服务商需求能力字段）
--- 适用：已有库、providers 表无本列时。全新库请直接执行。
--- 注意：MySQL 不支持 IF NOT EXISTS，若列已存在会报错，可忽略或注释掉本行。
--- ============================================================
-ALTER TABLE providers ADD COLUMN capability_requirement_ids JSON COMMENT '需求能力：可解决的需求ID数组(关联requirements表id)' AFTER qualification;
 
 -- ============================================================
 -- 需求标记：通用必选（is_universal）与增强项（is_enhanced）

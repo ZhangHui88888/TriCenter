@@ -3,8 +3,6 @@ package com.tricenter.dto.request;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
-import java.math.BigDecimal;
-
 /**
  * 企业创建请求
  * 支持创建空白企业，只需要企业名称（可选）
@@ -33,11 +31,6 @@ public class EnterpriseCreateRequest {
     private Integer staffSizeId;
     
     private Integer domesticRevenueId;
-    
-    private Integer crossBorderRevenueId;
-
-    /** 跨境营收(万元) */
-    private BigDecimal crossBorderRevenueWan;
     
     private Integer sourceId;
     

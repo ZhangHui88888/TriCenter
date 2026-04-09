@@ -10,6 +10,7 @@ public interface RequirementMatchEngine {
     Set<String> calculateEffectiveRequirementIds(
             Object dimensionSelections,
             Object removedRequirements,
+            Object addedRequirements,
             Object customRequirements
     );
 }

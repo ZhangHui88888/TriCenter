@@ -1263,6 +1263,123 @@ body {
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
 }
 
+.requirement-stat-card {
+  width: 100%;
+  padding: 16px 14px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--stat-border);
+  background: var(--stat-bg);
+  cursor: pointer;
+  text-align: center;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.requirement-stat-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0) 60%);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.requirement-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 24px rgba(31, 41, 55, 0.08);
+}
+
+.requirement-stat-card:hover::before,
+.requirement-stat-card--active::before {
+  opacity: 1;
+}
+
+.requirement-stat-card:active {
+  transform: scale(0.98);
+}
+
+.requirement-stat-card--active {
+  border-color: color-mix(in srgb, var(--stat-color) 42%, white);
+  box-shadow: 0 14px 28px color-mix(in srgb, var(--stat-color) 18%, transparent);
+}
+
+.requirement-stat-card--summary {
+  cursor: default;
+}
+
+.requirement-stat-card--summary::before {
+  display: none;
+}
+
+.requirement-stat-card--summary:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.requirement-stat-card__content {
+  position: relative;
+  z-index: 1;
+}
+
+.requirement-stat-card__value {
+  font-size: 28px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--stat-color);
+}
+
+.requirement-stat-card__label {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.requirement-stat-card__indicator {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 70px;
+  margin-top: 10px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--stat-color);
+  font-size: 11px;
+  font-weight: 600;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.requirement-stat-card__indicator--placeholder {
+  visibility: hidden;
+}
+
+.requirement-stat-card--active .requirement-stat-card__indicator {
+  background: color-mix(in srgb, var(--stat-color) 12%, white);
+}
+
+.requirement-phase-list {
+  animation: requirementListFadeIn 0.28s ease;
+  transform-origin: top center;
+}
+
+.requirement-phase-list--empty {
+  padding: 8px 0 20px;
+}
+
+@keyframes requirementListFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .enterprise-expense-chart-panel__loading {
   display: flex;
   align-items: center;

@@ -15,7 +15,7 @@ public class ProviderUpdateRequest {
     @NotBlank(message = "服务商名称不能为空")
     private String name;
 
-    @NotBlank(message = "服务分类不能为空")
+    /** 兼容旧字段，当前前端已改为使用 capabilityRequirementIds 表示服务分类 */
     private String category;
 
     private String description;
@@ -33,4 +33,19 @@ public class ProviderUpdateRequest {
     private LocalDate cooperationStartDate;
     private String cooperationStatus;
     private LocalDate contractEndDate;
+
+    /** 联系人列表，为 null 时不更新联系人；为空数组时清空联系人 */
+    private List<ContactInfo> contacts;
+
+    @Data
+    public static class ContactInfo {
+        private Integer id;
+        private String name;
+        private String phone;
+        private String position;
+        private Boolean isPrimary;
+        private String email;
+        private String wechat;
+        private String remark;
+    }
 }

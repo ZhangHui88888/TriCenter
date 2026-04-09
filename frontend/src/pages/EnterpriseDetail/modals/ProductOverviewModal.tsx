@@ -1,16 +1,7 @@
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Modal, Form, Select, Row, Col, Alert, message } from 'antd';
 import request from '@/services/request';
-
-const COUNTRY_OPTIONS = [
-  { label: '美国', value: '美国' }, { label: '加拿大', value: '加拿大' },
-  { label: '英国', value: '英国' }, { label: '德国', value: '德国' },
-  { label: '法国', value: '法国' }, { label: '日本', value: '日本' },
-  { label: '韩国', value: '韩国' }, { label: '澳大利亚', value: '澳大利亚' },
-  { label: '新加坡', value: '新加坡' }, { label: '马来西亚', value: '马来西亚' },
-  { label: '泰国', value: '泰国' }, { label: '越南', value: '越南' },
-  { label: '印度', value: '印度' }, { label: '阿联酋', value: '阿联酋' },
-];
+import { getCountryNameOptions, getRegionByCountryName, REGION_LABEL_MAP } from '@/data/countries';
 
 function mergeIds(enterprise: any, products: any[], fieldSnake: string, fieldCamel: string): any[] {
   const enterpriseIds =
@@ -44,6 +35,25 @@ export default function ProductOverviewModal({
   onSuccess,
 }: ProductOverviewModalProps) {
   const [form] = Form.useForm();
+
+  const handleCountriesChange = useCallback(
+    (selectedCountryNames: string[]) => {
+      const regionCodes = new Set(
+        selectedCountryNames.map(getRegionByCountryName).filter(Boolean) as string[],
+      );
+      const regionIdsFromCountries = [...regionCodes]
+        .map((code) => {
+          const label = REGION_LABEL_MAP[code];
+          return regionOptions.find((o) => o.label === label)?.value;
+        })
+        .filter((id): id is number => id != null);
+
+      const current: number[] = form.getFieldValue('targetRegionIds') || [];
+      const merged = [...new Set([...current, ...regionIdsFromCountries])];
+      form.setFieldsValue({ targetRegionIds: merged });
+    },
+    [form, regionOptions],
+  );
 
   useEffect(() => {
     if (open && enterprise) {
@@ -113,7 +123,7 @@ export default function ProductOverviewModal({
           </Col>
           <Col span={24}>
             <Form.Item name="targetCountryIds" label="主要销售国家">
-              <Select mode="multiple" placeholder="请选择销售国家" allowClear options={COUNTRY_OPTIONS} />
+              <Select mode="multiple" placeholder="请选择销售国家" allowClear showSearch optionFilterProp="label" options={getCountryNameOptions()} onChange={handleCountriesChange} />
             </Form.Item>
           </Col>
           <Col span={24}>

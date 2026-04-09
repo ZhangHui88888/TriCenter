@@ -34,11 +34,6 @@ public class EnterpriseDetailResponse {
     /** 国内营收(万元)，精确数值 */
     private BigDecimal domesticRevenueWan;
 
-    private Integer crossBorderRevenueId;
-
-    /** 跨境营收(万元)，精确数值 */
-    private BigDecimal crossBorderRevenueWan;
-
     private String crossBorderRevenueLabel;
     private Integer sourceId;
     private String sourceLabel;
@@ -118,6 +113,7 @@ public class EnterpriseDetailResponse {
     // ========== 需求分析 ==========
     private Object dimensionSelections;
     private Object removedRequirements;
+    private Object addedRequirements;
     private Object customRequirements;
     
     /**

@@ -36,14 +36,6 @@ public class EnterpriseUpdateRequest {
     /** 为 true 时按 domesticRevenueWan 更新（可为 null 表示清空），避免与「未传字段」混淆 */
     private Boolean domesticRevenueWanTouched;
 
-    private Integer crossBorderRevenueId;
-
-    /** 跨境营收(万元) */
-    private BigDecimal crossBorderRevenueWan;
-
-    /** 为 true 时按 crossBorderRevenueWan 更新（可为 null 表示清空），避免与「未传字段」混淆 */
-    private Boolean crossBorderRevenueWanTouched;
-
     private Integer sourceId;
     
     // 品牌信息
@@ -117,5 +109,6 @@ public class EnterpriseUpdateRequest {
     // 需求分析
     private Object dimensionSelections;
     private Object removedRequirements;
+    private Object addedRequirements;
     private Object customRequirements;
 }

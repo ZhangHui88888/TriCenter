@@ -1,6 +1,5 @@
 package com.tricenter.dto.request;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.time.LocalDate;
@@ -12,10 +11,9 @@ import java.util.List;
 @Data
 public class ProviderCreateRequest {
 
-    @NotBlank(message = "服务商名称不能为空")
     private String name;
 
-    @NotBlank(message = "服务分类不能为空")
+    /** 兼容旧字段，当前前端已改为使用 capabilityRequirementIds 表示服务分类 */
     private String category;
 
     private String description;

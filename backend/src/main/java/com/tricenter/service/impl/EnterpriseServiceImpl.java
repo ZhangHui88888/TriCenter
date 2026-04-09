@@ -20,6 +20,7 @@ import com.tricenter.service.EnterpriseService;
 import com.tricenter.service.OptionsService;
 import com.tricenter.service.RequirementMatchEngine;
 import com.tricenter.util.EnterpriseExportListSheetPoi;
+import com.tricenter.util.RequirementFilterHelper;
 import com.tricenter.util.EnterpriseExportRequirementMatrixSheet;
 import com.tricenter.util.StageCodeUtil;
 import jakarta.servlet.http.HttpServletResponse;
@@ -100,6 +101,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             empty.setSalesRegionStats(Collections.emptyList());
             empty.setIndustryStats(buildFullIndustryStats(Collections.emptyMap()));
             empty.setFunnelStats(toFunnelItems(Collections.emptyMap()));
+            empty.setTotalExportRevenueWan(java.math.BigDecimal.ZERO);
             return empty;
         }
 
@@ -109,13 +111,15 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 Enterprise::getDistrict, Enterprise::getEnterpriseType,
                 Enterprise::getCrossBorderPlatforms,
                 Enterprise::getTargetRegionIds, Enterprise::getTargetCountryIds,
-                Enterprise::getIndustryId, Enterprise::getStage
+                Enterprise::getIndustryId, Enterprise::getStage,
+                Enterprise::getLastYearRevenue
         );
         List<Enterprise> enterprises = enterpriseMapper.selectList(wrapper);
 
         AnalysisStatsResponse response = new AnalysisStatsResponse();
         response.setTotalCount(enterprises.size());
 
+        java.math.BigDecimal totalExportRevenue = java.math.BigDecimal.ZERO;
         Map<String, Integer> districtMap = new LinkedHashMap<>();
         Map<String, Integer> typeMap = new LinkedHashMap<>();
         Map<String, Integer> platformMap = new LinkedHashMap<>();
@@ -127,6 +131,9 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         for (Enterprise e : enterprises) {
             if (StringUtils.hasText(e.getDistrict())) {
                 districtMap.merge(e.getDistrict(), 1, Integer::sum);
+            }
+            if (e.getLastYearRevenue() != null) {
+                totalExportRevenue = totalExportRevenue.add(e.getLastYearRevenue());
             }
             String type = StringUtils.hasText(e.getEnterpriseType()) ? e.getEnterpriseType() : "未分类";
             typeMap.merge(type, 1, Integer::sum);
@@ -148,6 +155,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             stageMap.merge(stage, 1, Integer::sum);
         }
 
+        response.setTotalExportRevenueWan(totalExportRevenue);
         response.setDistrictStats(toSortedNameCountList(districtMap));
         response.setTypeStats(toSortedNameCountList(typeMap));
         response.setPlatformStats(toSortedNameCountList(platformMap));
@@ -224,7 +232,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         Set<Integer> matchedIds = null;
         matchedIds = mergeMatchedEnterpriseIds(matchedIds, findEnterpriseIdsByProductFilters(request));
         matchedIds = mergeMatchedEnterpriseIds(matchedIds, findEnterpriseIdsByLastFollowup(request.getLastFollowupDays()));
-        matchedIds = mergeMatchedEnterpriseIds(matchedIds, findEnterpriseIdsByRequirements(request.getRequirementIds()));
+        matchedIds = mergeMatchedEnterpriseIds(matchedIds, findEnterpriseIdsByRequirements(request.getRequirementIds(), request.getHasAnyRequirement()));
         return matchedIds;
     }
 
@@ -267,7 +275,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (StringUtils.hasText(request.getProvince())) wrapper.eq(Enterprise::getProvince, request.getProvince());
         if (StringUtils.hasText(request.getCity())) wrapper.eq(Enterprise::getCity, request.getCity());
         if (request.getIndustryId() != null && request.getIndustryId() > 0) {
-            wrapper.eq(Enterprise::getIndustryId, request.getIndustryId());
+            Set<Integer> industryIds = dictionaryCache.getIndustryDescendantIds(request.getIndustryId());
+            wrapper.in(Enterprise::getIndustryId, industryIds);
         }
         if (StringUtils.hasText(request.getEnterpriseType())) wrapper.eq(Enterprise::getEnterpriseType, request.getEnterpriseType());
         if (request.getStaffSizeId() != null && request.getStaffSizeId() > 0) {
@@ -276,14 +285,11 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (request.getDomesticRevenueId() != null && request.getDomesticRevenueId() > 0) {
             wrapper.eq(Enterprise::getDomesticRevenueId, request.getDomesticRevenueId());
         }
-        if (request.getCrossBorderRevenueId() != null && request.getCrossBorderRevenueId() > 0) {
-            wrapper.eq(Enterprise::getCrossBorderRevenueId, request.getCrossBorderRevenueId());
-        }
         if (request.getCrossBorderRevenueMinWan() != null) {
-            wrapper.ge(Enterprise::getCrossBorderRevenueWan, request.getCrossBorderRevenueMinWan());
+            wrapper.ge(Enterprise::getLastYearRevenue, request.getCrossBorderRevenueMinWan());
         }
         if (request.getCrossBorderRevenueMaxWan() != null) {
-            wrapper.le(Enterprise::getCrossBorderRevenueWan, request.getCrossBorderRevenueMaxWan());
+            wrapper.le(Enterprise::getLastYearRevenue, request.getCrossBorderRevenueMaxWan());
         }
         if (request.getSourceId() != null && request.getSourceId() > 0) {
             wrapper.eq(Enterprise::getSourceId, request.getSourceId());
@@ -535,7 +541,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             productWrapper.eq(EnterpriseProduct::getAutomationLevelId, request.getAutomationLevelId());
         }
         if (request.getProductCategoryId() != null && request.getProductCategoryId() > 0) {
-            productWrapper.eq(EnterpriseProduct::getCategoryId, request.getProductCategoryId());
+            Set<Integer> categoryIds = dictionaryCache.getProductCategoryDescendantIds(request.getProductCategoryId());
+            productWrapper.in(EnterpriseProduct::getCategoryId, categoryIds);
         }
         if (request.getProductCertificationId() != null && request.getProductCertificationId() > 0) {
             productWrapper.apply("JSON_CONTAINS(certification_ids, CAST({0} AS JSON))", request.getProductCertificationId().toString());
@@ -585,9 +592,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    private Set<Integer> findEnterpriseIdsByRequirements(String requirementIds) {
+    private Set<Integer> findEnterpriseIdsByRequirements(String requirementIds, Integer hasAnyRequirement) {
         Set<String> selectedRequirementIds = parseStringSet(requirementIds);
-        if (selectedRequirementIds.isEmpty()) {
+        boolean filterAny = Integer.valueOf(1).equals(hasAnyRequirement);
+        if (selectedRequirementIds.isEmpty() && !filterAny) {
             return null;
         }
 
@@ -597,6 +605,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                                         Enterprise::getId,
                                         Enterprise::getDimensionSelections,
                                         Enterprise::getRemovedRequirements,
+                                        Enterprise::getAddedRequirements,
                                         Enterprise::getCustomRequirements
                                 )
                                 .eq(Enterprise::getIsDeleted, 0)
@@ -605,9 +614,17 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                     Set<String> effectiveRequirementIds = requirementMatchEngine.calculateEffectiveRequirementIds(
                             enterprise.getDimensionSelections(),
                             enterprise.getRemovedRequirements(),
+                            enterprise.getAddedRequirements(),
                             enterprise.getCustomRequirements()
                     );
-                    return effectiveRequirementIds.stream().anyMatch(selectedRequirementIds::contains);
+                    // 排除通用基线需求，仅匹配企业自身特定需求（维度选择/手动添加/自定义）
+                    Set<String> specific = new LinkedHashSet<>(effectiveRequirementIds);
+                    specific.removeAll(RequirementFilterHelper.getUniversalRequiredIds());
+                    specific.removeAll(RequirementFilterHelper.getUniversalEnhancedIds());
+                    if (filterAny && selectedRequirementIds.isEmpty()) {
+                        return !specific.isEmpty();
+                    }
+                    return specific.stream().anyMatch(selectedRequirementIds::contains);
                 })
                 .map(Enterprise::getId)
                 .filter(Objects::nonNull)
@@ -678,6 +695,37 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         return values;
     }
 
+    /**
+     * 将可能包含数字ID的JSON列表解析为label字符串列表。
+     * 兼容三种数据格式：纯数字ID列表、纯字符串列表、混合列表。
+     */
+    private Object resolveOptionIdList(Object raw) {
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return raw;
+        }
+        boolean hasNumericId = list.stream().anyMatch(item -> item instanceof Integer || item instanceof Long);
+        if (!hasNumericId) {
+            return raw;
+        }
+        List<String> resolved = new ArrayList<>();
+        for (Object item : list) {
+            if (item instanceof Integer id) {
+                String label = dictionaryCache.getOptionLabel(id);
+                if (label != null) {
+                    resolved.add(label);
+                }
+            } else if (item instanceof Long id) {
+                String label = dictionaryCache.getOptionLabel(id.intValue());
+                if (label != null) {
+                    resolved.add(label);
+                }
+            } else if (item instanceof String s) {
+                resolved.add(s);
+            }
+        }
+        return resolved;
+    }
+
     private LocalDate convertToLocalDate(Object value) {
         if (value instanceof LocalDate localDate) {
             return localDate;
@@ -726,10 +774,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     }
 
     private String resolveCrossBorderRevenueLabel(Enterprise enterprise) {
-        if (enterprise.getCrossBorderRevenueWan() != null) {
-            return enterprise.getCrossBorderRevenueWan().stripTrailingZeros().toPlainString();
+        if (enterprise.getLastYearRevenue() != null) {
+            return enterprise.getLastYearRevenue().stripTrailingZeros().toPlainString();
         }
-        return dictionaryCache.getOptionLabel(enterprise.getCrossBorderRevenueId());
+        return null;
     }
 
     private String resolveDomesticRevenueLabel(Enterprise enterprise) {
@@ -765,9 +813,6 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         // 创建企业
         Enterprise enterprise = new Enterprise();
         BeanUtils.copyProperties(request, enterprise);
-        if (enterprise.getCrossBorderRevenueWan() != null) {
-            enterprise.setCrossBorderRevenueId(null);
-        }
         
         // 如果没有提供企业名称，生成默认名称
         if (!StringUtils.hasText(enterprise.getName())) {
@@ -851,14 +896,6 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             enterprise.setDomesticRevenueId(request.getDomesticRevenueId());
             enterprise.setDomesticRevenueWan(null);
         }
-        if (Boolean.TRUE.equals(request.getCrossBorderRevenueWanTouched())
-                || request.getCrossBorderRevenueWan() != null) {
-            enterprise.setCrossBorderRevenueWan(request.getCrossBorderRevenueWan());
-            enterprise.setCrossBorderRevenueId(null);
-        } else if (request.getCrossBorderRevenueId() != null) {
-            enterprise.setCrossBorderRevenueId(request.getCrossBorderRevenueId());
-            enterprise.setCrossBorderRevenueWan(null);
-        }
         if (request.getSourceId() != null) enterprise.setSourceId(request.getSourceId());
         
         // 品牌信息
@@ -928,6 +965,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         // 需求分析
         if (request.getDimensionSelections() != null) enterprise.setDimensionSelections(request.getDimensionSelections());
         if (request.getRemovedRequirements() != null) enterprise.setRemovedRequirements(request.getRemovedRequirements());
+        if (request.getAddedRequirements() != null) enterprise.setAddedRequirements(request.getAddedRequirements());
         if (request.getCustomRequirements() != null) enterprise.setCustomRequirements(request.getCustomRequirements());
         
         enterpriseMapper.updateById(enterprise);
@@ -1096,8 +1134,6 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setWebsite(enterprise.getWebsite());
         response.setDomesticRevenueId(enterprise.getDomesticRevenueId());
         response.setDomesticRevenueWan(enterprise.getDomesticRevenueWan());
-        response.setCrossBorderRevenueId(enterprise.getCrossBorderRevenueId());
-        response.setCrossBorderRevenueWan(enterprise.getCrossBorderRevenueWan());
         response.setSourceId(enterprise.getSourceId());
         String stageCode = StageCodeUtil.normalize(enterprise.getStage());
         response.setStage(stageCode);
@@ -1171,7 +1207,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setHasOverseasDistributors(enterprise.getHasOverseasDistributors() != null && enterprise.getHasOverseasDistributors() == 1);
         response.setTransformationWillingness(enterprise.getTransformationWillingness());
         response.setInvestmentWillingness(enterprise.getInvestmentWillingness());
-        response.setCrossBorderPlatforms(enterprise.getCrossBorderPlatforms());
+        response.setCrossBorderPlatforms(resolveOptionIdList(enterprise.getCrossBorderPlatforms()));
         response.setTargetMarkets(enterprise.getTargetMarkets());
         
         // 三中心评估
@@ -1202,6 +1238,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         // 需求分析
         response.setDimensionSelections(enterprise.getDimensionSelections());
         response.setRemovedRequirements(enterprise.getRemovedRequirements());
+        response.setAddedRequirements(enterprise.getAddedRequirements());
         response.setCustomRequirements(enterprise.getCustomRequirements());
         
         // 产品列表 + 概览合并字段（与前端「产品总体概览」一致，不依赖前端字典加载时机）

@@ -21,6 +21,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import com.tricenter.config.SurveyExcelStyleHandler;
 import com.tricenter.service.OptionsService;
+import com.tricenter.service.RequirementMatchEngine;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
@@ -44,6 +45,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     private final ProductCategoryMapper productCategoryMapper;
     private final SystemOptionMapper systemOptionMapper;
     private final OptionsService optionsService;
+    private final RequirementMatchEngine requirementMatchEngine;
 
     // ==================== 导出 ====================
 
@@ -369,8 +371,41 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                     : List.of();
             // 需求分析 Sheet：右侧企业列数（空模板时为 1 列占位，便于复制扩展）
             final int reqEnterpriseColumns = enterprises.isEmpty() ? 1 : enterprises.size();
-            // 构建四级表头：左侧固定为需求信息，右侧每列一个企业
-            // EasyExcel 复杂头：外层每项为一列，内层为该列自上而下的表头单元格
+
+            // 为每个企业计算有效需求 ID 集合
+            List<Set<String>> enterpriseEffectiveReqIds = new ArrayList<>();
+            for (Enterprise e : enterprises) {
+                Set<String> effectiveIds = requirementMatchEngine.calculateEffectiveRequirementIds(
+                        e.getDimensionSelections(),
+                        e.getRemovedRequirements(),
+                        e.getAddedRequirements(),
+                        e.getCustomRequirements()
+                );
+                enterpriseEffectiveReqIds.add(effectiveIds);
+            }
+
+            // 收集所有企业的自定义需求（去重，保留各企业归属）
+            Map<String, Map<String, String>> allCustomReqMap = new LinkedHashMap<>();
+            for (Enterprise e : enterprises) {
+                List<Map<String, String>> customs = extractCustomRequirementList(e.getCustomRequirements());
+                for (Map<String, String> cr : customs) {
+                    allCustomReqMap.putIfAbsent(cr.get("id"), cr);
+                }
+            }
+
+            // 过滤：有企业时，只保留至少一个企业拥有的标准需求
+            List<RequirementConfigResponse.RequirementItemDTO> filteredReqs;
+            if (enterprises.isEmpty()) {
+                filteredReqs = allReqs;
+            } else {
+                Set<String> allEffective = new HashSet<>();
+                enterpriseEffectiveReqIds.forEach(allEffective::addAll);
+                filteredReqs = allReqs.stream()
+                        .filter(r -> allEffective.contains(r.getId()))
+                        .collect(Collectors.toList());
+            }
+
+            // 构建四级表头
             List<List<String>> reqHead = new ArrayList<>();
             reqHead.add(Arrays.asList("需求信息", "需求信息", "需求阶段", "需求阶段"));
             reqHead.add(Arrays.asList("需求信息", "需求信息", "需求分类", "需求分类"));
@@ -379,7 +414,6 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             reqHead.add(Arrays.asList("要点说明", "要点说明", "要点说明", "要点说明"));
             reqHead.add(Arrays.asList("具体说明", "具体说明", "具体说明", "具体说明"));
             if (enterprises.isEmpty()) {
-                // 无企业时仍给一列占位，便于线下复制整列扩展为多企业
                 reqHead.add(Arrays.asList("企业信息", "企业信息", "企业名称", "（请填写；可复制本列向右扩展）"));
             } else {
                 for (Enterprise e : enterprises) {
@@ -387,7 +421,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 }
             }
 
-            // 需求分析Sheet专用样式处理器：设置列宽和表头行高
+            // 需求分析Sheet专用样式处理器
             com.alibaba.excel.write.handler.SheetWriteHandler reqSheetHandler = new com.alibaba.excel.write.handler.SheetWriteHandler() {
                 @Override
                 public void afterSheetCreate(com.alibaba.excel.write.metadata.holder.WriteWorkbookHolder wbh, com.alibaba.excel.write.metadata.holder.WriteSheetHolder wsh) {
@@ -401,7 +435,6 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                     for (int i = 6; i < 6 + reqEnterpriseColumns; i++) {
                         sheet.setColumnWidth(i, 24 * 256);
                     }
-                    // 冻结前6列（需求维度含说明），横向滚动时保持左侧可见
                     sheet.createFreezePane(6, 0);
                 }
             };
@@ -417,11 +450,11 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             reqHint.add("填写说明");
             reqHint.add("");
             reqHint.add("");
-            reqHint.add("每行一条需求；企业列填「是/否」；最后一行「自定义需求」可自由填写");
+            reqHint.add("每行一条需求；企业列已预填「是/否」，可修改");
             reqHint.add("要点、具体说明已按标准文档预置");
             reqHint.add("可修改后分发");
             for (int i = 0; i < reqEnterpriseColumns; i++) {
-                reqHint.add("填：是/否");
+                reqHint.add("是/否");
             }
             reqData.add(reqHint);
             // 示例行
@@ -433,11 +466,11 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             reqExample.add("示例要点");
             reqExample.add("示例具体说明文字");
             for (int i = 0; i < reqEnterpriseColumns; i++) {
-                reqExample.add(i % 3 == 0 ? "是" : "否"); // 交替填写示例
+                reqExample.add(i % 3 == 0 ? "是" : "否");
             }
             reqData.add(reqExample);
-            // 需求数据行（空白待填写）
-            for (RequirementConfigResponse.RequirementItemDTO req : allReqs) {
+            // 标准需求数据行：预填「是/否」
+            for (RequirementConfigResponse.RequirementItemDTO req : filteredReqs) {
                 List<Object> row = new ArrayList<>();
                 row.add(req.getPhase());
                 row.add(req.getCategory());
@@ -445,12 +478,37 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 row.add(req.getName());
                 row.add(req.getDescription() != null ? req.getDescription() : "");
                 row.add(req.getDetailDescription() != null ? req.getDetailDescription() : "");
-                for (int i = 0; i < reqEnterpriseColumns; i++) {
-                    row.add(""); // 空白待填写
+                if (enterprises.isEmpty()) {
+                    row.add("");
+                } else {
+                    for (int i = 0; i < enterprises.size(); i++) {
+                        row.add(enterpriseEffectiveReqIds.get(i).contains(req.getId()) ? "是" : "否");
+                    }
                 }
                 reqData.add(row);
             }
-            // 自定义需求单独占一行，便于各企业横向填写
+            // 自定义需求行
+            if (!allCustomReqMap.isEmpty()) {
+                for (Map<String, String> cr : allCustomReqMap.values()) {
+                    List<Object> row = new ArrayList<>();
+                    row.add(cr.getOrDefault("phase", ""));
+                    row.add(cr.getOrDefault("category", "自定义需求"));
+                    row.add(cr.getOrDefault("id", ""));
+                    row.add(cr.getOrDefault("name", ""));
+                    row.add(cr.getOrDefault("description", ""));
+                    row.add("");
+                    if (enterprises.isEmpty()) {
+                        row.add("");
+                    } else {
+                        String crId = cr.get("id");
+                        for (int i = 0; i < enterprises.size(); i++) {
+                            row.add(enterpriseEffectiveReqIds.get(i).contains(crId) ? "是" : "否");
+                        }
+                    }
+                    reqData.add(row);
+                }
+            }
+            // 自定义需求空行（自由填写占位）
             List<Object> customReqRow = new ArrayList<>();
             customReqRow.add("");
             customReqRow.add("");
@@ -627,12 +685,9 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 if (opt != null) data.setDomesticRevenue(opt.getLabel());
             }
 
-            // 跨境营收
-            if (e.getCrossBorderRevenueWan() != null) {
-                data.setCrossBorderRevenue(e.getCrossBorderRevenueWan().stripTrailingZeros().toPlainString());
-            } else if (e.getCrossBorderRevenueId() != null) {
-                SystemOption opt = systemOptionMapper.selectById(e.getCrossBorderRevenueId());
-                if (opt != null) data.setCrossBorderRevenue(opt.getLabel());
+            // 跨境营收（统一读取 lastYearRevenue）
+            if (e.getLastYearRevenue() != null) {
+                data.setCrossBorderRevenue(e.getLastYearRevenue().stripTrailingZeros().toPlainString());
             }
 
             // 企业来源
@@ -1022,6 +1077,14 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         }
 
         log.info("导入调研Excel完成: success={}, failed={}", successCount, failCount);
+        if (!errors.isEmpty()) {
+            int showCount = Math.min(errors.size(), 20);
+            log.warn("导入错误明细（前{}条/共{}条）:", showCount, errors.size());
+            for (int i = 0; i < showCount; i++) {
+                ImportResultResponse.ErrorDetail err = errors.get(i);
+                log.warn("  行{}: {}", err.getRow(), err.getMessage());
+            }
+        }
         return ImportResultResponse.builder()
                 .success(successCount).failed(failCount).errors(errors).build();
     }
@@ -1037,7 +1100,11 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         if (StringUtils.hasText(data.getRegisteredCapital())) enterprise.setRegisteredCapital(data.getRegisteredCapital().trim());
         if (StringUtils.hasText(data.getDistrict())) enterprise.setDistrict(data.getDistrict());
         if (StringUtils.hasText(data.getAddress())) enterprise.setAddress(data.getAddress());
-        if (StringUtils.hasText(data.getEnterpriseType())) enterprise.setEnterpriseType(data.getEnterpriseType());
+        if (StringUtils.hasText(data.getEnterpriseType())) {
+            enterprise.setEnterpriseType(data.getEnterpriseType());
+        } else if (!StringUtils.hasText(enterprise.getEnterpriseType())) {
+            enterprise.setEnterpriseType("未定义");
+        }
         if (StringUtils.hasText(data.getWebsite())) enterprise.setWebsite(data.getWebsite());
 
         // 行业 - 按名称查找ID（支持别名映射和模糊匹配）
@@ -1058,19 +1125,11 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             if (opt != null) enterprise.setDomesticRevenueId(opt.getId());
         }
 
-        // 跨境营收：优先按万元数值解析，否则按旧版档位文案匹配
+        // 跨境营收（统一写入 lastYearRevenue）
         if (StringUtils.hasText(data.getCrossBorderRevenue())) {
-            String raw = data.getCrossBorderRevenue().trim();
-            BigDecimal wan = tryParseCrossBorderRevenueWan(raw);
+            BigDecimal wan = tryParseCrossBorderRevenueWan(data.getCrossBorderRevenue().trim());
             if (wan != null) {
-                enterprise.setCrossBorderRevenueWan(wan);
-                enterprise.setCrossBorderRevenueId(null);
-            } else {
-                SystemOption opt = getOptionByLabel("cross_border_revenue", raw);
-                if (opt != null) {
-                    enterprise.setCrossBorderRevenueId(opt.getId());
-                    enterprise.setCrossBorderRevenueWan(null);
-                }
+                enterprise.setLastYearRevenue(wan);
             }
         }
 
@@ -1131,9 +1190,6 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         }
         if (!StringUtils.hasText(data.getDistrict())) {
             missingFields.add("所属区域");
-        }
-        if (!StringUtils.hasText(data.getEnterpriseType())) {
-            missingFields.add("企业类型");
         }
 
         if (!missingFields.isEmpty()) {
@@ -1199,7 +1255,9 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 for (SurveyContactData c : validContacts) {
                     EnterpriseContact contact = new EnterpriseContact();
                     contact.setEnterpriseId(enterpriseId);
-                    contact.setName(c.getName());
+                    String contactName = c.getName().trim();
+                    if (contactName.length() > 100) contactName = contactName.substring(0, 100);
+                    contact.setName(contactName);
                     contact.setPhone(c.getPhone());
                     contact.setPosition(c.getPosition());
                     contact.setEmail(c.getEmail());
@@ -1362,28 +1420,28 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                     enterprise.setHasCrossBorder("是".equals(data.getHasCrossBorder().trim()) ? 1 : 0);
                 }
 
-                // 跨境平台
+                // 跨境平台 - 直接存储标签字符串列表
                 if (StringUtils.hasText(data.getCrossBorderPlatforms())) {
-                    enterprise.setCrossBorderPlatforms(resolveOptionIds("cross_border_platform", data.getCrossBorderPlatforms()));
+                    enterprise.setCrossBorderPlatforms(splitLabels(data.getCrossBorderPlatforms()));
                 }
 
                 if (StringUtils.hasText(data.getCrossBorderRatio())) {
                     enterprise.setCrossBorderRatio(data.getCrossBorderRatio().trim());
                 }
 
-                // 跨境物流 - 存储为逗号分隔的ID字符串
+                // 跨境物流 - 直接存储标签字符串
                 if (StringUtils.hasText(data.getCrossBorderLogistics())) {
-                    List<Integer> ids = resolveOptionIds("cross_border_logistics", data.getCrossBorderLogistics());
-                    if (!ids.isEmpty()) {
-                        enterprise.setCrossBorderLogistics(ids.stream().map(String::valueOf).collect(Collectors.joining(",")));
+                    List<String> labels = splitLabels(data.getCrossBorderLogistics());
+                    if (!labels.isEmpty()) {
+                        enterprise.setCrossBorderLogistics(labels.get(0));
                     }
                 }
 
-                // 支付结算
+                // 支付结算 - 直接存储标签字符串
                 if (StringUtils.hasText(data.getPaymentSettlement())) {
-                    List<Integer> ids = resolveOptionIds("payment_settlement", data.getPaymentSettlement());
-                    if (!ids.isEmpty()) {
-                        enterprise.setPaymentSettlement(ids.stream().map(String::valueOf).collect(Collectors.joining(",")));
+                    List<String> labels = splitLabels(data.getPaymentSettlement());
+                    if (!labels.isEmpty()) {
+                        enterprise.setPaymentSettlement(labels.get(0));
                     }
                 }
 
@@ -1521,7 +1579,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         }
         // 家居用品
         for (String alias : new String[]{"家居", "家具", "家居园艺", "智能家居", "厨具",
-                "日用百货", "办公用品", "家居用品"}) {
+                "日用百货", "办公用品", "家居用品", "家居建材"}) {
             INDUSTRY_ALIAS_MAP.put(alias, "家居用品");
         }
         // 化工材料
@@ -1672,6 +1730,21 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     }
 
     /**
+     * 将顿号/逗号分隔的文本拆分为去空格的标签列表（不做ID转换）
+     */
+    private List<String> splitLabels(String labelsStr) {
+        String[] parts = labelsStr.split("[、,，]");
+        List<String> labels = new ArrayList<>();
+        for (String part : parts) {
+            String trimmed = part.trim();
+            if (!trimmed.isEmpty()) {
+                labels.add(trimmed);
+            }
+        }
+        return labels;
+    }
+
+    /**
      * 将逗号/顿号分隔的label字符串解析为ID列表
      */
     private List<Integer> resolveOptionIds(String category, String labelsStr) {
@@ -1701,6 +1774,27 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             }
         }
         return String.join("、", labels);
+    }
+
+    private List<Map<String, String>> extractCustomRequirementList(Object customRequirements) {
+        if (!(customRequirements instanceof Collection<?> items)) {
+            return Collections.emptyList();
+        }
+        List<Map<String, String>> result = new ArrayList<>();
+        for (Object item : items) {
+            if (item instanceof Map<?, ?> rawMap) {
+                Map<String, String> strMap = new LinkedHashMap<>();
+                rawMap.forEach((k, v) -> {
+                    if (k != null && v != null) {
+                        strMap.put(String.valueOf(k), String.valueOf(v));
+                    }
+                });
+                if (strMap.containsKey("id")) {
+                    result.add(strMap);
+                }
+            }
+        }
+        return result;
     }
 
     private String ratingToString(Integer rating) {

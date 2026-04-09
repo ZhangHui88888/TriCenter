@@ -22,6 +22,7 @@ public class RequirementMatchEngineImpl implements RequirementMatchEngine {
     public Set<String> calculateEffectiveRequirementIds(
             Object dimensionSelections,
             Object removedRequirements,
+            Object addedRequirements,
             Object customRequirements
     ) {
         Set<String> effectiveIds = new LinkedHashSet<>(RequirementFilterHelper.getUniversalRequiredIds());
@@ -37,6 +38,7 @@ public class RequirementMatchEngineImpl implements RequirementMatchEngine {
 
         dimensionalIds.removeAll(normalizeStringSet(removedRequirements));
         effectiveIds.addAll(dimensionalIds);
+        effectiveIds.addAll(normalizeStringSet(addedRequirements));
         effectiveIds.addAll(extractCustomRequirementIds(customRequirements));
         return effectiveIds;
     }

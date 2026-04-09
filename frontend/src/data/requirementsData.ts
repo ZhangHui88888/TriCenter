@@ -118,10 +118,11 @@ export const requirements: RequirementItem[] = [
   { id: '1.7.4', name: '合同管理前置', description: '跨境合同模板、供应商/渠道协议', phase: '战略规划与资源准备', category: '合规前置' },
   { id: '1.7.5', name: '进出口合规', description: '进出口许可证、报关单、退税证明', phase: '战略规划与资源准备', category: '合规前置' },
   { id: '1.8.1', name: '组织架构设计', description: '跨境电商部门设置、岗位分工', phase: '战略规划与资源准备', category: '团队与组织准备' },
-  { id: '1.8.2', name: '人才招聘与培养', description: '专业技能、语言能力', phase: '战略规划与资源准备', category: '团队与组织准备' },
-  { id: '1.8.3', name: '自建团队/代运营选择', description: '自建vs代运营决策', phase: '战略规划与资源准备', category: '团队与组织准备' },
-  { id: '1.8.4', name: '跨时区与远程协作', description: '会议安排、异步协作、文化融合', phase: '战略规划与资源准备', category: '团队与组织准备' },
-  { id: '1.8.5', name: '办公场地与工位', description: '自有办公室、共享工位、产业园入驻', phase: '战略规划与资源准备', category: '团队与组织准备' },
+  { id: '1.8.2', name: '人才招聘', description: '专业技能、语言能力', phase: '战略规划与资源准备', category: '团队与组织准备' },
+  { id: '1.8.3', name: '人才培养', description: '培训体系、技能认证', phase: '战略规划与资源准备', category: '团队与组织准备' },
+  { id: '1.8.4', name: '自建团队/代运营选择', description: '自建vs代运营决策', phase: '战略规划与资源准备', category: '团队与组织准备' },
+  { id: '1.8.5', name: '跨时区与远程协作', description: '会议安排、异步协作、文化融合', phase: '战略规划与资源准备', category: '团队与组织准备' },
+  { id: '1.8.6', name: '办公场地与工位', description: '自有办公室、共享工位、产业园入驻', phase: '战略规划与资源准备', category: '团队与组织准备' },
   
   // 第二阶段：渠道搭建与商品上线
   { id: '2.1.1', name: '平台开店', description: '账号与主体、上传产品详情页、店铺运营', phase: '渠道搭建与商品上线', category: '渠道与店铺建设' },
@@ -170,6 +171,19 @@ export const requirements: RequirementItem[] = [
   { id: '3.6.1', name: '服务商类型', description: '物流商、代运营、翻译、设计等', phase: '营销推广与规模增长', category: '外部服务商管理' },
   { id: '3.6.2', name: '供应商评估', description: '准入标准、绩效考核、淘汰机制', phase: '营销推广与规模增长', category: '外部服务商管理' },
   { id: '3.6.3', name: '合同与结算', description: '服务协议、SLA、账期管理', phase: '营销推广与规模增长', category: '外部服务商管理' },
+  { id: '3.7.1', name: '代运营独立站', description: 'Shopify、Magento、BigCommerce等', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.2', name: '代运营亚马逊（Amazon）', description: 'Amazon店铺全托管', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.3', name: '代运营TikTok Shop', description: 'TikTok电商运营', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.4', name: '代运营速卖通（AliExpress）', description: 'AliExpress店铺运营', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.5', name: '代运营eBay', description: 'eBay店铺运营', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.6', name: '代运营Shopee', description: 'Shopee东南亚/拉美市场运营', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.7', name: '代运营Lazada', description: 'Lazada东南亚市场运营', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.8', name: '代运营Temu', description: 'Temu店铺运营', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.9', name: '代运营SHEIN', description: 'SHEIN平台运营', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.10', name: '代运营Walmart', description: 'Walmart Marketplace运营', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.11', name: '代运营Mercado Libre', description: 'Mercado Libre拉美市场运营', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.12', name: '代运营Ozon', description: 'Ozon俄罗斯及独联体市场运营', phase: '营销推广与规模增长', category: '代运营' },
+  { id: '3.7.13', name: '代运营阿里国际站（Alibaba.com）', description: 'Alibaba.com B2B店铺运营', phase: '营销推广与规模增长', category: '代运营' },
   
   // 第四阶段：品牌深耕与持续优化
   { id: '4.1.1', name: '报关/清关异常处理', description: '报关单证、海关查验、清关延误', phase: '品牌深耕与持续优化', category: '履约升级与交付体验' },
@@ -222,7 +236,7 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
       // 市场认知（终端市场认知不足）
       '1.2.1', '1.4.4', '1.4.3',
       // 运营能力（从0到1）
-      '1.8.1', '1.8.2', '1.8.3', '1.8.4',
+      '1.8.1', '1.8.2', '1.8.3', '1.8.4', '1.8.5',
       // 渠道开拓
       '2.1.1', '2.1.2', '2.1.3', '2.1.4', '2.1.5',
       // 商品内容
@@ -278,7 +292,7 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
       // 选品策略（快速试错迭代）
       '1.4.1', '1.4.3', '1.2.1',
       // 学习资源（能力快速提升）
-      '1.8.2', '1.5.4', '1.8.3',
+      '1.8.2', '1.8.3', '1.5.4', '1.8.4',
       // 基础渠道建设
       '2.1.1', '2.1.2',
       // 商品内容
@@ -292,7 +306,7 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
     ],
     production: [ // 生产型
       '1.1.1', '1.7.1', '4.3.2', '1.2.1', '1.4.4', '1.4.3',
-      '1.8.1', '1.8.2', '1.8.3', '1.8.4', '2.1.1', '2.1.2', '2.1.3',
+      '1.8.1', '1.8.2', '1.8.3', '1.8.4', '1.8.5', '2.1.1', '2.1.2', '2.1.3',
       '2.1.4', '2.1.5', '2.2.1', '2.2.2', '2.2.3', '1.3.1', '1.3.2',
       '1.3.3', '3.1.1', '3.1.2', '3.4.3', '3.4.6', '3.5.1', '3.5.2',
       '4.3.1', '4.4.1', '4.4.2', '4.4.3', '4.4.4',
@@ -312,15 +326,18 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
       '1.7.5', '2.1.1', '2.1.4', '3.6.1', '3.6.2', '3.6.3', '4.1.4',
     ],
     technicalService: [ // 技术服务型
-      '1.1.1', '1.2.1', '1.4.4', '1.7.1', '1.7.3', '1.8.1', '1.8.2',
+      '1.1.1', '1.2.1', '1.4.4', '1.7.1', '1.7.3', '1.8.1', '1.8.2', '1.8.3',
       '2.1.1', '2.2.1', '2.4.1', '3.1.1', '3.4.3', '4.3.1', '4.4.2',
     ],
     comprehensiveService: [ // 综合服务型
-      '1.2.1', '1.3.1', '1.3.3', '1.5.4', '1.8.2', '2.1.1', '2.1.4',
-      '3.1.1', '3.1.3', '3.1.5', '4.1.4',
+      '1.2.1', '1.3.1', '1.3.3', '1.5.4', '1.8.2', '1.8.3', '2.1.1', '2.1.4',
+      '3.1.1', '3.1.3', '3.1.5',
+      '3.7.1', '3.7.2', '3.7.3', '3.7.4', '3.7.5', '3.7.6', '3.7.7',
+      '3.7.8', '3.7.9', '3.7.10', '3.7.11', '3.7.12', '3.7.13',
+      '4.1.4',
     ],
     undefined: [ // 未定义
-      '1.2.1', '1.4.4', '1.5.1', '1.8.2', '2.1.1', '2.2.1', '3.1.1',
+      '1.2.1', '1.4.4', '1.5.1', '1.8.2', '1.8.3', '2.1.1', '2.2.1', '3.1.1',
     ],
   },
   
@@ -334,6 +351,7 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
       '1.7.4', '3.6.3', // 合同与大客户管理
       '3.2.5', // 结算方式
       '1.5.4', // 展会资源
+      '3.7.13', // 代运营阿里国际站
     ],
     b2c: [ // B2C平台
       '2.1.1', '2.2.2', // 开店入驻
@@ -341,6 +359,7 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
       '3.1.5', '3.1.2', '3.1.6', // 广告投放
       '2.3.1', '2.3.2', '2.3.3', // 达人/社媒/直播
       '2.4.2', '3.3.5', // 防损与退货成本
+      '3.7.2', '3.7.3', '3.7.4', '3.7.5', '3.7.6', '3.7.7', '3.7.8', '3.7.9', '3.7.10', '3.7.11', '3.7.12', // 代运营平台
     ],
     independent: [ // 独立站
       '2.1.2', // 建站搭建
@@ -351,6 +370,7 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
       '4.2.1', // 私域运营
       '1.7.3', // 数据隐私
       '3.1.6', '1.3.1', // 转化优化
+      '3.7.1', // 代运营独立站
     ],
     offline: [ // 线下渠道
       '2.1.3', '2.1.5', // 渠道开发
@@ -365,7 +385,7 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
     observation: [ // 观望期
       '1.5.3', '3.5.2', // 成本测算
       '1.5.1', // 路径规划
-      '1.8.1', '1.8.3', // 团队规划
+      '1.8.1', '1.8.4', // 团队规划
       '3.4.4', // 风险预判
     ],
     startup: [ // 启动期
@@ -379,7 +399,7 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
       '3.1.5', '3.1.6', // 广告放量
       '2.2.1', '3.5.1', '1.3.3', // 转化优化
       '1.6.1', // 供应链扩容
-      '1.8.2', '1.8.1', // 团队扩张
+      '1.8.2', '1.8.3', '1.8.1', // 团队扩张
       '1.5.1', '2.1.1', '2.1.2', '2.1.3', // 多渠道拓展
       '3.2.4', '3.2.5', // 税务与结算
       '3.1.8', // 数据化运营
@@ -391,7 +411,7 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
       '3.4.1', '3.4.2', '3.4.4', // 账号风险
       '3.3.3', '3.3.4', '3.3.5', '2.4.2', // 退货率高
       '1.6.1', '4.3.4', // 库存积压
-      '1.8.1', '1.8.3', '3.6.1', // 团队管理混乱
+      '1.8.1', '1.8.4', '3.6.1', // 团队管理混乱
     ],
     mature: [ // 成熟期
       '4.3.2', '1.1.1', // 品牌升级
@@ -435,13 +455,15 @@ export const dimensionRequirementMapping: Record<string, Record<string, string[]
       '2.2.3', // 本地化
     ],
     noExp: [ // 无电商运营经验
-      '1.8.2', // 基础培训
+      '1.8.2', '1.8.3', // 基础培训
       '2.1.1', '2.1.2', '2.1.3', '2.1.4', '2.1.5', // 全流程辅导-渠道
       '2.2.1', '2.2.2', '2.2.3', // 全流程辅导-商品
       '3.3.1', '3.3.2', '3.3.3', '3.3.4', '3.3.5', // 全流程辅导-客服
       '3.1.8', // 工具使用
       '3.4.4', '3.4.1', // 避坑指南
-      '1.8.3', '3.6.1', '3.6.2', '3.6.3', // 代运营过渡
+      '1.8.4', '3.6.1', '3.6.2', '3.6.3', // 代运营过渡
+      '3.7.1', '3.7.2', '3.7.3', '3.7.4', '3.7.5', '3.7.6', '3.7.7',
+      '3.7.8', '3.7.9', '3.7.10', '3.7.11', '3.7.12', '3.7.13', // 代运营全部
     ],
   },
 };
