@@ -5,26 +5,28 @@ export function labelForEnjoyedPolicyValue(v: string): string {
   return o?.label ?? v;
 }
 
-export function mapProductCategoriesToCascader(nodes: any[]): any[] {
+export function mapCategoriesToCascader(nodes: any[]): any[] {
   if (!nodes?.length) return [];
   return nodes.map((n) => ({
     value: n.id,
     label: n.name,
-    children: n.children?.length ? mapProductCategoriesToCascader(n.children) : undefined,
+    children: n.children?.length ? mapCategoriesToCascader(n.children) : undefined,
   }));
 }
+export const mapProductCategoriesToCascader = mapCategoriesToCascader;
 
-export function findProductCategoryPath(nodes: any[], targetId: any, path: any[] = []): any[] | null {
+export function findCategoryPath(nodes: any[], targetId: any, path: any[] = []): any[] | null {
   for (const n of nodes || []) {
     const next = [...path, n.id];
     if (n.id === targetId) return next;
     if (n.children?.length) {
-      const sub = findProductCategoryPath(n.children, targetId, next);
+      const sub = findCategoryPath(n.children, targetId, next);
       if (sub) return sub;
     }
   }
   return null;
 }
+export const findProductCategoryPath = findCategoryPath;
 
 export function logEnterpriseDetail(step: string, payload?: Record<string, unknown>): void {
   if (payload) {
@@ -34,7 +36,7 @@ export function logEnterpriseDetail(step: string, payload?: Record<string, unkno
   console.info(`[EnterpriseDetail] ${step}`);
 }
 
-export function findIndustryCascaderPath(nodes: any[], targetId: unknown, path: number[] = []): number[] | null {
+export function findCascaderPath(nodes: any[], targetId: unknown, path: number[] = []): number[] | null {
   if (targetId == null || targetId === '') return null;
   const tid = Number(targetId);
   if (Number.isNaN(tid)) return null;
@@ -43,12 +45,13 @@ export function findIndustryCascaderPath(nodes: any[], targetId: unknown, path: 
     const next = [...path, val];
     if (val === tid) return next;
     if (n.children?.length) {
-      const sub = findIndustryCascaderPath(n.children, targetId, next);
+      const sub = findCascaderPath(n.children, targetId, next);
       if (sub) return sub;
     }
   }
   return null;
 }
+export const findIndustryCascaderPath = findCascaderPath;
 
 export function makeCustomDictionaryValue(): string {
   return `custom_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;

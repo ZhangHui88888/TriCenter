@@ -135,6 +135,18 @@ export const SERVICE_STATUSES_DATA = [
   { value: 'terminated', label: '已终止', color: '#FE5C73' },
 ];
 
+export const ENTERPRISE_DETAIL_TAB_KEYS = new Set([
+  'basic',
+  'product',
+  'trade',
+  'crossborder',
+  'requirements',
+  'policy',
+  'cooperation',
+  'competition',
+  'followup',
+]);
+
 export function calcFeasibilityScore(data: Record<string, number>): number {
   let total = 0;
   for (const dim of ASSESSMENT_DIMENSIONS) {

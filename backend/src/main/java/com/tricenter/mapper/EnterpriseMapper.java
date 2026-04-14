@@ -56,7 +56,7 @@ public interface EnterpriseMapper extends BaseMapper<Enterprise> {
      */
     @Select("SELECT e.industry_id AS industry_id, ic.name, COUNT(e.id) AS count " +
             "FROM enterprises e " +
-            "LEFT JOIN industry_categories ic ON e.industry_id = ic.id " +
+            "LEFT JOIN categories ic ON e.industry_id = ic.id " +
             "WHERE e.is_deleted = 0 " +
             "GROUP BY e.industry_id, ic.name " +
             "ORDER BY count DESC")

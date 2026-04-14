@@ -52,6 +52,7 @@ import { toXlsxBlobFromResponse } from '@/utils/excelDownloadResponse';
 import { getCountryOptions } from '@/data/countries';
 import EnterpriseSearch from '@/components/EnterpriseSearch';
 import type { Enterprise } from '@/types';
+import { useEnterpriseListStore } from '@/stores/enterpriseListStore';
 
 const { Text } = Typography;
 
@@ -318,17 +319,21 @@ function OverviewExportRevenueCard({
 
 function EnterpriseList() {
   const navigate = useNavigate();
-  const [searchTerm, setSearchTerm] = useState('');
-  const [stageFilter, setStageFilter] = useState<string>('');
-  const [districtFilter, setDistrictFilter] = useState<string>('');
+  const {
+    searchTerm, setSearchTerm,
+    stageFilter, setStageFilter,
+    districtFilter, setDistrictFilter,
+    industryFilter, setIndustryFilter,
+    advancedFilters, setAdvancedFilters,
+    page, setPage,
+    pageSize, setPageSize,
+  } = useEnterpriseListStore();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [industryFilter, setIndustryFilter] = useState<(string | number)[] | undefined>();
   const [form] = Form.useForm();
   const [filterForm] = Form.useForm();
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
-  const [advancedFilters, setAdvancedFilters] = useState<Record<string, any>>({});
   const [isCreating, setIsCreating] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -343,8 +348,6 @@ function EnterpriseList() {
   const [loading, setLoading] = useState(true);
   const [enterprises, setEnterprises] = useState<any[]>([]);
   const [_total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(5);
   const [districts, setDistricts] = useState<string[]>([]);
   const [industries, setIndustries] = useState<any[]>([]);
   const [staffSizeOptions, setStaffSizeOptions] = useState<SelectOption[]>([]);
@@ -671,9 +674,9 @@ function EnterpriseList() {
   // 加载选项数据
   const fetchOptions = async () => {
     try {
-      const [districtRes, industryRes, staffSizeRes, domesticRevenueRes, sourceRes, automationLevelRes, logisticsRes, tradeModeRes, tradeTeamModeRes, productCategoryRes, regionRes, certificationRes] = await Promise.all([
+      const [districtRes, categoryRes, staffSizeRes, domesticRevenueRes, sourceRes, automationLevelRes, logisticsRes, tradeModeRes, tradeTeamModeRes, regionRes, certificationRes] = await Promise.all([
         optionsApi.getOptions('district'),
-        optionsApi.getIndustries(),
+        optionsApi.getCategories(),
         optionsApi.getOptions('staff_size'),
         optionsApi.getOptions('domestic_revenue'),
         optionsApi.getOptions('source'),
@@ -681,7 +684,6 @@ function EnterpriseList() {
         optionsApi.getOptions('logistics'),
         optionsApi.getOptions('trade_mode'),
         optionsApi.getOptions('trade_team_mode'),
-        optionsApi.getProductCategories(),
         optionsApi.getOptions('region'),
         optionsApi.getOptions('certification'),
       ]);
@@ -691,15 +693,17 @@ function EnterpriseList() {
         setDistricts(districtRes.data.map((d: any) => d.label));
       }
       
-      // 行业选项（保留树形结构，转为 Cascader 格式）
-      if (industryRes.data) {
+      // 行业+产品品类统一分类树（转为 Cascader 格式）
+      if (categoryRes.data) {
         const toCascader = (items: any[]): any[] =>
           items.map(item => ({
             value: item.id,
             label: item.name,
             ...(item.children?.length ? { children: toCascader(item.children) } : {}),
           }));
-        setIndustries(toCascader(industryRes.data));
+        const cascaderData = toCascader(categoryRes.data);
+        setIndustries(cascaderData);
+        setProductCategoryOptions(cascaderData);
       }
 
       if (staffSizeRes.data) {
@@ -730,16 +734,6 @@ function EnterpriseList() {
         setTradeTeamModeOptions(tradeTeamModeRes.data.map((item: any) => ({ label: item.label, value: item.id })));
       }
 
-      if (productCategoryRes.data) {
-        const toCascaderCat = (items: any[]): any[] =>
-          items.map(item => ({
-            value: item.id,
-            label: item.name,
-            ...(item.children?.length ? { children: toCascaderCat(item.children) } : {}),
-          }));
-        setProductCategoryOptions(toCascaderCat(productCategoryRes.data));
-      }
-
       if (regionRes.data) {
         setRegionOptions(regionRes.data.map((item: any) => ({ label: item.label, value: item.id })));
       }
@@ -754,8 +748,9 @@ function EnterpriseList() {
   
   useEffect(() => {
     fetchOptions();
-    fetchEnterprises(1, pageSize, {});
-    fetchOverviewStats({});
+    fetchEnterprises(page, pageSize, advancedFilters);
+    fetchOverviewStats(advancedFilters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** 打开高级筛选时合并工具栏「关键词 / 所属行业」与已保存的高级条件，避免与列表顶部条件脱节 */

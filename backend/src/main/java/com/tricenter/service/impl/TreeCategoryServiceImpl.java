@@ -6,11 +6,9 @@ import com.tricenter.common.exception.BusinessException;
 import com.tricenter.dto.request.TreeCategoryCreateRequest;
 import com.tricenter.dto.request.TreeCategoryUpdateRequest;
 import com.tricenter.dto.response.TreeCategoryResponse;
-import com.tricenter.entity.IndustryCategory;
-import com.tricenter.entity.ProductCategory;
+import com.tricenter.entity.Category;
 import com.tricenter.entity.RequirementCategory;
-import com.tricenter.mapper.IndustryCategoryMapper;
-import com.tricenter.mapper.ProductCategoryMapper;
+import com.tricenter.mapper.CategoryMapper;
 import com.tricenter.mapper.RequirementCategoryMapper;
 import com.tricenter.mapper.RequirementMapper;
 import com.tricenter.service.DictionaryCacheService;
@@ -34,21 +32,19 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class TreeCategoryServiceImpl implements TreeCategoryService {
 
-    private final IndustryCategoryMapper industryCategoryMapper;
-    private final ProductCategoryMapper productCategoryMapper;
+    private final CategoryMapper categoryMapper;
     private final RequirementCategoryMapper requirementCategoryMapper;
     private final RequirementMapper requirementMapper;
     private final DictionaryCacheService dictionaryCache;
     private final JdbcTemplate jdbcTemplate;
 
-    private static final Set<String> VALID_TYPES = Set.of("industry", "product", "requirement");
+    private static final Set<String> VALID_TYPES = Set.of("industry", "product", "category", "requirement");
 
     @Override
     public List<TreeCategoryResponse> listAll(String type) {
         validateType(type);
         return switch (type) {
-            case "industry" -> listFromMapper(industryCategoryMapper, IndustryCategory.class);
-            case "product" -> listFromMapper(productCategoryMapper, ProductCategory.class);
+            case "industry", "product", "category" -> listFromMapper(categoryMapper, Category.class);
             case "requirement" -> {
                 List<TreeCategoryResponse> rows = listFromMapper(requirementCategoryMapper, RequirementCategory.class);
                 enrichRequirementLinkedIds(rows);
@@ -83,28 +79,16 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
         boolean enabled = request.getIsEnabled() != null ? request.getIsEnabled() : true;
 
         Integer newId = switch (type) {
-            case "industry" -> {
-                IndustryCategory entity = new IndustryCategory();
+            case "industry", "product", "category" -> {
+                Category entity = new Category();
                 entity.setParentId(parentId);
                 entity.setName(request.getName());
                 entity.setLevel(level);
                 entity.setSortOrder(sortOrder);
                 entity.setIsEnabled(enabled ? 1 : 0);
-                industryCategoryMapper.insert(entity);
+                categoryMapper.insert(entity);
                 entity.setPath(parentId == 0 ? String.valueOf(entity.getId()) : parentPath + "/" + entity.getId());
-                industryCategoryMapper.updateById(entity);
-                yield entity.getId();
-            }
-            case "product" -> {
-                ProductCategory entity = new ProductCategory();
-                entity.setParentId(parentId);
-                entity.setName(request.getName());
-                entity.setLevel(level);
-                entity.setSortOrder(sortOrder);
-                entity.setIsEnabled(enabled ? 1 : 0);
-                productCategoryMapper.insert(entity);
-                entity.setPath(parentId == 0 ? String.valueOf(entity.getId()) : parentPath + "/" + entity.getId());
-                productCategoryMapper.updateById(entity);
+                categoryMapper.updateById(entity);
                 yield entity.getId();
             }
             case "requirement" -> {
@@ -137,15 +121,10 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
         }
 
         switch (type) {
-            case "industry" -> {
-                IndustryCategory entity = industryCategoryMapper.selectById(id);
+            case "industry", "product", "category" -> {
+                Category entity = categoryMapper.selectById(id);
                 applyUpdates(entity, request);
-                industryCategoryMapper.updateById(entity);
-            }
-            case "product" -> {
-                ProductCategory entity = productCategoryMapper.selectById(id);
-                applyUpdates(entity, request);
-                productCategoryMapper.updateById(entity);
+                categoryMapper.updateById(entity);
             }
             case "requirement" -> {
                 RequirementCategory entity = requirementCategoryMapper.selectById(id);
@@ -174,8 +153,7 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
         }
 
         switch (type) {
-            case "industry" -> industryCategoryMapper.deleteById(id);
-            case "product" -> productCategoryMapper.deleteById(id);
+            case "industry", "product", "category" -> categoryMapper.deleteById(id);
             case "requirement" -> requirementCategoryMapper.deleteById(id);
         }
 
@@ -188,8 +166,7 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
     public void resetToDefault(String type) {
         validateType(type);
         String table = switch (type) {
-            case "industry" -> "industry_categories";
-            case "product" -> "product_categories";
+            case "industry", "product", "category" -> "categories";
             case "requirement" -> "requirement_categories";
             default -> throw BusinessException.badRequest("不支持的分类类型");
         };
@@ -275,12 +252,8 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
 
     private TreeCategoryResponse findById(String type, Integer id) {
         return switch (type) {
-            case "industry" -> {
-                IndustryCategory e = industryCategoryMapper.selectById(id);
-                yield e != null ? toResponse(e.getId(), e.getParentId(), e.getName(), e.getLevel(), e.getPath(), e.getSortOrder(), e.getIsEnabled(), e.getCreatedAt()) : null;
-            }
-            case "product" -> {
-                ProductCategory e = productCategoryMapper.selectById(id);
+            case "industry", "product", "category" -> {
+                Category e = categoryMapper.selectById(id);
                 yield e != null ? toResponse(e.getId(), e.getParentId(), e.getName(), e.getLevel(), e.getPath(), e.getSortOrder(), e.getIsEnabled(), e.getCreatedAt()) : null;
             }
             case "requirement" -> {
@@ -293,10 +266,8 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
 
     private boolean hasChildren(String type, Integer parentId) {
         return switch (type) {
-            case "industry" -> industryCategoryMapper.selectCount(
-                    new LambdaQueryWrapper<IndustryCategory>().eq(IndustryCategory::getParentId, parentId)) > 0;
-            case "product" -> productCategoryMapper.selectCount(
-                    new LambdaQueryWrapper<ProductCategory>().eq(ProductCategory::getParentId, parentId)) > 0;
+            case "industry", "product", "category" -> categoryMapper.selectCount(
+                    new LambdaQueryWrapper<Category>().eq(Category::getParentId, parentId)) > 0;
             case "requirement" -> requirementCategoryMapper.selectCount(
                     new LambdaQueryWrapper<RequirementCategory>().eq(RequirementCategory::getParentId, parentId)) > 0;
             default -> false;
@@ -306,9 +277,7 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
     private <T> List<TreeCategoryResponse> listFromMapper(BaseMapper<T> mapper, Class<T> clazz) {
         List<T> all = mapper.selectList(null);
         return all.stream().map(entity -> {
-            if (entity instanceof IndustryCategory e) {
-                return toResponse(e.getId(), e.getParentId(), e.getName(), e.getLevel(), e.getPath(), e.getSortOrder(), e.getIsEnabled(), e.getCreatedAt());
-            } else if (entity instanceof ProductCategory e) {
+            if (entity instanceof Category e) {
                 return toResponse(e.getId(), e.getParentId(), e.getName(), e.getLevel(), e.getPath(), e.getSortOrder(), e.getIsEnabled(), e.getCreatedAt());
             } else if (entity instanceof RequirementCategory e) {
                 return toResponse(e.getId(), e.getParentId(), e.getName(), e.getLevel(), e.getPath(), e.getSortOrder(), e.getIsEnabled(), e.getCreatedAt());
@@ -381,11 +350,7 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
     }
 
     private void applyUpdates(Object entity, TreeCategoryUpdateRequest req) {
-        if (entity instanceof IndustryCategory e) {
-            if (req.getName() != null) e.setName(req.getName());
-            if (req.getSortOrder() != null) e.setSortOrder(req.getSortOrder());
-            if (req.getIsEnabled() != null) e.setIsEnabled(req.getIsEnabled() ? 1 : 0);
-        } else if (entity instanceof ProductCategory e) {
+        if (entity instanceof Category e) {
             if (req.getName() != null) e.setName(req.getName());
             if (req.getSortOrder() != null) e.setSortOrder(req.getSortOrder());
             if (req.getIsEnabled() != null) e.setIsEnabled(req.getIsEnabled() ? 1 : 0);

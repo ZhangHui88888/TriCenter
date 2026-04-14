@@ -59,7 +59,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     private final EnterpriseContactMapper contactMapper;
     private final EnterpriseProductMapper productMapper;
     private final EnterprisePatentMapper patentMapper;
-    private final ProductCategoryMapper productCategoryMapper;
+    private final CategoryMapper categoryMapper;
     private final StageChangeLogMapper stageChangeLogMapper;
     private final FollowUpRecordMapper followUpRecordMapper;
     private final DashboardService dashboardService;
@@ -148,7 +148,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 salesCountryMap.merge(cn, 1, Integer::sum);
             }
 
-            String industryName = dictionaryCache.resolveLevel1IndustryName(e.getIndustryId());
+            String industryName = dictionaryCache.resolveLevel1CategoryName(e.getIndustryId());
             industryMap.merge(industryName, 1, Integer::sum);
 
             String stage = StageCodeUtil.normalize(e.getStage());
@@ -275,7 +275,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (StringUtils.hasText(request.getProvince())) wrapper.eq(Enterprise::getProvince, request.getProvince());
         if (StringUtils.hasText(request.getCity())) wrapper.eq(Enterprise::getCity, request.getCity());
         if (request.getIndustryId() != null && request.getIndustryId() > 0) {
-            Set<Integer> industryIds = dictionaryCache.getIndustryDescendantIds(request.getIndustryId());
+            Set<Integer> industryIds = dictionaryCache.getCategoryDescendantIds(request.getIndustryId());
             wrapper.in(Enterprise::getIndustryId, industryIds);
         }
         if (StringUtils.hasText(request.getEnterpriseType())) wrapper.eq(Enterprise::getEnterpriseType, request.getEnterpriseType());
@@ -460,7 +460,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
      * 行业分布：固定展示「未分类」+ 字典一级行业（无数据为 0），避免柱状图只剩少数类目
      */
     private List<AnalysisStatsResponse.NameCount> buildFullIndustryStats(Map<String, Integer> industryMap) {
-        List<String> level1Ordered = dictionaryCache.getLevel1IndustryNamesInOrder();
+        List<String> level1Ordered = dictionaryCache.getLevel1CategoryNamesInOrder();
         List<AnalysisStatsResponse.NameCount> result = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         result.add(new AnalysisStatsResponse.NameCount("未分类", industryMap.getOrDefault("未分类", 0)));
@@ -541,7 +541,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             productWrapper.eq(EnterpriseProduct::getAutomationLevelId, request.getAutomationLevelId());
         }
         if (request.getProductCategoryId() != null && request.getProductCategoryId() > 0) {
-            Set<Integer> categoryIds = dictionaryCache.getProductCategoryDescendantIds(request.getProductCategoryId());
+            Set<Integer> categoryIds = dictionaryCache.getCategoryDescendantIds(request.getProductCategoryId());
             productWrapper.in(EnterpriseProduct::getCategoryId, categoryIds);
         }
         if (request.getProductCertificationId() != null && request.getProductCertificationId() > 0) {
@@ -1092,7 +1092,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             response.setHasCrossBorder(enterprise.getHasCrossBorder());
             response.setCreatedAt(enterprise.getCreatedAt());
 
-            response.setIndustryName(dictionaryCache.getIndustryName(enterprise.getIndustryId()));
+            response.setIndustryName(dictionaryCache.getCategoryName(enterprise.getIndustryId()));
 
             SystemOption stageOption = dictionaryCache.getOptionByValue("stage", stageCode);
             if (stageOption != null) {
@@ -1142,7 +1142,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         response.setSourceProviderId(enterprise.getSourceProviderId());
         String stageCode = StageCodeUtil.normalize(enterprise.getStage());
         response.setStage(stageCode);
-        response.setIndustryName(dictionaryCache.getIndustryName(enterprise.getIndustryId()));
+        response.setIndustryName(dictionaryCache.getCategoryName(enterprise.getIndustryId()));
 
         SystemOption stageOption = dictionaryCache.getOptionByValue("stage", stageCode);
         if (stageOption != null) {
@@ -1270,7 +1270,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 info.setLogisticsPartnerIds(p.getLogisticsPartnerIds());
                 
                 if (p.getCategoryId() != null) {
-                    ProductCategory category = productCategoryMapper.selectById(p.getCategoryId());
+                    Category category = categoryMapper.selectById(p.getCategoryId());
                     if (category != null) {
                         info.setCategoryName(category.getName());
                     }
@@ -1513,7 +1513,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             data.setRegisteredCapital(e.getRegisteredCapital());
             data.setDistrict(e.getDistrict());
             data.setAddress(e.getAddress());
-            data.setIndustryName(dictionaryCache.getIndustryName(e.getIndustryId()));
+            data.setIndustryName(dictionaryCache.getCategoryName(e.getIndustryId()));
             data.setEnterpriseType(e.getEnterpriseType());
             data.setStaffSize(dictionaryCache.getOptionLabel(e.getStaffSizeId()));
             data.setWebsite(e.getWebsite());

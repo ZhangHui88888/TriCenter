@@ -118,7 +118,7 @@ function DataAnalysis() {
   useEffect(() => {
     Promise.all([
       optionsApi.getOptions('district'),
-      optionsApi.getIndustries(),
+      optionsApi.getCategories(),
       optionsApi.getOptions('staff_size'),
       optionsApi.getOptions('domestic_revenue'),
       optionsApi.getOptions('source'),

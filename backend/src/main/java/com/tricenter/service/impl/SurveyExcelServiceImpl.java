@@ -41,8 +41,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     private final EnterpriseContactMapper contactMapper;
     private final EnterpriseProductMapper productMapper;
 
-    private final IndustryCategoryMapper industryCategoryMapper;
-    private final ProductCategoryMapper productCategoryMapper;
+    private final CategoryMapper categoryMapper;
     private final SystemOptionMapper systemOptionMapper;
     private final OptionsService optionsService;
     private final RequirementMatchEngine requirementMatchEngine;
@@ -669,7 +668,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
             // 行业名称
             if (e.getIndustryId() != null) {
-                IndustryCategory industry = industryCategoryMapper.selectById(e.getIndustryId());
+                Category industry = categoryMapper.selectById(e.getIndustryId());
                 if (industry != null) data.setIndustryName(industry.getName());
             }
 
@@ -771,7 +770,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
                     // 品类名称
                     if (p.getCategoryId() != null) {
-                        ProductCategory cat = productCategoryMapper.selectById(p.getCategoryId());
+                        Category cat = categoryMapper.selectById(p.getCategoryId());
                         if (cat != null) data.setCategoryName(cat.getName());
                     }
 
@@ -1118,7 +1117,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
         // 行业 - 按名称查找ID（支持别名映射和模糊匹配）
         if (StringUtils.hasText(data.getIndustryName())) {
-            IndustryCategory industry = resolveIndustryByName(data.getIndustryName());
+            Category industry = resolveIndustryByName(data.getIndustryName());
             if (industry != null) enterprise.setIndustryId(industry.getId());
         }
 
@@ -1324,9 +1323,10 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
                     // 品类 - 按名称查找
                     if (StringUtils.hasText(p.getCategoryName())) {
-                        LambdaQueryWrapper<ProductCategory> w = new LambdaQueryWrapper<>();
-                        w.eq(ProductCategory::getName, p.getCategoryName().trim());
-                        ProductCategory cat = productCategoryMapper.selectOne(w);
+                        LambdaQueryWrapper<Category> w = new LambdaQueryWrapper<>();
+                        w.eq(Category::getName, p.getCategoryName().trim())
+                                .ge(Category::getId, 100000);
+                        Category cat = categoryMapper.selectOne(w);
                         if (cat != null) product.setCategoryId(cat.getId());
                     }
 
@@ -1599,6 +1599,10 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         for (String alias : new String[]{"光伏", "光伏行业"}) {
             INDUSTRY_ALIAS_MAP.put(alias, "新能源");
         }
+        // 自行车/电动车
+        for (String alias : new String[]{"自行车", "自行车制造", "电动自行车", "电动自行车制造", "电动车制造", "两轮车"}) {
+            INDUSTRY_ALIAS_MAP.put(alias, "自行车/电动车");
+        }
         // 电动工具
         INDUSTRY_ALIAS_MAP.put("扳机", "电动工具");
         // 箱包皮具
@@ -1654,22 +1658,22 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     /**
      * 解析行业名称：先精确匹配数据库，再走别名映射
      */
-    private IndustryCategory resolveIndustryByName(String rawName) {
+    private Category resolveIndustryByName(String rawName) {
         if (!StringUtils.hasText(rawName)) return null;
         String name = rawName.trim();
 
-        // 1) 精确匹配
-        LambdaQueryWrapper<IndustryCategory> w = new LambdaQueryWrapper<>();
-        w.eq(IndustryCategory::getName, name);
-        IndustryCategory result = industryCategoryMapper.selectOne(w);
+        // 1) 精确匹配（仅行业分类，id < 100000）
+        LambdaQueryWrapper<Category> w = new LambdaQueryWrapper<>();
+        w.eq(Category::getName, name).lt(Category::getId, 100000);
+        Category result = categoryMapper.selectOne(w);
         if (result != null) return result;
 
         // 2) 别名映射
         String mapped = INDUSTRY_ALIAS_MAP.get(name);
         if (mapped != null) {
-            LambdaQueryWrapper<IndustryCategory> w2 = new LambdaQueryWrapper<>();
-            w2.eq(IndustryCategory::getName, mapped);
-            result = industryCategoryMapper.selectOne(w2);
+            LambdaQueryWrapper<Category> w2 = new LambdaQueryWrapper<>();
+            w2.eq(Category::getName, mapped).lt(Category::getId, 100000);
+            result = categoryMapper.selectOne(w2);
             if (result != null) return result;
         }
 
@@ -1678,17 +1682,17 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         if (!first.equals(name) && first.length() >= 2) {
             mapped = INDUSTRY_ALIAS_MAP.get(first);
             if (mapped != null) {
-                LambdaQueryWrapper<IndustryCategory> w3 = new LambdaQueryWrapper<>();
-                w3.eq(IndustryCategory::getName, mapped);
-                result = industryCategoryMapper.selectOne(w3);
+                LambdaQueryWrapper<Category> w3 = new LambdaQueryWrapper<>();
+                w3.eq(Category::getName, mapped).lt(Category::getId, 100000);
+                result = categoryMapper.selectOne(w3);
                 if (result != null) return result;
             }
         }
 
         // 4) LIKE 模糊匹配（最后手段）
-        LambdaQueryWrapper<IndustryCategory> wLike = new LambdaQueryWrapper<>();
-        wLike.like(IndustryCategory::getName, name).last("LIMIT 1");
-        result = industryCategoryMapper.selectOne(wLike);
+        LambdaQueryWrapper<Category> wLike = new LambdaQueryWrapper<>();
+        wLike.like(Category::getName, name).lt(Category::getId, 100000).last("LIMIT 1");
+        result = categoryMapper.selectOne(wLike);
         if (result != null) return result;
 
         log.warn("行业匹配失败: '{}'，无精确匹配、别名映射或模糊匹配", name);

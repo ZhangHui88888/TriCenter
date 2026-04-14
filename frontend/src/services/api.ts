@@ -296,11 +296,11 @@ export const optionsApi = {
   // 获取系统选项
   getOptions: (category: string) => request.get(`/options/${category}`),
 
-  // 获取行业分类树
-  getIndustries: () => request.get('/options/industries'),
-
-  // 获取产品品类树
-  getProductCategories: () => request.get('/options/product-categories'),
+  // 获取统一分类树（行业+产品品类共用）
+  getCategories: () => request.get('/options/categories'),
+  // 兼容旧调用
+  getIndustries: () => request.get('/options/categories'),
+  getProductCategories: () => request.get('/options/categories'),
 
   // 获取用户列表（对接人）
   getUsers: () => request.get('/options/users'),

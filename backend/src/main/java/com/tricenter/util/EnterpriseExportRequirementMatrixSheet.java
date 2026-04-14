@@ -299,7 +299,7 @@ public final class EnterpriseExportRequirementMatrixSheet {
             parts.add("录入时间：" + start + "～" + end);
         }
         if (request.getIndustryId() != null && request.getIndustryId() > 0) {
-            String name = dict.getIndustryName(request.getIndustryId());
+            String name = dict.getCategoryName(request.getIndustryId());
             if (StringUtils.hasText(name)) {
                 parts.add("行业：" + name);
             }

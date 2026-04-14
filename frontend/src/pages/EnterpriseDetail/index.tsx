@@ -1,2 +1,2 @@
-import EnterpriseDetail from '../EnterpriseDetail.original';
+import EnterpriseDetail from './EnterpriseDetail';
 export default EnterpriseDetail;

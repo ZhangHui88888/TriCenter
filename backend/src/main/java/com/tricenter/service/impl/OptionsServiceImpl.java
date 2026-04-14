@@ -29,13 +29,52 @@ import java.util.stream.Collectors;
 public class OptionsServiceImpl implements OptionsService {
 
     private final SystemOptionMapper systemOptionMapper;
-    private final IndustryCategoryMapper industryCategoryMapper;
-    private final ProductCategoryMapper productCategoryMapper;
+    private final CategoryMapper categoryMapper;
     private final UserMapper userMapper;
     private final RequirementDimensionMappingMapper dimensionMappingMapper;
     private final DictionaryCacheService dictionaryCache;
     private final ProviderMapper providerMapper;
     private final JdbcTemplate jdbcTemplate;
+
+    /**
+     * 字典选项被引用的检查 SQL（category → SQL 列表）
+     * INT 列直接 = ?，JSON 数组列用 JSON_CONTAINS
+     */
+    private static final Map<String, List<String>> CATEGORY_REF_CHECKS = new LinkedHashMap<>();
+    static {
+        CATEGORY_REF_CHECKS.put("staff_size", List.of(
+            "SELECT COUNT(*) FROM enterprises WHERE staff_size_id = ? AND is_deleted = 0",
+            "SELECT COUNT(*) FROM providers WHERE staff_size_id = ? AND is_deleted = 0"
+        ));
+        CATEGORY_REF_CHECKS.put("source", List.of(
+            "SELECT COUNT(*) FROM enterprises WHERE source_id = ? AND is_deleted = 0"
+        ));
+        CATEGORY_REF_CHECKS.put("source_provider", List.of(
+            "SELECT COUNT(*) FROM enterprises WHERE source_provider_id = ? AND is_deleted = 0"
+        ));
+        CATEGORY_REF_CHECKS.put("trade_mode", List.of(
+            "SELECT COUNT(*) FROM enterprises WHERE trade_mode_id = ? AND is_deleted = 0"
+        ));
+        CATEGORY_REF_CHECKS.put("trade_team_mode", List.of(
+            "SELECT COUNT(*) FROM enterprises WHERE trade_team_mode_id = ? AND is_deleted = 0"
+        ));
+        CATEGORY_REF_CHECKS.put("revenue", List.of(
+            "SELECT COUNT(*) FROM enterprises WHERE domestic_revenue_id = ? AND is_deleted = 0"
+        ));
+        CATEGORY_REF_CHECKS.put("region", List.of(
+            "SELECT COUNT(*) FROM enterprises WHERE JSON_CONTAINS(target_region_ids, CAST(? AS JSON)) AND is_deleted = 0",
+            "SELECT COUNT(*) FROM enterprise_products WHERE JSON_CONTAINS(target_region_ids, CAST(? AS JSON))"
+        ));
+        CATEGORY_REF_CHECKS.put("certification", List.of(
+            "SELECT COUNT(*) FROM enterprise_products WHERE JSON_CONTAINS(certification_ids, CAST(? AS JSON))"
+        ));
+        CATEGORY_REF_CHECKS.put("automation_level", List.of(
+            "SELECT COUNT(*) FROM enterprise_products WHERE automation_level_id = ?"
+        ));
+        CATEGORY_REF_CHECKS.put("logistics", List.of(
+            "SELECT COUNT(*) FROM enterprise_products WHERE JSON_CONTAINS(logistics_partner_ids, CAST(? AS JSON))"
+        ));
+    }
 
     /**
      * 分类名称映射
@@ -83,25 +122,14 @@ public class OptionsServiceImpl implements OptionsService {
     }
 
     @Override
-    public List<TreeNodeResponse> getIndustryTree() {
-        List<IndustryCategory> allCategories = industryCategoryMapper.selectList(
-            new LambdaQueryWrapper<IndustryCategory>()
-                .eq(IndustryCategory::getIsEnabled, 1)
-                .orderByAsc(IndustryCategory::getSortOrder)
+    public List<TreeNodeResponse> getCategoryTree() {
+        List<Category> allCategories = categoryMapper.selectList(
+            new LambdaQueryWrapper<Category>()
+                .eq(Category::getIsEnabled, 1)
+                .orderByAsc(Category::getSortOrder)
         );
         
-        return buildIndustryTree(allCategories, 0);
-    }
-
-    @Override
-    public List<TreeNodeResponse> getProductCategoryTree() {
-        List<ProductCategory> allCategories = productCategoryMapper.selectList(
-            new LambdaQueryWrapper<ProductCategory>()
-                .eq(ProductCategory::getIsEnabled, 1)
-                .orderByAsc(ProductCategory::getSortOrder)
-        );
-        
-        return buildProductTree(allCategories, 0);
+        return buildCategoryTree(allCategories, 0);
     }
 
     @Override
@@ -207,8 +235,15 @@ public class OptionsServiceImpl implements OptionsService {
             throw BusinessException.notFound("选项不存在");
         }
         
-        // TODO: 检查是否被引用，如果被引用则不允许删除，只能禁用
-        // 这里暂时直接删除，后续可以添加引用检查逻辑
+        List<String> checks = CATEGORY_REF_CHECKS.get(category);
+        if (checks != null) {
+            for (String sql : checks) {
+                Integer count = jdbcTemplate.queryForObject(sql, Integer.class, id);
+                if (count != null && count > 0) {
+                    throw BusinessException.badRequest("该选项已被企业或产品数据引用，无法删除");
+                }
+            }
+        }
         
         systemOptionMapper.deleteById(id);
         dictionaryCache.refresh();
@@ -216,9 +251,9 @@ public class OptionsServiceImpl implements OptionsService {
     }
 
     /**
-     * 构建行业分类树
+     * 构建统一分类树
      */
-    private List<TreeNodeResponse> buildIndustryTree(List<IndustryCategory> allCategories, Integer parentId) {
+    private List<TreeNodeResponse> buildCategoryTree(List<Category> allCategories, Integer parentId) {
         return allCategories.stream()
             .filter(c -> Objects.equals(c.getParentId(), parentId))
             .map(c -> TreeNodeResponse.builder()
@@ -226,23 +261,7 @@ public class OptionsServiceImpl implements OptionsService {
                 .name(c.getName())
                 .level(c.getLevel())
                 .parentId(c.getParentId())
-                .children(buildIndustryTree(allCategories, c.getId()))
-                .build())
-            .collect(Collectors.toList());
-    }
-
-    /**
-     * 构建产品品类树
-     */
-    private List<TreeNodeResponse> buildProductTree(List<ProductCategory> allCategories, Integer parentId) {
-        return allCategories.stream()
-            .filter(c -> Objects.equals(c.getParentId(), parentId))
-            .map(c -> TreeNodeResponse.builder()
-                .id(c.getId())
-                .name(c.getName())
-                .level(c.getLevel())
-                .parentId(c.getParentId())
-                .children(buildProductTree(allCategories, c.getId()))
+                .children(buildCategoryTree(allCategories, c.getId()))
                 .build())
             .collect(Collectors.toList());
     }

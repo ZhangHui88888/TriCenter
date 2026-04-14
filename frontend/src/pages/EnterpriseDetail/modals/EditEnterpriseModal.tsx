@@ -3,22 +3,7 @@ import dayjs from 'dayjs';
 import { Modal, Form, Input, InputNumber, Select, Row, Col, Cascader, DatePicker, message } from 'antd';
 import { ENTERPRISE_TYPE_OPTIONS } from '@/utils/constants';
 import { enterpriseApi } from '@/services/api';
-
-function findIndustryCascaderPath(nodes: any[], targetId: unknown, path: number[] = []): number[] | null {
-  if (targetId == null || targetId === '') return null;
-  const tid = Number(targetId);
-  if (Number.isNaN(tid)) return null;
-  for (const n of nodes || []) {
-    const val = n.value as number;
-    const next = [...path, val];
-    if (val === tid) return next;
-    if (n.children?.length) {
-      const sub = findIndustryCascaderPath(n.children, targetId, next);
-      if (sub) return sub;
-    }
-  }
-  return null;
-}
+import { findCascaderPath as findIndustryCascaderPath } from '../utils';
 
 interface EditEnterpriseModalProps {
   open: boolean;

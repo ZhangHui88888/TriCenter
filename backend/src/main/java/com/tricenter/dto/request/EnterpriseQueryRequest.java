@@ -84,7 +84,7 @@ public class EnterpriseQueryRequest {
     /** 物流合作方ID，多个逗号分隔 */
     private String logisticsPartnerIds;
 
-    /** 产品品类ID（关联 product_categories 表） */
+    /** 产品品类ID（关联 categories 表） */
     private Integer productCategoryId;
 
     /** 主要销售区域ID：企业主表 target_region_ids 含该 ID（与数据分析地图统计口径一致） */

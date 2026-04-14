@@ -11,12 +11,12 @@ import com.tricenter.entity.Enterprise;
 import com.tricenter.entity.EnterprisePatent;
 import com.tricenter.entity.EnterpriseProduct;
 import com.tricenter.entity.SystemOption;
-import com.tricenter.entity.ProductCategory;
+import com.tricenter.entity.Category;
 import com.tricenter.mapper.EnterpriseMapper;
 import com.tricenter.mapper.EnterprisePatentMapper;
 import com.tricenter.mapper.EnterpriseProductMapper;
 import com.tricenter.mapper.SystemOptionMapper;
-import com.tricenter.mapper.ProductCategoryMapper;
+import com.tricenter.mapper.CategoryMapper;
 import com.tricenter.service.ProductService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
@@ -39,7 +39,7 @@ public class ProductServiceImpl implements ProductService {
     private final EnterprisePatentMapper patentMapper;
     private final EnterpriseMapper enterpriseMapper;
     private final SystemOptionMapper systemOptionMapper;
-    private final ProductCategoryMapper productCategoryMapper;
+    private final CategoryMapper categoryMapper;
 
     @Override
     public List<ProductResponse> getProductsByEnterpriseId(Integer enterpriseId) {
@@ -209,7 +209,7 @@ public class ProductServiceImpl implements ProductService {
         
         // 获取品类名称
         if (product.getCategoryId() != null) {
-            ProductCategory category = productCategoryMapper.selectById(product.getCategoryId());
+            Category category = categoryMapper.selectById(product.getCategoryId());
             if (category != null) {
                 response.setCategoryName(category.getName());
             }

@@ -6,11 +6,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- * 产品品类实体
+ * 统一分类实体（合并原 industry_categories + product_categories）
  */
 @Data
-@TableName("product_categories")
-public class ProductCategory {
+@TableName("categories")
+public class Category {
     
     @TableId(type = IdType.AUTO)
     private Integer id;
@@ -33,5 +33,5 @@ public class ProductCategory {
      * 子分类列表（非数据库字段）
      */
     @TableField(exist = false)
-    private List<ProductCategory> children;
+    private List<Category> children;
 }

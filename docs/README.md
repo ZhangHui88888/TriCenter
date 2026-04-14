@@ -13,6 +13,7 @@ docs/
 ├── design/            # 需求与设计：需求文档、功能规格、交互流程（按模块拆分）
 ├── tech/              # 技术文档：架构、API设计、数据库、部署、运维
 ├── test/              # 测试记录（按模块组织）
+├── prompts/           # 提示词记录：与 AI 对话中使用的提示词
 └── sql/               # 数据库脚本（schema.sql + init.sql + scripts/）
 ```
 
@@ -72,12 +73,17 @@ docs/
 | [模块6-看板统计.md](./test/模块6-看板统计.md) | 看板统计（5个API） | ⏳ 待测试 |
 | [Java后端-SonarQube-IDE分批分析清单.md](./test/Java后端-SonarQube-IDE分批分析清单.md) | 本地 IDE 按目录/大文件拆分扫 Java，控制上下文 | 2026-03-23 首版 |
 
+## `prompts/` — 提示词记录
+
+| 文档 | 说明 |
+|------|------|
+| [对话提示词记录.md](./prompts/对话提示词记录.md) | 与 AI 对话中使用的提示词记录，按用途分类，含效果评价 |
+
 ## `sql/` — 数据库脚本
 
 | 文档 | 说明 |
 |------|------|
-| [tricenter_schema.sql](./sql/tricenter_schema.sql) | 表结构定义（19张表：users、enterprises、follow_ups、providers、market_reports 等） |
-| [tricenter_init.sql](./sql/tricenter_init.sql) | 初始化数据（系统选项、行业分类、产品品类、需求、默认用户） |
+| [tricenter_schema.sql](./sql/tricenter_schema.sql) | 表结构定义（18张表：users、enterprises、categories、providers、market_reports 等；原 industry_categories + product_categories 已合并为 categories） |
+| [tricenter_init.sql](./sql/tricenter_init.sql) | 初始化数据（系统选项、统一分类、需求、默认用户） |
 | scripts/ | 上线后每次更新的迁移脚本 |
 | [scripts/06_add_requirement_recommended.sql](./sql/scripts/06_add_requirement_recommended.sql) | requirements 表新增 is_recommended 字段（推荐需求优先展示） |
-| [scripts/06_merge_crossborder_revenue.sql](./sql/scripts/06_merge_crossborder_revenue.sql) | 跨境营收字段统一：废弃 cross_border_revenue_wan/id，合并到 last_year_revenue |

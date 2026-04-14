@@ -17,14 +17,9 @@ public interface OptionsService {
     List<OptionResponse> getOptionsByCategory(String category);
     
     /**
-     * 获取行业分类树
+     * 获取统一分类树（行业+产品共用）
      */
-    List<TreeNodeResponse> getIndustryTree();
-    
-    /**
-     * 获取产品品类树
-     */
-    List<TreeNodeResponse> getProductCategoryTree();
+    List<TreeNodeResponse> getCategoryTree();
     
     /**
      * 获取用户列表（对接人）

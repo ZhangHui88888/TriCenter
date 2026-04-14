@@ -69,7 +69,7 @@ interface RequirementAdminRow {
   dimensions?: Record<string, string[]>;
 }
 
-const TREE_CATEGORY_KEYS = ['_industry_categories', '_product_categories', '_requirement_categories'] as const;
+const TREE_CATEGORY_KEYS = ['_categories', '_requirement_categories'] as const;
 
 /** API 响应 → 前端 CategoryTreeItem 映射 */
 const mapApiToTreeItem = (item: TreeCategoryItem): CategoryTreeItem => ({
@@ -106,14 +106,13 @@ function DataDictionary() {
   const [form] = Form.useForm();
   
   // 多级分类状态
-  const [industryCategories, setIndustryCategories] = useState<CategoryTreeItem[]>([]);
-  const [productCategories, setProductCategories] = useState<CategoryTreeItem[]>([]);
+  const [unifiedCategories, setUnifiedCategories] = useState<CategoryTreeItem[]>([]);
   const [requirementCategories, setRequirementCategories] = useState<CategoryTreeItem[]>([]);
   const [treeLoading, setTreeLoading] = useState(false);
   const [treeModalVisible, setTreeModalVisible] = useState(false);
   const [editingTreeItem, setEditingTreeItem] = useState<CategoryTreeItem | null>(null);
   const [treeForm] = Form.useForm();
-  const [currentTreeType, setCurrentTreeType] = useState<'industry' | 'product' | 'requirement'>('industry');
+  const [currentTreeType, setCurrentTreeType] = useState<'category' | 'requirement'>('category');
   const [treeDimLoading, setTreeDimLoading] = useState(false);
 
   const [requirementRows, setRequirementRows] = useState<RequirementAdminRow[]>([]);
@@ -126,11 +125,9 @@ function DataDictionary() {
   const isTreeCategory = selectedCategory != null && TREE_CATEGORY_KEYS.includes(selectedCategory as typeof TREE_CATEGORY_KEYS[number]);
   const isRequirementItemsCategory = selectedCategory === '_requirement_items';
   const treeType =
-    selectedCategory === '_industry_categories'
-      ? 'industry'
-      : selectedCategory === '_product_categories'
-        ? 'product'
-        : 'requirement';
+    selectedCategory === '_categories'
+      ? 'category'
+      : 'requirement';
 
   // 平面字典分类：从后端 system_options 加载
   useEffect(() => {
@@ -170,14 +167,12 @@ function DataDictionary() {
   }, [selectedCategory, isTreeCategory, isRequirementItemsCategory]);
 
   // 树形分类：从后端加载
-  const loadTreeData = async (type: 'industry' | 'product' | 'requirement') => {
+  const loadTreeData = async (type: 'category' | 'requirement') => {
     setTreeLoading(true);
     try {
       const res = await treeCategoryApi.list(type);
       const items = ((res as any).data || []).map(mapApiToTreeItem);
-      const setter = type === 'industry' ? setIndustryCategories
-        : type === 'product' ? setProductCategories
-        : setRequirementCategories;
+      const setter = type === 'category' ? setUnifiedCategories : setRequirementCategories;
       setter(items);
     } catch {
       message.error('加载分类数据失败');
@@ -246,15 +241,9 @@ function DataDictionary() {
     // 添加多级分类选项
     options.unshift(
       {
-        value: '_industry_categories',
-        label: '行业分类 (多级)',
-        desc: '企业主表 industry_id 关联，数据存储于 industry_categories 表',
-        isTree: true,
-      },
-      {
-        value: '_product_categories',
-        label: '产品品类 (多级)',
-        desc: '企业产品 category_id 关联，数据存储于 product_categories 表',
+        value: '_categories',
+        label: '分类管理 (多级)',
+        desc: '行业+产品品类统一分类树，数据存储于 categories 表',
         isTree: true,
       },
       {
@@ -289,10 +278,8 @@ function DataDictionary() {
       };
     }
     if (isTreeCategory) {
-      if (selectedCategory === '_industry_categories') {
-        return { key: '_industry_categories', name: '行业分类', description: '企业主表.industry_id' };
-      } else if (selectedCategory === '_product_categories') {
-        return { key: '_product_categories', name: '产品品类', description: '企业产品.category_id' };
+      if (selectedCategory === '_categories') {
+        return { key: '_categories', name: '分类管理', description: '行业+产品品类统一分类树 (categories 表)' };
       } else {
         return {
           key: '_requirement_categories',
@@ -440,9 +427,7 @@ function DataDictionary() {
 
   // 多级分类操作
   const handleAddTreeItem = (parentId: number = 0) => {
-    const items = treeType === 'industry' ? industryCategories 
-      : treeType === 'product' ? productCategories 
-      : requirementCategories;
+    const items = treeType === 'category' ? unifiedCategories : requirementCategories;
     const parent = items.find(i => i.id === parentId);
     const level = parent ? parent.level + 1 : 1;
     
@@ -658,9 +643,7 @@ function DataDictionary() {
 
   // 重新构建带操作的树数据
   const treeDataWithActions = useMemo(() => {
-    const items = selectedCategory === '_industry_categories' ? industryCategories 
-      : selectedCategory === '_product_categories' ? productCategories 
-      : requirementCategories;
+    const items = selectedCategory === '_categories' ? unifiedCategories : requirementCategories;
     const map = new Map<number, DataNode & { raw: CategoryTreeItem }>();
     const roots: (DataNode & { raw: CategoryTreeItem })[] = [];
     
@@ -689,7 +672,7 @@ function DataDictionary() {
     });
     
     return roots;
-  }, [selectedCategory, industryCategories, productCategories, requirementCategories]);
+  }, [selectedCategory, unifiedCategories, requirementCategories]);
 
   const summarizeDimensions = (d?: Record<string, string[]>) => {
     if (!d || Object.keys(d).length === 0) return '—';
@@ -1011,11 +994,9 @@ function DataDictionary() {
             >
               <TreeSelect
                 treeData={buildTreeSelectData(
-                  currentTreeType === 'industry'
-                    ? industryCategories
-                    : currentTreeType === 'product'
-                      ? productCategories
-                      : requirementCategories
+                  currentTreeType === 'category'
+                    ? unifiedCategories
+                    : requirementCategories
                 )}
                 placeholder="选择上级分类"
                 treeDefaultExpandAll

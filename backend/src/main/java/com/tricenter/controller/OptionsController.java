@@ -32,18 +32,23 @@ public class OptionsController {
         return Result.success(options);
     }
 
-    @Operation(summary = "获取行业分类树")
-    @GetMapping("/industries")
-    public Result<List<TreeNodeResponse>> getIndustryTree() {
-        List<TreeNodeResponse> tree = optionsService.getIndustryTree();
+    @Operation(summary = "获取统一分类树（行业+产品共用）")
+    @GetMapping("/categories")
+    public Result<List<TreeNodeResponse>> getCategoryTree() {
+        List<TreeNodeResponse> tree = optionsService.getCategoryTree();
         return Result.success(tree);
     }
 
-    @Operation(summary = "获取产品品类树")
+    @Operation(summary = "获取行业分类树（兼容旧接口，等同 /categories）")
+    @GetMapping("/industries")
+    public Result<List<TreeNodeResponse>> getIndustryTree() {
+        return Result.success(optionsService.getCategoryTree());
+    }
+
+    @Operation(summary = "获取产品品类树（兼容旧接口，等同 /categories）")
     @GetMapping("/product-categories")
     public Result<List<TreeNodeResponse>> getProductCategoryTree() {
-        List<TreeNodeResponse> tree = optionsService.getProductCategoryTree();
-        return Result.success(tree);
+        return Result.success(optionsService.getCategoryTree());
     }
 
     @Operation(summary = "获取用户列表（对接人）")

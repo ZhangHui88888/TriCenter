@@ -224,7 +224,7 @@ public class DashboardServiceImpl implements DashboardService {
             }
             Integer industryId = rawId == null ? null : ((Number) rawId).intValue();
             int count = ((Number) item.get("count")).intValue();
-            String l1 = dictionaryCache.resolveLevel1IndustryName(industryId);
+            String l1 = dictionaryCache.resolveLevel1CategoryName(industryId);
             l1Counts.merge(l1, count, Integer::sum);
         }
         List<IndustryStatsResponse> ordered = buildIndustryStatsWithFullAxis(l1Counts);
@@ -239,7 +239,7 @@ public class DashboardServiceImpl implements DashboardService {
      * 与数据分析页一致：未分类 + 字典一级行业（零值占位）+ 其余名称
      */
     private List<IndustryStatsResponse> buildIndustryStatsWithFullAxis(Map<String, Integer> industryMap) {
-        List<String> level1Ordered = dictionaryCache.getLevel1IndustryNamesInOrder();
+        List<String> level1Ordered = dictionaryCache.getLevel1CategoryNamesInOrder();
         List<IndustryStatsResponse> result = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         result.add(new IndustryStatsResponse("未分类", industryMap.getOrDefault("未分类", 0), 0.0));
