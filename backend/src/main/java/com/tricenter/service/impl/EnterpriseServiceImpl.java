@@ -1411,6 +1411,12 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                         enterprise.setHasCrossBorder(0);
                     }
 
+                    // 进出口资质
+                    if (StringUtils.hasText(data.getHasImportExportLicense())) {
+                        enterprise.setHasImportExportLicense("是".equals(data.getHasImportExportLicense().trim()) ? 1 : 0);
+                    }
+                    if (StringUtils.hasText(data.getImportExportCode())) enterprise.setImportExportCode(data.getImportExportCode().trim());
+
                     // 资质认证
                     if (StringUtils.hasText(data.getIsoCertifications())) enterprise.setIsoCertifications(data.getIsoCertifications().trim());
                     if (StringUtils.hasText(data.getAeoCertification())) enterprise.setAeoCertification(data.getAeoCertification().trim());
@@ -1582,6 +1588,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         example.setContactPhone("13800138000");
         example.setContactPosition("总经理");
         example.setHasCrossBorder("否");
+        example.setHasImportExportLicense("是");
+        example.setImportExportCode("1234567890");
         example.setIsoCertifications("ISO9001:2015");
         example.setAeoCertification("一般认证");
         example.setOtherCertifications("CE、FDA");

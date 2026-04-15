@@ -34,6 +34,10 @@ public class SurveyTradeData {
     @ColumnWidth(20)
     private String hasImportExportLicense;
 
+    @ExcelProperty("进出口收发货人代码")
+    @ColumnWidth(25)
+    private String importExportCode;
+
     @ExcelProperty("报关申报主体模式")
     @ColumnWidth(22)
     private String customsDeclarationMode;

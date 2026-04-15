@@ -232,6 +232,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             tradeHint.setTargetCountries("多选用顿号分隔");
             tradeHint.setTradeMode("可选：" + String.join("/", optionLabels.getOrDefault("trade_mode", List.of())));
             tradeHint.setHasImportExportLicense("填：是/否");
+            tradeHint.setImportExportCode("10位编码");
             tradeHint.setCustomsDeclarationMode("自由填写");
             tradeHint.setTradeTeamMode("可选：" + String.join("/", optionLabels.getOrDefault("trade_team_mode", List.of())));
             tradeHint.setTradeTeamSize("填数字");
@@ -254,6 +255,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             List<String> tmLabels = optionLabels.getOrDefault("trade_mode", List.of());
             tradeExample.setTradeMode(tmLabels.isEmpty() ? "OEM代工" : tmLabels.get(0));
             tradeExample.setHasImportExportLicense("是");
+            tradeExample.setImportExportCode("3200000001");
             tradeExample.setCustomsDeclarationMode("自营报关");
             List<String> ttmLabels = optionLabels.getOrDefault("trade_team_mode", List.of());
             tradeExample.setTradeTeamMode(ttmLabels.isEmpty() ? "自建团队" : ttmLabels.get(0));
@@ -840,6 +842,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             }
 
             data.setHasImportExportLicense(e.getHasImportExportLicense() != null && e.getHasImportExportLicense() == 1 ? "是" : "否");
+            data.setImportExportCode(e.getImportExportCode());
             data.setCustomsDeclarationMode(e.getCustomsDeclarationMode());
 
             // 外贸团队模式
@@ -1379,6 +1382,9 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
                 if (StringUtils.hasText(data.getHasImportExportLicense())) {
                     enterprise.setHasImportExportLicense("是".equals(data.getHasImportExportLicense().trim()) ? 1 : 0);
+                }
+                if (StringUtils.hasText(data.getImportExportCode())) {
+                    enterprise.setImportExportCode(data.getImportExportCode().trim());
                 }
                 if (StringUtils.hasText(data.getCustomsDeclarationMode())) {
                     enterprise.setCustomsDeclarationMode(data.getCustomsDeclarationMode().trim());

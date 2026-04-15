@@ -69,6 +69,14 @@ public class EnterpriseExcelData {
     @ExcelProperty("是否跨境")
     @ColumnWidth(10)
     private String hasCrossBorder;
+
+    @ExcelProperty("是否有进出口资质")
+    @ColumnWidth(18)
+    private String hasImportExportLicense;
+
+    @ExcelProperty("进出口代码")
+    @ColumnWidth(20)
+    private String importExportCode;
     
     @ExcelProperty("ISO认证")
     @ColumnWidth(25)

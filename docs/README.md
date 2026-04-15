@@ -79,6 +79,12 @@ docs/
 |------|------|
 | [对话提示词记录.md](./prompts/对话提示词记录.md) | 与 AI 对话中使用的提示词记录，按用途分类，含效果评价 |
 
+## 使用手册
+
+| 文档 | 说明 |
+|------|------|
+| [TriCenter使用手册.pdf](./TriCenter使用手册.pdf) | 系统使用手册（PDF格式，12章，覆盖全部功能模块） |
+
 ## `sql/` — 数据库脚本
 
 | 文档 | 说明 |
@@ -87,3 +93,4 @@ docs/
 | [tricenter_init.sql](./sql/tricenter_init.sql) | 初始化数据（系统选项、统一分类、需求、默认用户） |
 | scripts/ | 上线后每次更新的迁移脚本 |
 | [scripts/06_add_requirement_recommended.sql](./sql/scripts/06_add_requirement_recommended.sql) | requirements 表新增 is_recommended 字段（推荐需求优先展示） |
+| [scripts/06_fix_negative_category_parent.sql](./sql/scripts/06_fix_negative_category_parent.sql) | 修复负 ID 行业分类 parent_id 孤儿问题（-89999 → 1） |
