@@ -14,6 +14,8 @@ public interface AuthService {
      * 用户登录
      */
     LoginResponse login(LoginRequest request);
+
+    LoginResponse selectCity(Integer userId, Integer cityId);
     
     /**
      * 用户登出
@@ -23,7 +25,7 @@ public interface AuthService {
     /**
      * 获取当前用户信息
      */
-    UserResponse getCurrentUser(Integer userId);
+    UserResponse getCurrentUser(Integer userId, Integer currentCityId);
     
     /**
      * 修改密码

@@ -33,11 +33,16 @@ public class JwtUtil {
     /**
      * 生成Token
      */
-    public String generateToken(Integer userId, String username, String role) {
+    public String generateToken(Integer userId, String username, String role,
+                                Integer currentCityId, boolean citySelectionPending) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("username", username);
         claims.put("role", role);
+        claims.put("citySelectionPending", citySelectionPending);
+        if (currentCityId != null) {
+            claims.put("currentCityId", currentCityId);
+        }
         
         return Jwts.builder()
                 .claims(claims)
@@ -101,6 +106,16 @@ public class JwtUtil {
     public String getRoleFromToken(String token) {
         Claims claims = parseToken(token);
         return claims.get("role", String.class);
+    }
+
+    public Integer getCurrentCityIdFromToken(String token) {
+        Number value = parseToken(token).get("currentCityId", Number.class);
+        return value == null ? null : value.intValue();
+    }
+
+    public boolean isCitySelectionPending(String token) {
+        Boolean value = parseToken(token).get("citySelectionPending", Boolean.class);
+        return Boolean.TRUE.equals(value);
     }
 
     /**

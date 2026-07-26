@@ -3,6 +3,8 @@ package com.tricenter.dto.response;
 import lombok.Builder;
 import lombok.Data;
 
+import java.util.List;
+
 /**
  * 登录响应
  */
@@ -11,6 +13,9 @@ import lombok.Data;
 public class LoginResponse {
     
     private String token;
+    private boolean requiresCitySelection;
+    private List<CityInfoResponse> availableCities;
+    private CityInfoResponse currentCity;
     private UserInfo user;
 
     @Data
@@ -20,5 +25,6 @@ public class LoginResponse {
         private String username;
         private String role;
         private String name;
+        private List<String> permissions;
     }
 }

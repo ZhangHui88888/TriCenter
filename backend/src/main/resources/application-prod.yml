@@ -28,6 +28,7 @@ jwt:
 # 系统间API Key认证
 tricenter:
   api-key: ${TRICENTER_API_KEY:booking-to-tricenter-secret-key}
+  booking-city-code: ${TRICENTER_BOOKING_CITY_CODE:changzhou}
 
 # 日志配置
 logging:

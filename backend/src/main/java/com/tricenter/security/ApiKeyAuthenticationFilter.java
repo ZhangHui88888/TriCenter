@@ -1,10 +1,13 @@
 package com.tricenter.security;
 
+import com.tricenter.entity.City;
+import com.tricenter.service.CityAccessService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
@@ -22,12 +25,18 @@ import java.util.Collections;
  */
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
     private static final String API_KEY_HEADER = "X-API-Key";
 
     @Value("${tricenter.api-key:booking-to-tricenter-secret-key}")
     private String validApiKey;
+
+    @Value("${tricenter.booking-city-code:changzhou}")
+    private String bookingCityCode;
+
+    private final CityAccessService cityAccessService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
@@ -36,7 +45,9 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
             String apiKey = request.getHeader(API_KEY_HEADER);
             if (StringUtils.hasText(apiKey) && apiKey.equals(validApiKey)) {
-                LoginUser systemUser = new LoginUser(0, "booking-system", "SYSTEM");
+                City city = cityAccessService.requireCityByCode(bookingCityCode);
+                LoginUser systemUser = new LoginUser(
+                        0, "booking-system", "SYSTEM", city.getId(), true);
                 SimpleGrantedAuthority authority = new SimpleGrantedAuthority("ROLE_SYSTEM");
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(systemUser, null, Collections.singletonList(authority));

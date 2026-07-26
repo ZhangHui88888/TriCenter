@@ -2,6 +2,7 @@ package com.tricenter.config;
 
 import com.tricenter.security.ApiKeyAuthenticationFilter;
 import com.tricenter.security.JwtAuthenticationFilter;
+import com.tricenter.security.CitySelectionFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -34,6 +35,7 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
+    private final CitySelectionFilter citySelectionFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
@@ -51,7 +53,8 @@ public class SecurityConfig {
                 // 其他接口需要认证（JWT 或 API Key）
                 .anyRequest().authenticated())
             .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+            .addFilterAfter(citySelectionFilter, JwtAuthenticationFilter.class);
         
         return http.build();
     }
