@@ -120,6 +120,29 @@ class JwtCityContextTest {
         assertThat(filterChain.getRequest()).isNull();
     }
 
+    @Test
+    void expiredTokenReturnsStructuredUnauthorizedResponse() throws Exception {
+        JwtUtil jwtUtil = mock(JwtUtil.class);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(
+                jwtUtil,
+                mock(UserMapper.class),
+                mock(CityAccessService.class),
+                new PermissionService(),
+                new ObjectMapper());
+        when(jwtUtil.validateToken("expired-token")).thenReturn(false);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/enterprises");
+        request.addHeader("Authorization", "Bearer expired-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain filterChain = new MockFilterChain();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentAsString()).contains("登录已过期");
+        assertThat(filterChain.getRequest()).isNull();
+    }
+
     private JwtUtil jwtUtil() {
         JwtUtil jwtUtil = new JwtUtil();
         ReflectionTestUtils.setField(jwtUtil, "secret",

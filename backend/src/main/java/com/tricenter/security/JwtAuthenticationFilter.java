@@ -43,7 +43,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String token = extractToken(request);
             
-            if (StringUtils.hasText(token) && jwtUtil.validateToken(token)) {
+            if (StringUtils.hasText(token)) {
+                if (!jwtUtil.validateToken(token)) {
+                    writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
+                            Result.unauthorized("登录已过期，请重新登录"));
+                    return;
+                }
                 Integer userId = jwtUtil.getUserIdFromToken(token);
                 Integer currentCityId = jwtUtil.getCurrentCityIdFromToken(token);
                 boolean citySelectionPending = jwtUtil.isCitySelectionPending(token);
