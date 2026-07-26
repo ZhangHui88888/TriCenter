@@ -37,12 +37,29 @@ DROP TABLE IF EXISTS requirement_categories;
 DROP TABLE IF EXISTS product_categories;  -- 旧表，合并后可删
 DROP TABLE IF EXISTS industry_categories; -- 旧表，合并后可删
 DROP TABLE IF EXISTS categories;
+DROP TABLE IF EXISTS user_cities;
 DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS cities;
 
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================
--- 表1: users (用户表)
+-- 表1: cities (城市表)
+-- ============================================================
+CREATE TABLE cities (
+    id          INT PRIMARY KEY AUTO_INCREMENT,
+    code        VARCHAR(32) NOT NULL COMMENT '稳定城市代码',
+    name        VARCHAR(50) NOT NULL COMMENT '城市名称',
+    status      TINYINT NOT NULL DEFAULT 1 COMMENT '状态: 1启用 0禁用',
+    sort_order  INT NOT NULL DEFAULT 0 COMMENT '排序',
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_cities_code (code),
+    INDEX idx_cities_status_sort (status, sort_order)
+) COMMENT='城市';
+
+-- ============================================================
+-- 表2: users (用户表)
 -- ============================================================
 CREATE TABLE users (
     id              INT PRIMARY KEY AUTO_INCREMENT,
@@ -61,7 +78,23 @@ CREATE TABLE users (
 ) COMMENT='用户表';
 
 -- ============================================================
--- 表2: categories (统一分类表，合并原 industry_categories + product_categories)
+-- 表3: user_cities (用户城市授权表)
+-- ============================================================
+CREATE TABLE user_cities (
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+    user_id     INT NOT NULL COMMENT '用户ID',
+    city_id     INT NOT NULL COMMENT '城市ID',
+    created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uk_user_cities_user_city (user_id, city_id),
+    INDEX idx_user_cities_city_user (city_id, user_id),
+    CONSTRAINT fk_user_cities_user
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_user_cities_city
+        FOREIGN KEY (city_id) REFERENCES cities(id) ON DELETE CASCADE
+) COMMENT='用户城市授权';
+
+-- ============================================================
+-- 表4: categories (统一分类表，合并原 industry_categories + product_categories)
 -- 企业行业分类(enterprises.industry_id)与产品品类(enterprise_products.category_id)共用此表
 -- ============================================================
 CREATE TABLE categories (
@@ -120,6 +153,7 @@ CREATE TABLE system_options (
 -- ============================================================
 CREATE TABLE enterprises (
     id                      INT PRIMARY KEY AUTO_INCREMENT,
+    city_id                 INT NOT NULL COMMENT '业务归属城市ID',
     name                    VARCHAR(200) NOT NULL COMMENT '企业名称',
     credit_code             VARCHAR(18) COMMENT '统一社会信用代码',
     established_date        DATE COMMENT '成立日期',
@@ -220,12 +254,15 @@ CREATE TABLE enterprises (
     updated_at              DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     
     INDEX idx_name (name),
+    INDEX idx_enterprises_city_deleted (city_id, is_deleted),
+    INDEX idx_enterprises_city_stage (city_id, stage),
     INDEX idx_district (district),
     INDEX idx_industry (industry_id),
     INDEX idx_stage (stage),
     INDEX idx_source (source_id),
     INDEX idx_created (created_at),
     INDEX idx_booking_user (booking_user_id),
+    FOREIGN KEY (city_id) REFERENCES cities(id),
     FOREIGN KEY (industry_id) REFERENCES categories(id),
     FOREIGN KEY (source_id) REFERENCES system_options(id),
     FOREIGN KEY (source_provider_id) REFERENCES system_options(id)
@@ -569,6 +606,7 @@ CREATE TABLE enterprise_service_records (
 CREATE TABLE operation_logs (
     id              BIGINT PRIMARY KEY AUTO_INCREMENT,
     user_id         INT COMMENT '操作人ID',
+    city_id         INT COMMENT '操作发生城市；全局管理操作为空',
     username        VARCHAR(50) COMMENT '操作人用户名',
     operation       VARCHAR(20) NOT NULL COMMENT '操作类型: CREATE/UPDATE/DELETE/IMPORT/EXPORT/STAGE_CHANGE',
     target_type     VARCHAR(30) NOT NULL COMMENT '操作对象类型: ENTERPRISE/CONTACT/PRODUCT/FOLLOW_UP',
@@ -579,8 +617,10 @@ CREATE TABLE operation_logs (
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
 
     INDEX idx_user (user_id),
+    INDEX idx_operation_logs_city_created (city_id, created_at),
     INDEX idx_target (target_type, target_id),
-    INDEX idx_created (created_at)
+    INDEX idx_created (created_at),
+    FOREIGN KEY (city_id) REFERENCES cities(id) ON DELETE SET NULL
 ) COMMENT='操作日志表';
 
 -- ============================================================
@@ -2419,6 +2459,18 @@ INSERT INTO users (username, password, name, role, phone, email, status) VALUES
 ('manager', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '业务主管', 'manager', '13800000001', 'manager@tricenter.com', 1),
 ('user', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '普通用户', 'user', '13800000002', 'user@tricenter.com', 1)
 ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO cities (code, name, status, sort_order) VALUES
+('changzhou', '常州', 1, 10),
+('suzhou', '苏州', 1, 20)
+ON DUPLICATE KEY UPDATE
+name = VALUES(name), status = VALUES(status), sort_order = VALUES(sort_order);
+
+INSERT INTO user_cities (user_id, city_id)
+SELECT u.id, c.id
+FROM users u
+JOIN cities c ON c.code = 'changzhou'
+ON DUPLICATE KEY UPDATE city_id = VALUES(city_id);
 
 -- ============================================================
 -- 默认账号信息:
