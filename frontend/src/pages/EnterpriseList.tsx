@@ -53,6 +53,7 @@ import { getCountryOptions } from '@/data/countries';
 import EnterpriseSearch from '@/components/EnterpriseSearch';
 import type { Enterprise } from '@/types';
 import { useEnterpriseListStore } from '@/stores/enterpriseListStore';
+import { useAuthStore } from '@/stores/authStore';
 
 const { Text } = Typography;
 
@@ -319,6 +320,12 @@ function OverviewExportRevenueCard({
 
 function EnterpriseList() {
   const navigate = useNavigate();
+  const hasPermission = useAuthStore((state) => state.hasPermission);
+  const canCreate = hasPermission('enterprise:create');
+  const canDelete = hasPermission('enterprise:delete');
+  const canBatch = hasPermission('enterprise:batch');
+  const canImport = hasPermission('enterprise:import');
+  const canExport = hasPermission('enterprise:export');
   const {
     searchTerm, setSearchTerm,
     stageFilter, setStageFilter,
@@ -750,7 +757,6 @@ function EnterpriseList() {
     fetchOptions();
     fetchEnterprises(page, pageSize, advancedFilters);
     fetchOverviewStats(advancedFilters);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /** 打开高级筛选时合并工具栏「关键词 / 所属行业」与已保存的高级条件，避免与列表顶部条件脱节 */
@@ -1174,7 +1180,7 @@ function EnterpriseList() {
       title: '操作',
       key: 'action',
       width: 88,
-      render: (_, record) => (
+      render: (_, record) => canDelete ? (
         <Button
           type="text"
           danger
@@ -1187,7 +1193,7 @@ function EnterpriseList() {
           }}
           title="删除"
         />
-      ),
+      ) : null,
     },
   ];
 
@@ -1372,44 +1378,42 @@ function EnterpriseList() {
                 style={{ width: 118, height: 40 }}
                 styles={{ popup: { root: { minWidth: 112 } } }}
               />
-              <Button
-                icon={<UploadOutlined />}
-                onClick={() => setIsImportModalOpen(true)}
-                style={{
-                  borderRadius: 12,
-                  height: 40,
-                  fontWeight: 500,
-                }}
-              >
-                导入
-              </Button>
-              <Button
-                icon={<DownloadOutlined />}
-                onClick={() => setIsExportModalOpen(true)}
-                style={{
-                  borderRadius: 12,
-                  height: 40,
-                  fontWeight: 500,
-                }}
-              >
-                导出
-              </Button>
-              <Button
-                type="primary"
-                icon={isCreating ? <LoadingOutlined /> : <PlusOutlined />}
-                onClick={handleAddEnterprise}
-                loading={isCreating}
-                style={{
-                  borderRadius: 12,
-                  height: 40,
-                  fontWeight: 500,
-                  background: '#396AFF',
-                  border: 'none',
-                  boxShadow: '0 4px 12px rgba(57, 106, 255, 0.4)',
-                }}
-              >
-                新增企业
-              </Button>
+              {canImport && (
+                <Button
+                  icon={<UploadOutlined />}
+                  onClick={() => setIsImportModalOpen(true)}
+                  style={{ borderRadius: 12, height: 40, fontWeight: 500 }}
+                >
+                  导入
+                </Button>
+              )}
+              {canExport && (
+                <Button
+                  icon={<DownloadOutlined />}
+                  onClick={() => setIsExportModalOpen(true)}
+                  style={{ borderRadius: 12, height: 40, fontWeight: 500 }}
+                >
+                  导出
+                </Button>
+              )}
+              {canCreate && (
+                <Button
+                  type="primary"
+                  icon={isCreating ? <LoadingOutlined /> : <PlusOutlined />}
+                  onClick={handleAddEnterprise}
+                  loading={isCreating}
+                  style={{
+                    borderRadius: 12,
+                    height: 40,
+                    fontWeight: 500,
+                    background: '#396AFF',
+                    border: 'none',
+                    boxShadow: '0 4px 12px rgba(57, 106, 255, 0.4)',
+                  }}
+                >
+                  新增企业
+                </Button>
+              )}
             </Space>
           </div>
         </Card>
@@ -1430,7 +1434,7 @@ function EnterpriseList() {
               boxSizing: 'border-box',
             }}
           >
-            {selectedRowKeys.length > 0 ? (
+            {canBatch && selectedRowKeys.length > 0 ? (
               <div
                 className="enterprise-list-batch-bar"
                 style={{
@@ -1477,11 +1481,11 @@ function EnterpriseList() {
             dataSource={filteredEnterprises}
             rowKey="id"
             loading={loading}
-            rowSelection={{
+            rowSelection={canBatch ? {
               columnWidth: 48,
               selectedRowKeys,
               onChange: (keys) => setSelectedRowKeys(keys),
-            }}
+            } : undefined}
             pagination={{
               current: page,
               total: _total,

@@ -109,12 +109,12 @@ request.interceptors.response.use(
       const { status } = error.response;
       switch (status) {
         case 401:
-        case 403:
           if (window.location.pathname === '/login') {
             if (!skipToast) showErrorOnce(error.response.data?.message || '用户名或密码错误');
           } else if (!isRedirecting) {
             isRedirecting = true;
             localStorage.removeItem('token');
+            localStorage.removeItem('auth-storage');
             if (!skipToast) showErrorOnce('登录已过期或没有权限，请重新登录');
             setTimeout(() => {
               window.location.href = '/login';
@@ -122,6 +122,24 @@ request.interceptors.response.use(
             }, 300);
           }
           break;
+        case 403: {
+          const forbiddenMessage = error.response.data?.message || '没有权限执行此操作';
+          const citySessionInvalid =
+            forbiddenMessage.includes('城市') || forbiddenMessage.includes('选择');
+          if (citySessionInvalid && !isRedirecting) {
+            isRedirecting = true;
+            localStorage.removeItem('token');
+            localStorage.removeItem('auth-storage');
+            if (!skipToast) showErrorOnce(forbiddenMessage);
+            setTimeout(() => {
+              window.location.href = '/login';
+              isRedirecting = false;
+            }, 300);
+          } else if (!skipToast) {
+            showErrorOnce(forbiddenMessage);
+          }
+          break;
+        }
         case 404:
           break;
         case 500:

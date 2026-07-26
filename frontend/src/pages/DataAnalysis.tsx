@@ -216,7 +216,6 @@ function DataAnalysis() {
     }
     fetchData();
     // 仅响应顶部三项；关键词仍用「查询分析」
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stageFilter, districtFilter, industryId]);
 
   const handleClearCache = async () => {

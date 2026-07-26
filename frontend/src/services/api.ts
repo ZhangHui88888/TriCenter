@@ -1,6 +1,7 @@
 import { AxiosHeaders, AxiosRequestConfig } from 'axios';
 import request from './request';
 import type { Enterprise, FollowUpRecord, ProviderDetail, ProviderListItem, ProviderUpdatePayload } from '@/types';
+import type { AdminUserFormValues } from '@/types/auth';
 
 /**
  * FormData 上传：实例默认 Content-Type: application/json 会破坏 multipart；
@@ -128,9 +129,9 @@ export const cooperationUploadApi = {
     );
   },
 
-  downloadAttachment: (storedFileName: string, downloadName?: string) =>
+  downloadAttachment: (serviceRecordId: number, storedFileName: string, downloadName?: string) =>
     request.get(
-      `/upload/cooperation-attachment/download/${encodeURIComponent(storedFileName)}`,
+      `/upload/cooperation-attachment/download/${serviceRecordId}/${encodeURIComponent(storedFileName)}`,
       {
         responseType: 'blob',
         params: downloadName ? { name: downloadName } : {},
@@ -197,6 +198,9 @@ export const authApi = {
   // 登录
   login: (data: { username: string; password: string }) => request.post('/auth/login', data),
 
+  // 登录后的首次选城，以及系统内切换城市
+  selectCity: (cityId: number) => request.post('/auth/select-city', { cityId }),
+
   // 登出
   logout: () => request.post('/auth/logout'),
 
@@ -206,6 +210,15 @@ export const authApi = {
   // 修改密码
   changePassword: (data: { oldPassword: string; newPassword: string }) =>
     request.post('/auth/change-password', data),
+};
+
+export const adminUserApi = {
+  getList: () => request.get('/admin/users'),
+  getCities: () => request.get('/admin/users/cities'),
+  create: (data: AdminUserFormValues) => request.post('/admin/users', data),
+  update: (id: number, data: AdminUserFormValues) => request.put(`/admin/users/${id}`, data),
+  resetPassword: (id: number, newPassword: string) =>
+    request.post(`/admin/users/${id}/reset-password`, { newPassword }),
 };
 
 // 联系人管理 API

@@ -10,6 +10,7 @@ import EnterpriseHeader from './components/EnterpriseHeader';
 import EnterpriseModals from './components/EnterpriseModals';
 import { buildRecordColumns } from './components/FollowUpColumns';
 import { enterpriseDetailTabLabel } from './tabUtils';
+import { useAuthStore } from '@/stores/authStore';
 
 import BasicInfoTab from './tabs/BasicInfoTab';
 import ProductInfoTab from './tabs/ProductInfoTab';
@@ -26,6 +27,7 @@ const { Title } = Typography;
 export default function EnterpriseDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const canExport = useAuthStore((state) => state.hasPermission('enterprise:export'));
   const d = useEnterpriseData(id);
   const actions = useEnterpriseActions(d);
 
@@ -212,21 +214,23 @@ export default function EnterpriseDetail() {
         <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/enterprise')}>
           返回列表
         </Button>
-        <Button
-          icon={<DownloadOutlined />}
-          onClick={actions.handleExportExcel}
-          loading={d.exporting}
-          style={{
-            borderRadius: 8,
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            border: 'none',
-            color: '#fff',
-            fontWeight: 500,
-            boxShadow: '0 2px 8px rgba(102,126,234,0.3)',
-          }}
-        >
-          导出Excel
-        </Button>
+        {canExport && (
+          <Button
+            icon={<DownloadOutlined />}
+            onClick={actions.handleExportExcel}
+            loading={d.exporting}
+            style={{
+              borderRadius: 8,
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              border: 'none',
+              color: '#fff',
+              fontWeight: 500,
+              boxShadow: '0 2px 8px rgba(102,126,234,0.3)',
+            }}
+          >
+            导出Excel
+          </Button>
+        )}
       </div>
 
       <EnterpriseHeader

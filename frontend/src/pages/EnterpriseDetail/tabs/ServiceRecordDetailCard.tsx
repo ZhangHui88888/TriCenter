@@ -200,6 +200,7 @@ export default function ServiceRecordDetailCard({
           </div>
         )}
         <ServiceRecordAttachmentsBlock
+          serviceRecordId={r.id}
           raw={r.attachments}
           serifTitleStyle={{
             fontFamily: EDITORIAL.serif,

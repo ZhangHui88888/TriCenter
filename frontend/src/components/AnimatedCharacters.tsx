@@ -81,7 +81,6 @@ export const EyeBall = ({
   forceLookX,
   forceLookY,
 }: EyeBallProps) => {
-  /* eslint-disable @typescript-eslint/no-unused-vars */
   const [mouseX, setMouseX] = useState(0);
   const [mouseY, setMouseY] = useState(0);
   const eyeRef = useRef<HTMLDivElement>(null);
