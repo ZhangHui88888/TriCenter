@@ -10,5 +10,5 @@ public interface CooperationUploadService {
 
     Map<String, Object> store(MultipartFile file) throws IOException;
 
-    Resource loadAsResource(String storedFileName);
+    Resource loadAsResource(Integer serviceRecordId, String storedFileName);
 }

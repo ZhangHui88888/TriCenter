@@ -39,10 +39,12 @@ public class OperationLogAspect {
 
             // 获取当前用户
             Integer userId = null;
+            Integer cityId = null;
             String username = null;
             Authentication auth = SecurityContextHolder.getContext().getAuthentication();
             if (auth != null && auth.getPrincipal() instanceof LoginUser loginUser) {
                 userId = loginUser.getId();
+                cityId = loginUser.getCurrentCityId();
                 username = loginUser.getUsername();
             }
 
@@ -58,7 +60,7 @@ public class OperationLogAspect {
                     ? buildDefaultDetail(opLog.operation(), opLog.targetType(), targetName)
                     : opLog.detail();
 
-            operationLogService.log(userId, username, opLog.operation(), opLog.targetType(),
+            operationLogService.log(userId, cityId, username, opLog.operation(), opLog.targetType(),
                     targetId, targetName, detail, ipAddress);
         } catch (Exception e) {
             log.error("操作日志切面异常", e);

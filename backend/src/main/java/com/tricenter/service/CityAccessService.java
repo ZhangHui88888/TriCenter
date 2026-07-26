@@ -68,6 +68,14 @@ public class CityAccessService {
         return city;
     }
 
+    public City requireActiveCity(Integer cityId) {
+        City city = cityMapper.selectById(cityId);
+        if (city == null || !Integer.valueOf(1).equals(city.getStatus())) {
+            throw BusinessException.forbidden("系统城市配置无效");
+        }
+        return city;
+    }
+
     public Enterprise requireEnterprise(Integer enterpriseId, Integer cityId) {
         Enterprise enterprise = enterpriseMapper.selectOne(
                 new LambdaQueryWrapper<Enterprise>()

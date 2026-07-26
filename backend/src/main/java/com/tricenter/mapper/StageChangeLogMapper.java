@@ -17,14 +17,19 @@ public interface StageChangeLogMapper extends BaseMapper<StageChangeLog> {
     /**
      * 获取企业的阶段变更历史
      */
-    @Select("SELECT * FROM stage_change_logs WHERE enterprise_id = #{enterpriseId} ORDER BY created_at DESC")
-    List<StageChangeLog> selectByEnterpriseId(@Param("enterpriseId") Integer enterpriseId);
+    @Select("SELECT s.* FROM stage_change_logs s JOIN enterprises e ON e.id = s.enterprise_id " +
+            "WHERE s.enterprise_id = #{enterpriseId} AND e.city_id = #{cityId} AND e.is_deleted = 0 " +
+            "ORDER BY s.created_at DESC")
+    List<StageChangeLog> selectByEnterpriseId(
+            @Param("enterpriseId") Integer enterpriseId,
+            @Param("cityId") Integer cityId);
     
     /**
      * 统计各转化路径的数量
      */
     @Select("SELECT stage_from as from_stage, stage_to as to_stage, COUNT(*) as count " +
-            "FROM stage_change_logs " +
-            "GROUP BY stage_from, stage_to")
-    List<java.util.Map<String, Object>> countByTransition();
+            "FROM stage_change_logs s JOIN enterprises e ON e.id = s.enterprise_id " +
+            "WHERE e.city_id = #{cityId} AND e.is_deleted = 0 " +
+            "GROUP BY s.stage_from, s.stage_to")
+    List<java.util.Map<String, Object>> countByTransition(@Param("cityId") Integer cityId);
 }

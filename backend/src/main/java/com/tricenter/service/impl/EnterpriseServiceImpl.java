@@ -19,6 +19,8 @@ import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.service.EnterpriseService;
 import com.tricenter.service.OptionsService;
 import com.tricenter.service.RequirementMatchEngine;
+import com.tricenter.service.CityAccessService;
+import com.tricenter.security.CityContext;
 import com.tricenter.util.EnterpriseExportListSheetPoi;
 import com.tricenter.util.RequirementFilterHelper;
 import com.tricenter.util.EnterpriseExportRequirementMatrixSheet;
@@ -66,6 +68,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     private final DictionaryCacheService dictionaryCache;
     private final RequirementMatchEngine requirementMatchEngine;
     private final OptionsService optionsService;
+    private final CityContext cityContext;
+    private final CityAccessService cityAccessService;
 
     @Override
     public PageResult<EnterpriseListResponse> getEnterpriseList(EnterpriseQueryRequest request) {
@@ -241,7 +245,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
      */
     private LambdaQueryWrapper<Enterprise> buildFilterWrapper(EnterpriseQueryRequest request, Set<Integer> matchedIds) {
         LambdaQueryWrapper<Enterprise> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Enterprise::getIsDeleted, 0);
+        wrapper.eq(Enterprise::getIsDeleted, 0)
+                .eq(Enterprise::getCityId, cityContext.requireCityId());
 
         if (matchedIds != null) {
             wrapper.in(Enterprise::getId, matchedIds);
@@ -530,6 +535,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         }
 
         LambdaQueryWrapper<EnterpriseProduct> productWrapper = new LambdaQueryWrapper<>();
+        productWrapper.inSql(
+                EnterpriseProduct::getEnterpriseId,
+                "SELECT id FROM enterprises WHERE is_deleted = 0 AND city_id = "
+                        + cityContext.requireCityId());
         productWrapper.select(
                 EnterpriseProduct::getEnterpriseId,
                 EnterpriseProduct::getAutomationLevelId,
@@ -563,7 +572,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         }
 
         Map<Integer, LocalDate> lastFollowDates = new HashMap<>();
-        for (Map<String, Object> row : followUpRecordMapper.selectLastFollowDates()) {
+        Integer cityId = cityContext.requireCityId();
+        for (Map<String, Object> row : followUpRecordMapper.selectLastFollowDates(cityId)) {
             Object enterpriseId = row.get("enterpriseId");
             if (!(enterpriseId instanceof Number number)) {
                 continue;
@@ -579,6 +589,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                         new LambdaQueryWrapper<Enterprise>()
                                 .select(Enterprise::getId)
                                 .eq(Enterprise::getIsDeleted, 0)
+                                .eq(Enterprise::getCityId, cityId)
                 ).stream()
                 .map(Enterprise::getId)
                 .filter(Objects::nonNull)
@@ -609,6 +620,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                                         Enterprise::getCustomRequirements
                                 )
                                 .eq(Enterprise::getIsDeleted, 0)
+                                .eq(Enterprise::getCityId, cityContext.requireCityId())
                 ).stream()
                 .filter(enterprise -> {
                     Set<String> effectiveRequirementIds = requirementMatchEngine.calculateEffectiveRequirementIds(
@@ -789,10 +801,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
 
     @Override
     public EnterpriseDetailResponse getEnterpriseDetail(Integer id) {
-        Enterprise enterprise = enterpriseMapper.selectById(id);
-        if (enterprise == null || enterprise.getIsDeleted() == 1) {
-            throw BusinessException.notFound("企业不存在");
-        }
+        Enterprise enterprise = cityAccessService.requireEnterprise(
+                id, cityContext.requireCityId());
         
         return convertToDetailResponse(enterprise);
     }
@@ -800,11 +810,13 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     @Override
     @Transactional
     public Enterprise createEnterprise(EnterpriseCreateRequest request) {
+        Integer currentCityId = cityContext.requireCityId();
         // 如果提供了企业名称，检查是否重复
         if (StringUtils.hasText(request.getName())) {
             LambdaQueryWrapper<Enterprise> wrapper = new LambdaQueryWrapper<>();
             wrapper.eq(Enterprise::getName, request.getName())
-                   .eq(Enterprise::getIsDeleted, 0);
+                   .eq(Enterprise::getIsDeleted, 0)
+                   .eq(Enterprise::getCityId, currentCityId);
             if (enterpriseMapper.selectCount(wrapper) > 0) {
                 throw BusinessException.badRequest("企业名称已存在");
             }
@@ -813,6 +825,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         // 创建企业
         Enterprise enterprise = new Enterprise();
         BeanUtils.copyProperties(request, enterprise);
+        enterprise.setCityId(currentCityId);
         
         // 如果没有提供企业名称，生成默认名称
         if (!StringUtils.hasText(enterprise.getName())) {
@@ -827,7 +840,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             enterprise.setProvince("江苏省");
         }
         if (!StringUtils.hasText(enterprise.getCity())) {
-            enterprise.setCity("常州市");
+            enterprise.setCity(cityAccessService.requireActiveCity(currentCityId).getName() + "市");
         }
         if (!StringUtils.hasText(enterprise.getEnterpriseType())) {
             enterprise.setEnterpriseType("待确认");
@@ -858,16 +871,15 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     @Override
     @Transactional
     public Enterprise updateEnterprise(Integer id, EnterpriseUpdateRequest request) {
-        Enterprise enterprise = enterpriseMapper.selectById(id);
-        if (enterprise == null || enterprise.getIsDeleted() == 1) {
-            throw BusinessException.notFound("企业不存在");
-        }
+        Integer currentCityId = cityContext.requireCityId();
+        Enterprise enterprise = cityAccessService.requireEnterprise(id, currentCityId);
         
         // 如果修改了名称，检查是否重复
         if (StringUtils.hasText(request.getName()) && !request.getName().equals(enterprise.getName())) {
             LambdaQueryWrapper<Enterprise> wrapper = new LambdaQueryWrapper<>();
             wrapper.eq(Enterprise::getName, request.getName())
                    .eq(Enterprise::getIsDeleted, 0)
+                   .eq(Enterprise::getCityId, currentCityId)
                    .ne(Enterprise::getId, id);
             if (enterpriseMapper.selectCount(wrapper) > 0) {
                 throw BusinessException.badRequest("企业名称已存在");
@@ -983,10 +995,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     @Override
     @Transactional
     public void deleteEnterprise(Integer id) {
-        Enterprise enterprise = enterpriseMapper.selectById(id);
-        if (enterprise == null) {
-            throw BusinessException.notFound("企业不存在");
-        }
+        cityAccessService.requireEnterprise(id, cityContext.requireCityId());
         
         // 使用 MyBatis-Plus 的逻辑删除
         enterpriseMapper.deleteById(id);
@@ -998,10 +1007,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     @Override
     @Transactional
     public void changeStage(Integer id, StageChangeRequest request, Integer operatorId) {
-        Enterprise enterprise = enterpriseMapper.selectById(id);
-        if (enterprise == null || enterprise.getIsDeleted() == 1) {
-            throw BusinessException.notFound("企业不存在");
-        }
+        Enterprise enterprise = cityAccessService.requireEnterprise(
+                id, cityContext.requireCityId());
         
         String oldStage = enterprise.getStage();
         String newStage = request.getStage();
@@ -1030,10 +1037,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     @Override
     @Transactional
     public List<EnterpriseContact> updateContacts(Integer enterpriseId, ContactUpdateRequest request) {
-        Enterprise enterprise = enterpriseMapper.selectById(enterpriseId);
-        if (enterprise == null || enterprise.getIsDeleted() == 1) {
-            throw BusinessException.notFound("企业不存在");
-        }
+        cityAccessService.requireEnterprise(enterpriseId, cityContext.requireCityId());
         
         // 删除原有联系人
         LambdaQueryWrapper<EnterpriseContact> wrapper = new LambdaQueryWrapper<>();
@@ -1063,6 +1067,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
 
     @Override
     public List<EnterpriseContact> getContacts(Integer enterpriseId) {
+        cityAccessService.requireEnterprise(enterpriseId, cityContext.requireCityId());
         return contactMapper.selectByEnterpriseId(enterpriseId);
     }
 
@@ -1355,6 +1360,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
 
     @Override
     public ImportResultResponse importEnterprises(MultipartFile file) {
+        Integer currentCityId = cityContext.requireCityId();
         List<ImportResultResponse.ErrorDetail> errors = new ArrayList<>();
         int successCount = 0;
         int failCount = 0;
@@ -1384,13 +1390,17 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                     // 检查企业名称是否重复
                     LambdaQueryWrapper<Enterprise> wrapper = new LambdaQueryWrapper<>();
                     wrapper.eq(Enterprise::getName, data.getName())
-                           .eq(Enterprise::getIsDeleted, 0);
+                           .eq(Enterprise::getIsDeleted, 0)
+                           .eq(Enterprise::getCityId, currentCityId);
                     if (enterpriseMapper.selectCount(wrapper) > 0) {
                         throw new RuntimeException("企业名称已存在");
                     }
                     
                     // 创建企业
                     Enterprise enterprise = new Enterprise();
+                    enterprise.setCityId(currentCityId);
+                    enterprise.setProvince("江苏省");
+                    enterprise.setCity(cityAccessService.requireActiveCity(currentCityId).getName() + "市");
                     enterprise.setName(data.getName());
                     enterprise.setCreditCode(data.getCreditCode());
                     if (StringUtils.hasText(data.getEstablishedDate())) {
@@ -1617,7 +1627,19 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (ids == null || ids.isEmpty()) {
             return 0;
         }
-        int count = enterpriseMapper.deleteBatchIds(ids);
+        List<Integer> authorizedIds = enterpriseMapper.selectList(
+                        new LambdaQueryWrapper<Enterprise>()
+                                .select(Enterprise::getId)
+                                .in(Enterprise::getId, ids)
+                                .eq(Enterprise::getCityId, cityContext.requireCityId())
+                                .eq(Enterprise::getIsDeleted, 0))
+                .stream()
+                .map(Enterprise::getId)
+                .toList();
+        if (authorizedIds.isEmpty()) {
+            return 0;
+        }
+        int count = enterpriseMapper.deleteBatchIds(authorizedIds);
         log.info("批量删除企业成功: ids={}, 实际删除={}", ids, count);
         dashboardService.evictAllCache();
         return count;
@@ -1630,11 +1652,13 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             return 0;
         }
         int count = 0;
-        for (Integer id : ids) {
-            Enterprise enterprise = enterpriseMapper.selectById(id);
-            if (enterprise == null || enterprise.getIsDeleted() == 1) {
-                continue;
-            }
+        List<Enterprise> authorizedEnterprises = enterpriseMapper.selectList(
+                new LambdaQueryWrapper<Enterprise>()
+                        .in(Enterprise::getId, ids)
+                        .eq(Enterprise::getCityId, cityContext.requireCityId())
+                        .eq(Enterprise::getIsDeleted, 0));
+        for (Enterprise enterprise : authorizedEnterprises) {
+            Integer id = enterprise.getId();
             String oldStage = enterprise.getStage();
             if (oldStage.equals(stage)) {
                 continue;

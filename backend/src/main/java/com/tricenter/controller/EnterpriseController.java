@@ -60,7 +60,7 @@ public class EnterpriseController {
     @OpLog(operation = "CREATE", targetType = "ENTERPRISE")
     @Operation(summary = "新增企业", description = "创建新企业记录，同时创建主要联系人")
     @PostMapping
-    @PreAuthorize("hasAuthority('enterprise:create')")
+    @PreAuthorize("hasAuthority('enterprise:create') or hasRole('SYSTEM')")
     public Result<Enterprise> createEnterprise(@Valid @RequestBody EnterpriseCreateRequest request) {
         Enterprise enterprise = enterpriseService.createEnterprise(request);
         return Result.success(enterprise);
@@ -69,7 +69,7 @@ public class EnterpriseController {
     @OpLog(operation = "UPDATE", targetType = "ENTERPRISE")
     @Operation(summary = "编辑企业", description = "更新企业信息")
     @PutMapping("/{id}")
-    @PreAuthorize("hasAuthority('enterprise:edit')")
+    @PreAuthorize("hasAuthority('enterprise:edit') or hasRole('SYSTEM')")
     public Result<Enterprise> updateEnterprise(
             @Parameter(description = "企业ID") @PathVariable Integer id,
             @Valid @RequestBody EnterpriseUpdateRequest request) {

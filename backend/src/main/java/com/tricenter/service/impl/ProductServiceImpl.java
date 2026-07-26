@@ -7,17 +7,17 @@ import com.tricenter.dto.request.ProductCreateRequest;
 import com.tricenter.dto.request.ProductUpdateRequest;
 import com.tricenter.dto.response.PatentResponse;
 import com.tricenter.dto.response.ProductResponse;
-import com.tricenter.entity.Enterprise;
 import com.tricenter.entity.EnterprisePatent;
 import com.tricenter.entity.EnterpriseProduct;
 import com.tricenter.entity.SystemOption;
 import com.tricenter.entity.Category;
-import com.tricenter.mapper.EnterpriseMapper;
 import com.tricenter.mapper.EnterprisePatentMapper;
 import com.tricenter.mapper.EnterpriseProductMapper;
 import com.tricenter.mapper.SystemOptionMapper;
 import com.tricenter.mapper.CategoryMapper;
 import com.tricenter.service.ProductService;
+import com.tricenter.service.CityAccessService;
+import com.tricenter.security.CityContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
@@ -37,9 +37,10 @@ public class ProductServiceImpl implements ProductService {
 
     private final EnterpriseProductMapper productMapper;
     private final EnterprisePatentMapper patentMapper;
-    private final EnterpriseMapper enterpriseMapper;
     private final SystemOptionMapper systemOptionMapper;
     private final CategoryMapper categoryMapper;
+    private final CityContext cityContext;
+    private final CityAccessService cityAccessService;
 
     @Override
     public List<ProductResponse> getProductsByEnterpriseId(Integer enterpriseId) {
@@ -197,10 +198,7 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private void checkEnterpriseExists(Integer enterpriseId) {
-        Enterprise enterprise = enterpriseMapper.selectById(enterpriseId);
-        if (enterprise == null) {
-            throw new BusinessException("企业不存在");
-        }
+        cityAccessService.requireEnterprise(enterpriseId, cityContext.requireCityId());
     }
 
     private ProductResponse convertToProductResponse(EnterpriseProduct product) {

@@ -42,14 +42,14 @@ public interface EnterpriseMapper extends BaseMapper<Enterprise> {
     /**
      * 统计各阶段企业数量
      */
-    @Select("SELECT stage, COUNT(*) as count FROM enterprises WHERE is_deleted = 0 GROUP BY stage")
-    List<Map<String, Object>> countByStage();
+    @Select("SELECT stage, COUNT(*) as count FROM enterprises WHERE is_deleted = 0 AND city_id = #{cityId} GROUP BY stage")
+    List<Map<String, Object>> countByStage(@Param("cityId") Integer cityId);
     
     /**
      * 统计各区域企业数量
      */
-    @Select("SELECT district, COUNT(*) as count FROM enterprises WHERE is_deleted = 0 GROUP BY district ORDER BY count DESC")
-    List<Map<String, Object>> countByDistrict();
+    @Select("SELECT district, COUNT(*) as count FROM enterprises WHERE is_deleted = 0 AND city_id = #{cityId} GROUP BY district ORDER BY count DESC")
+    List<Map<String, Object>> countByDistrict(@Param("cityId") Integer cityId);
     
     /**
      * 统计各行业企业数量
@@ -57,24 +57,28 @@ public interface EnterpriseMapper extends BaseMapper<Enterprise> {
     @Select("SELECT e.industry_id AS industry_id, ic.name, COUNT(e.id) AS count " +
             "FROM enterprises e " +
             "LEFT JOIN categories ic ON e.industry_id = ic.id " +
-            "WHERE e.is_deleted = 0 " +
+            "WHERE e.is_deleted = 0 AND e.city_id = #{cityId} " +
             "GROUP BY e.industry_id, ic.name " +
             "ORDER BY count DESC")
-    List<Map<String, Object>> countByIndustry();
+    List<Map<String, Object>> countByIndustry(@Param("cityId") Integer cityId);
     
     /**
      * 统计指定日期之前创建的企业各阶段数量（用于趋势分析）
      */
     @Select("SELECT stage, COUNT(*) as count FROM enterprises " +
-            "WHERE is_deleted = 0 AND created_at <= #{beforeDate} " +
+            "WHERE is_deleted = 0 AND city_id = #{cityId} AND created_at <= #{beforeDate} " +
             "GROUP BY stage")
-    List<Map<String, Object>> countByStageBeforeDate(@Param("beforeDate") java.time.LocalDateTime beforeDate);
+    List<Map<String, Object>> countByStageBeforeDate(
+            @Param("beforeDate") java.time.LocalDateTime beforeDate,
+            @Param("cityId") Integer cityId);
 
     @Select("SELECT DATE_FORMAT(created_at, '%Y-%m') AS month, COUNT(*) AS total, " +
             "SUM(CASE WHEN stage IN ('SIGNED','SETTLED','INCUBATING') THEN 1 ELSE 0 END) AS signed_count " +
-            "FROM enterprises WHERE is_deleted = 0 " +
+            "FROM enterprises WHERE is_deleted = 0 AND city_id = #{cityId} " +
             "AND created_at >= #{startDate} " +
             "GROUP BY DATE_FORMAT(created_at, '%Y-%m') " +
             "ORDER BY month")
-    List<Map<String, Object>> countMonthlyTrend(@Param("startDate") java.time.LocalDateTime startDate);
+    List<Map<String, Object>> countMonthlyTrend(
+            @Param("startDate") java.time.LocalDateTime startDate,
+            @Param("cityId") Integer cityId);
 }

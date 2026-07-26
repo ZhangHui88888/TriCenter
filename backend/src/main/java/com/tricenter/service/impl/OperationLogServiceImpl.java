@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.tricenter.entity.OperationLog;
 import com.tricenter.mapper.OperationLogMapper;
 import com.tricenter.service.OperationLogService;
+import com.tricenter.security.CityContext;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -20,14 +21,16 @@ import org.springframework.util.StringUtils;
 public class OperationLogServiceImpl implements OperationLogService {
 
     private final OperationLogMapper operationLogMapper;
+    private final CityContext cityContext;
 
     @Async
     @Override
-    public void log(Integer userId, String username, String operation, String targetType,
+    public void log(Integer userId, Integer cityId, String username, String operation, String targetType,
                     String targetId, String targetName, String detail, String ipAddress) {
         try {
             OperationLog logEntry = new OperationLog();
             logEntry.setUserId(userId);
+            logEntry.setCityId(cityId);
             logEntry.setUsername(username);
             logEntry.setOperation(operation);
             logEntry.setTargetType(targetType);
@@ -44,6 +47,10 @@ public class OperationLogServiceImpl implements OperationLogService {
     @Override
     public Page<OperationLog> getLogList(int page, int size, String targetType, String operation) {
         LambdaQueryWrapper<OperationLog> wrapper = new LambdaQueryWrapper<>();
+        Integer cityId = cityContext.requireCityId();
+        wrapper.and(scope -> scope.eq(OperationLog::getCityId, cityId)
+                .or()
+                .isNull(OperationLog::getCityId));
         if (StringUtils.hasText(targetType)) {
             wrapper.eq(OperationLog::getTargetType, targetType);
         }

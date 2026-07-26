@@ -11,6 +11,8 @@ import com.tricenter.mapper.EnterpriseServiceRecordMapper;
 import com.tricenter.mapper.StageChangeLogMapper;
 import com.tricenter.service.DashboardService;
 import com.tricenter.service.EnterpriseServiceRecordService;
+import com.tricenter.service.CityAccessService;
+import com.tricenter.security.CityContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,11 +30,14 @@ public class EnterpriseServiceRecordServiceImpl implements EnterpriseServiceReco
     private final EnterpriseMapper enterpriseMapper;
     private final StageChangeLogMapper stageChangeLogMapper;
     private final DashboardService dashboardService;
+    private final CityContext cityContext;
+    private final CityAccessService cityAccessService;
 
     @Override
     public List<EnterpriseServiceRecord> getByEnterpriseId(Integer enterpriseId) {
         checkEnterpriseExists(enterpriseId);
-        return serviceRecordMapper.selectByEnterpriseId(enterpriseId);
+        return serviceRecordMapper.selectByEnterpriseId(
+                enterpriseId, cityContext.requireCityId());
     }
 
     @Override
@@ -40,7 +45,9 @@ public class EnterpriseServiceRecordServiceImpl implements EnterpriseServiceReco
                                                               Integer enterpriseId, Integer providerId,
                                                               String serviceType, String status) {
         Page<EnterpriseServiceRecord> pageParam = new Page<>(page, pageSize);
-        IPage<EnterpriseServiceRecord> pageResult = serviceRecordMapper.selectGlobalPage(pageParam, enterpriseId, providerId, serviceType, status);
+        IPage<EnterpriseServiceRecord> pageResult = serviceRecordMapper.selectGlobalPage(
+                pageParam, enterpriseId, providerId, serviceType, status,
+                cityContext.requireCityId());
 
         return PageResult.of(pageResult.getRecords(), pageResult.getTotal(), page, pageSize);
     }
@@ -73,7 +80,8 @@ public class EnterpriseServiceRecordServiceImpl implements EnterpriseServiceReco
         }
 
         dashboardService.evictAllCache();
-        return serviceRecordMapper.selectByEnterpriseId(enterpriseId).stream()
+        return serviceRecordMapper.selectByEnterpriseId(
+                        enterpriseId, cityContext.requireCityId()).stream()
                 .filter(r -> r.getId().equals(body.getId()))
                 .findFirst().orElse(body);
     }
@@ -81,6 +89,7 @@ public class EnterpriseServiceRecordServiceImpl implements EnterpriseServiceReco
     @Override
     @Transactional
     public EnterpriseServiceRecord update(Integer enterpriseId, Integer id, EnterpriseServiceRecord updated) {
+        checkEnterpriseExists(enterpriseId);
         EnterpriseServiceRecord existing = serviceRecordMapper.selectById(id);
         if (existing == null || Integer.valueOf(1).equals(existing.getIsDeleted())) {
             throw new BusinessException("服务记录不存在");
@@ -117,7 +126,8 @@ public class EnterpriseServiceRecordServiceImpl implements EnterpriseServiceReco
         serviceRecordMapper.updateById(existing);
         dashboardService.evictAllCache();
 
-        return serviceRecordMapper.selectByEnterpriseId(enterpriseId).stream()
+        return serviceRecordMapper.selectByEnterpriseId(
+                        enterpriseId, cityContext.requireCityId()).stream()
                 .filter(r -> r.getId().equals(id))
                 .findFirst().orElse(existing);
     }
@@ -125,6 +135,7 @@ public class EnterpriseServiceRecordServiceImpl implements EnterpriseServiceReco
     @Override
     @Transactional
     public void delete(Integer enterpriseId, Integer id) {
+        checkEnterpriseExists(enterpriseId);
         EnterpriseServiceRecord existing = serviceRecordMapper.selectById(id);
         if (existing == null) {
             throw new BusinessException("服务记录不存在");
@@ -137,10 +148,7 @@ public class EnterpriseServiceRecordServiceImpl implements EnterpriseServiceReco
     }
 
     private Enterprise checkEnterpriseExists(Integer enterpriseId) {
-        Enterprise enterprise = enterpriseMapper.selectById(enterpriseId);
-        if (enterprise == null || Integer.valueOf(1).equals(enterprise.getIsDeleted())) {
-            throw new BusinessException("企业不存在");
-        }
-        return enterprise;
+        return cityAccessService.requireEnterprise(
+                enterpriseId, cityContext.requireCityId());
     }
 }
