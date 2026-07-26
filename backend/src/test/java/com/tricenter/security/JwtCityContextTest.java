@@ -53,7 +53,7 @@ class JwtCityContextTest {
         CityAccessService cityAccessService = mock(CityAccessService.class);
         PermissionService permissionService = new PermissionService();
         JwtAuthenticationFilter filter = new JwtAuthenticationFilter(
-                jwtUtil, userMapper, cityAccessService, permissionService);
+                jwtUtil, userMapper, cityAccessService, permissionService, new ObjectMapper());
         User user = enabledUser();
 
         when(jwtUtil.validateToken("revoked-token")).thenReturn(true);
@@ -66,9 +66,14 @@ class JwtCityContextTest {
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/enterprises");
         request.addHeader("Authorization", "Bearer revoked-token");
-        filter.doFilter(request, new MockHttpServletResponse(), new MockFilterChain());
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain filterChain = new MockFilterChain();
+        filter.doFilter(request, response, filterChain);
 
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(response.getStatus()).isEqualTo(403);
+        assertThat(response.getContentAsString()).contains("无权访问该城市");
+        assertThat(filterChain.getRequest()).isNull();
     }
 
     @Test
@@ -85,6 +90,34 @@ class JwtCityContextTest {
 
         assertThat(response.getStatus()).isEqualTo(403);
         assertThat(response.getContentAsString()).contains("请先选择城市");
+    }
+
+    @Test
+    void disabledUserTokenReturnsStructuredUnauthorizedResponse() throws Exception {
+        JwtUtil jwtUtil = mock(JwtUtil.class);
+        UserMapper userMapper = mock(UserMapper.class);
+        CityAccessService cityAccessService = mock(CityAccessService.class);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(
+                jwtUtil, userMapper, cityAccessService, new PermissionService(), new ObjectMapper());
+        User user = enabledUser();
+        user.setStatus(0);
+
+        when(jwtUtil.validateToken("disabled-token")).thenReturn(true);
+        when(jwtUtil.getUserIdFromToken("disabled-token")).thenReturn(user.getId());
+        when(jwtUtil.getCurrentCityIdFromToken("disabled-token")).thenReturn(1);
+        when(jwtUtil.isCitySelectionPending("disabled-token")).thenReturn(false);
+        when(userMapper.selectById(user.getId())).thenReturn(user);
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/enterprises");
+        request.addHeader("Authorization", "Bearer disabled-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain filterChain = new MockFilterChain();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentAsString()).contains("账号已禁用或不存在");
+        assertThat(filterChain.getRequest()).isNull();
     }
 
     private JwtUtil jwtUtil() {

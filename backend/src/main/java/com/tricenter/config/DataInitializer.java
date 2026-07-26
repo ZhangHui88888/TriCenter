@@ -73,7 +73,6 @@ public class DataInitializer implements CommandLineRunner {
             ensureChangzhouAccess(admin.getId());
             log.info("初始化管理员用户成功: admin / admin123");
         } else {
-            ensureChangzhouAccess(existingAdmin.getId());
             log.debug("管理员用户已存在，跳过初始化（不覆盖密码）");
         }
     }
