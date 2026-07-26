@@ -9,6 +9,7 @@ import com.tricenter.service.EnterpriseService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -70,6 +71,7 @@ public class DashboardController {
 
     @Operation(summary = "6.8 清除所有缓存", description = "手动清除 Redis 看板缓存和内存字典缓存")
     @DeleteMapping("/cache")
+    @PreAuthorize("hasAuthority('system:manage')")
     public Result<String> clearCache() {
         dashboardService.evictAllCache();
         dictionaryCache.refresh();

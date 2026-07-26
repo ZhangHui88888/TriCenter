@@ -19,6 +19,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -59,6 +60,7 @@ public class EnterpriseController {
     @OpLog(operation = "CREATE", targetType = "ENTERPRISE")
     @Operation(summary = "新增企业", description = "创建新企业记录，同时创建主要联系人")
     @PostMapping
+    @PreAuthorize("hasAuthority('enterprise:create')")
     public Result<Enterprise> createEnterprise(@Valid @RequestBody EnterpriseCreateRequest request) {
         Enterprise enterprise = enterpriseService.createEnterprise(request);
         return Result.success(enterprise);
@@ -67,6 +69,7 @@ public class EnterpriseController {
     @OpLog(operation = "UPDATE", targetType = "ENTERPRISE")
     @Operation(summary = "编辑企业", description = "更新企业信息")
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('enterprise:edit')")
     public Result<Enterprise> updateEnterprise(
             @Parameter(description = "企业ID") @PathVariable Integer id,
             @Valid @RequestBody EnterpriseUpdateRequest request) {
@@ -77,6 +80,7 @@ public class EnterpriseController {
     @OpLog(operation = "DELETE", targetType = "ENTERPRISE")
     @Operation(summary = "删除企业", description = "软删除企业记录")
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('enterprise:delete')")
     public Result<Void> deleteEnterprise(
             @Parameter(description = "企业ID") @PathVariable Integer id) {
         enterpriseService.deleteEnterprise(id);
@@ -86,6 +90,7 @@ public class EnterpriseController {
     @OpLog(operation = "STAGE_CHANGE", targetType = "ENTERPRISE")
     @Operation(summary = "变更漏斗阶段", description = "变更企业漏斗阶段，同时记录变更日志")
     @PatchMapping("/{id}/stage")
+    @PreAuthorize("hasAuthority('enterprise:edit')")
     public Result<Void> changeStage(
             @Parameter(description = "企业ID") @PathVariable Integer id,
             @Valid @RequestBody StageChangeRequest request,
@@ -104,6 +109,7 @@ public class EnterpriseController {
 
     @Operation(summary = "更新企业联系人", description = "批量更新企业联系人（全量替换）")
     @PutMapping("/{id}/contacts")
+    @PreAuthorize("hasAuthority('enterprise:edit')")
     public Result<List<EnterpriseContact>> updateContacts(
             @Parameter(description = "企业ID") @PathVariable Integer id,
             @Valid @RequestBody ContactUpdateRequest request) {
@@ -114,6 +120,7 @@ public class EnterpriseController {
     @OpLog(operation = "IMPORT", targetType = "ENTERPRISE", detail = "批量导入企业")
     @Operation(summary = "批量导入企业", description = "通过Excel文件批量导入企业数据")
     @PostMapping("/import")
+    @PreAuthorize("hasAuthority('enterprise:import')")
     public Result<ImportResultResponse> importEnterprises(
             @Parameter(description = "Excel文件") @RequestParam("file") MultipartFile file) {
         ImportResultResponse result = enterpriseService.importEnterprises(file);
@@ -123,6 +130,7 @@ public class EnterpriseController {
     @OpLog(operation = "BATCH_DELETE", targetType = "ENTERPRISE", detail = "批量删除企业")
     @Operation(summary = "批量删除企业", description = "批量软删除多个企业记录")
     @DeleteMapping("/batch")
+    @PreAuthorize("hasAuthority('enterprise:batch')")
     public Result<Integer> batchDelete(@Valid @RequestBody BatchDeleteRequest request) {
         int count = enterpriseService.batchDelete(request.getIds());
         return Result.success(count);
@@ -131,6 +139,7 @@ public class EnterpriseController {
     @OpLog(operation = "BATCH_STAGE_CHANGE", targetType = "ENTERPRISE", detail = "批量变更阶段")
     @Operation(summary = "批量变更阶段", description = "批量变更多个企业的漏斗阶段")
     @PatchMapping("/batch/stage")
+    @PreAuthorize("hasAuthority('enterprise:batch')")
     public Result<Integer> batchChangeStage(
             @Valid @RequestBody BatchStageChangeRequest request,
             @AuthenticationPrincipal LoginUser loginUser) {
@@ -141,12 +150,14 @@ public class EnterpriseController {
 
     @Operation(summary = "导出企业列表", description = "导出企业列表为Excel文件")
     @GetMapping("/export")
+    @PreAuthorize("hasAuthority('enterprise:export')")
     public void exportEnterprises(EnterpriseQueryRequest request, HttpServletResponse response) {
         enterpriseService.exportEnterprises(request, response);
     }
 
     @Operation(summary = "下载导入模板", description = "下载企业批量导入的Excel模板")
     @GetMapping("/template")
+    @PreAuthorize("hasAuthority('enterprise:import')")
     public void downloadTemplate(HttpServletResponse response) {
         enterpriseService.downloadTemplate(response);
     }

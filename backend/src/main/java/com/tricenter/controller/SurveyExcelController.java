@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -27,6 +28,7 @@ public class SurveyExcelController {
 
     @Operation(summary = "导出单个企业调研表", description = "导出指定企业的调研Excel，预填已有数据供线下补充")
     @GetMapping("/export/{enterpriseId}")
+    @PreAuthorize("hasAuthority('enterprise:export')")
     public void exportSurveyExcel(
             @Parameter(description = "企业ID") @PathVariable Integer enterpriseId,
             HttpServletResponse response) {
@@ -35,6 +37,7 @@ public class SurveyExcelController {
 
     @Operation(summary = "批量导出企业调研表", description = "批量导出多个企业的调研Excel到一个文件")
     @PostMapping("/export/batch")
+    @PreAuthorize("hasAuthority('enterprise:export')")
     public void exportBatchSurveyExcel(
             @Parameter(description = "企业ID列表") @RequestBody List<Integer> enterpriseIds,
             HttpServletResponse response) {
@@ -44,6 +47,7 @@ public class SurveyExcelController {
     @OpLog(operation = "IMPORT", targetType = "ENTERPRISE", detail = "导入调研数据")
     @Operation(summary = "导入调研数据", description = "导入填写好的调研Excel，更新企业数据")
     @PostMapping("/import")
+    @PreAuthorize("hasAuthority('enterprise:import')")
     public Result<ImportResultResponse> importSurveyExcel(
             @Parameter(description = "调研Excel文件") @RequestParam("file") MultipartFile file) {
         ImportResultResponse result = surveyExcelService.importSurveyExcel(file);
@@ -52,6 +56,7 @@ public class SurveyExcelController {
 
     @Operation(summary = "下载调研导入模板", description = "下载空白调研Excel模板（表头+填写说明+示例行），不含库内企业数据，供线下填写后导入")
     @GetMapping("/template")
+    @PreAuthorize("hasAuthority('enterprise:import')")
     public void downloadTemplate(HttpServletResponse response) {
         surveyExcelService.downloadTemplate(response);
     }

@@ -6,6 +6,7 @@ import com.tricenter.service.RequirementDimensionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
@@ -82,6 +83,7 @@ public class RequirementItemAdminController {
 
     @Operation(summary = "切换需求项推荐状态")
     @PatchMapping("/{id}/recommended")
+    @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<Void> toggleRecommended(
             @PathVariable String id,
             @RequestBody Map<String, Object> body
@@ -108,6 +110,7 @@ public class RequirementItemAdminController {
 
     @Operation(summary = "覆盖保存某需求项的画像维度（与前端企业画像维度 key 一致）")
     @PutMapping("/{id}/dimensions")
+    @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<Void> putDimensions(
             @PathVariable String id,
             @RequestBody Map<String, List<String>> body
