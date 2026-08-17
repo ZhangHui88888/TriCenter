@@ -14,6 +14,7 @@ import {
 } from '@ant-design/icons';
 import ReactECharts from 'echarts-for-react';
 import { dashboardApi } from '@/services/api';
+import { useAuthStore } from '@/stores/authStore';
 
 const C = {
   blue: '#396AFF',
@@ -30,6 +31,7 @@ const C = {
 
 function Dashboard() {
   const navigate = useNavigate();
+  const hasPermission = useAuthStore((state) => state.hasPermission);
   const [loading, setLoading] = useState(true);
   const [overview, setOverview] = useState<any>(null);
   const [funnelStats, setFunnelStats] = useState<any[]>([]);
@@ -387,10 +389,10 @@ function Dashboard() {
           >
             <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 24 }}>
               {[
-                { label: '新增企业', icon: <PlusOutlined />, color: C.blue, bg: '#E7EDFF', path: '/enterprise' },
-                { label: '添加跟进', icon: <FileTextOutlined />, color: C.teal, bg: '#DCFAF8', path: '/follow-up' },
+                { label: '新增企业', icon: <PlusOutlined />, color: C.blue, bg: '#E7EDFF', path: '/enterprise', permission: 'enterprise:create' },
+                { label: '添加跟进', icon: <FileTextOutlined />, color: C.teal, bg: '#DCFAF8', path: '/follow-up', permission: 'followup:manage' },
                 { label: '数据分析', icon: <BarChartOutlined />, color: C.purple, bg: '#F0EBFF', path: '/data-analysis' },
-              ].map((a) => (
+              ].filter((a) => !a.permission || hasPermission(a.permission)).map((a) => (
                 <div
                   key={a.label}
                   onClick={() => navigate(a.path)}

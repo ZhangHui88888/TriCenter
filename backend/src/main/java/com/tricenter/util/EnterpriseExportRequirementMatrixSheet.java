@@ -22,6 +22,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -366,10 +367,21 @@ public final class EnterpriseExportRequirementMatrixSheet {
         if (request.getHasForeignTrade() != null) {
             parts.add("是否外贸：" + (request.getHasForeignTrade() == 1 ? "是" : "否"));
         }
-        if (request.getTradeModeId() != null && request.getTradeModeId() > 0) {
-            String label = dict.getOptionLabel(request.getTradeModeId());
-            if (StringUtils.hasText(label)) {
-                parts.add("外贸模式：" + label);
+        if (StringUtils.hasText(request.getTradeModeId())) {
+            List<String> labels = Arrays.stream(request.getTradeModeId().split(","))
+                    .map(String::trim)
+                    .filter(StringUtils::hasText)
+                    .map(id -> {
+                        try {
+                            return dict.getOptionLabel(Integer.valueOf(id));
+                        } catch (NumberFormatException ex) {
+                            return null;
+                        }
+                    })
+                    .filter(StringUtils::hasText)
+                    .toList();
+            if (!labels.isEmpty()) {
+                parts.add("外贸模式：" + String.join("、", labels));
             }
         }
         if (request.getHasExportQualification() != null) {

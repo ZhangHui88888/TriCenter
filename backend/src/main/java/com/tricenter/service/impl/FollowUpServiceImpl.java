@@ -19,6 +19,8 @@ import com.tricenter.mapper.StageChangeLogMapper;
 import com.tricenter.mapper.UserMapper;
 import com.tricenter.service.DashboardService;
 import com.tricenter.service.FollowUpService;
+import com.tricenter.service.CityAccessService;
+import com.tricenter.security.CityContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -43,12 +45,17 @@ public class FollowUpServiceImpl implements FollowUpService {
     private final UserMapper userMapper;
     private final StageChangeLogMapper stageChangeLogMapper;
     private final DashboardService dashboardService;
+    private final CityContext cityContext;
+    private final CityAccessService cityAccessService;
 
     @Override
     public PageResult<FollowUpResponse> getFollowUpList(FollowUpQueryRequest request) {
         Page<FollowUpRecord> page = new Page<>(request.getPage(), request.getPageSize());
         
         LambdaQueryWrapper<FollowUpRecord> wrapper = new LambdaQueryWrapper<>();
+        Integer cityId = cityContext.requireCityId();
+        wrapper.inSql(FollowUpRecord::getEnterpriseId,
+                "SELECT id FROM enterprises WHERE is_deleted = 0 AND city_id = " + cityId);
         
         // 关键词搜索（搜索跟进内容）
         if (StringUtils.hasText(request.getKeyword())) {
@@ -82,7 +89,8 @@ public class FollowUpServiceImpl implements FollowUpService {
     public List<FollowUpResponse> getFollowUpsByEnterpriseId(Integer enterpriseId) {
         checkEnterpriseExists(enterpriseId);
         
-        List<FollowUpRecord> records = followUpRecordMapper.selectByEnterpriseId(enterpriseId);
+        Integer cityId = cityContext.requireCityId();
+        List<FollowUpRecord> records = followUpRecordMapper.selectByEnterpriseId(enterpriseId, cityId);
         
         return records.stream()
             .map(this::convertToResponse)
@@ -93,10 +101,8 @@ public class FollowUpServiceImpl implements FollowUpService {
     @Transactional
     public FollowUpResponse createFollowUp(FollowUpCreateRequest request, Integer currentUserId) {
         // 检查企业是否存在
-        Enterprise enterprise = enterpriseMapper.selectById(request.getEnterpriseId());
-        if (enterprise == null || enterprise.getIsDeleted() == 1) {
-            throw new BusinessException("企业不存在");
-        }
+        Enterprise enterprise = cityAccessService.requireEnterprise(
+                request.getEnterpriseId(), cityContext.requireCityId());
         
         // 创建跟进记录
         FollowUpRecord record = new FollowUpRecord();
@@ -143,6 +149,7 @@ public class FollowUpServiceImpl implements FollowUpService {
         if (record == null) {
             throw new BusinessException("跟进记录不存在");
         }
+        cityAccessService.requireEnterprise(record.getEnterpriseId(), cityContext.requireCityId());
         
         if (StringUtils.hasText(request.getFollowType())) {
             record.setFollowType(request.getFollowType());
@@ -173,6 +180,7 @@ public class FollowUpServiceImpl implements FollowUpService {
         if (record == null) {
             throw new BusinessException("跟进记录不存在");
         }
+        cityAccessService.requireEnterprise(record.getEnterpriseId(), cityContext.requireCityId());
         
         followUpRecordMapper.deleteById(id);
         dashboardService.evictAllCache();
@@ -193,13 +201,14 @@ public class FollowUpServiceImpl implements FollowUpService {
         LocalDate weekEnd = today.with(TemporalAdjusters.nextOrSame(DayOfWeek.SUNDAY));
         
         // 统计本月跟进数
-        stats.setMonthlyCount(followUpRecordMapper.countByDateRange(monthStart, monthEnd));
+        Integer cityId = cityContext.requireCityId();
+        stats.setMonthlyCount(followUpRecordMapper.countByDateRange(monthStart, monthEnd, cityId));
         
         // 统计本周跟进数
-        stats.setWeeklyCount(followUpRecordMapper.countByDateRange(weekStart, weekEnd));
+        stats.setWeeklyCount(followUpRecordMapper.countByDateRange(weekStart, weekEnd, cityId));
         
         // 统计今日跟进数
-        stats.setDailyCount(followUpRecordMapper.countByDateRange(today, today));
+        stats.setDailyCount(followUpRecordMapper.countByDateRange(today, today, cityId));
         
         // 统计待跟进企业数（超过30天未跟进的企业）
         stats.setPendingCount(countPendingEnterprises());
@@ -217,6 +226,7 @@ public class FollowUpServiceImpl implements FollowUpService {
         List<Enterprise> enterprises = enterpriseMapper.selectList(
             new LambdaQueryWrapper<Enterprise>()
                 .eq(Enterprise::getIsDeleted, 0)
+                .eq(Enterprise::getCityId, cityContext.requireCityId())
         );
         
         int count = 0;
@@ -231,10 +241,7 @@ public class FollowUpServiceImpl implements FollowUpService {
     }
     
     private void checkEnterpriseExists(Integer enterpriseId) {
-        Enterprise enterprise = enterpriseMapper.selectById(enterpriseId);
-        if (enterprise == null || enterprise.getIsDeleted() == 1) {
-            throw new BusinessException("企业不存在");
-        }
+        cityAccessService.requireEnterprise(enterpriseId, cityContext.requireCityId());
     }
     
     private FollowUpResponse convertToResponse(FollowUpRecord record) {
@@ -251,7 +258,13 @@ public class FollowUpServiceImpl implements FollowUpService {
         response.setCreatedAt(record.getCreatedAt());
         
         // 获取企业名称
-        Enterprise enterprise = enterpriseMapper.selectById(record.getEnterpriseId());
+        Enterprise enterprise;
+        try {
+            enterprise = cityAccessService.requireEnterprise(
+                    record.getEnterpriseId(), cityContext.requireCityId());
+        } catch (BusinessException ignored) {
+            enterprise = null;
+        }
         if (enterprise != null) {
             response.setEnterpriseName(enterprise.getName());
         }

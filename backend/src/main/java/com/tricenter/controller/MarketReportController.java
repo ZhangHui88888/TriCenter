@@ -4,6 +4,8 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tricenter.common.result.Result;
 import com.tricenter.entity.MarketReport;
 import com.tricenter.mapper.MarketReportMapper;
+import com.tricenter.security.CityContext;
+import com.tricenter.service.CityAccessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -19,10 +21,13 @@ import java.util.Map;
 public class MarketReportController {
 
     private final MarketReportMapper reportMapper;
+    private final CityContext cityContext;
+    private final CityAccessService cityAccessService;
 
     @Operation(summary = "查询企业已有报告")
     @GetMapping("/{enterpriseId}")
     public Result<MarketReport> getReport(@PathVariable Integer enterpriseId) {
+        cityAccessService.requireEnterprise(enterpriseId, cityContext.requireCityId());
         MarketReport report = reportMapper.selectOne(
                 new LambdaQueryWrapper<MarketReport>()
                         .eq(MarketReport::getEnterpriseId, enterpriseId));
@@ -34,6 +39,7 @@ public class MarketReportController {
     public Result<Void> saveReport(@PathVariable Integer enterpriseId,
                                    @PathVariable String version,
                                    @RequestBody Map<String, Object> reportData) {
+        cityAccessService.requireEnterprise(enterpriseId, cityContext.requireCityId());
         MarketReport report = reportMapper.selectOne(
                 new LambdaQueryWrapper<MarketReport>()
                         .eq(MarketReport::getEnterpriseId, enterpriseId));

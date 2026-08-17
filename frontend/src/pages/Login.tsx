@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom';
 import { authApi } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import AnimatedCharacters from '@/components/AnimatedCharacters';
+import type { LoginResponseData } from '@/types/auth';
 
 const { Title, Text } = Typography;
 
@@ -38,11 +39,12 @@ function Login() {
   const onFinish = async (values: LoginForm) => {
     setLoading(true);
     try {
-      const res: any = await authApi.login(values);
-      const { token, user } = res.data;
-      setAuth(token, user);
+      const res = await authApi.login(values);
+      const session = res.data as LoginResponseData;
+      setAuth(session);
+      const { user } = session;
       message.success(`欢迎回来，${user.name}！`);
-      navigate('/dashboard', { replace: true });
+      navigate(session.requiresCitySelection ? '/select-city' : '/dashboard', { replace: true });
     } catch {
       setErrorTrigger((v) => v + 1);
     } finally {

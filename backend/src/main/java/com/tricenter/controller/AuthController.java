@@ -3,6 +3,7 @@ package com.tricenter.controller;
 import com.tricenter.common.result.Result;
 import com.tricenter.dto.request.ChangePasswordRequest;
 import com.tricenter.dto.request.LoginRequest;
+import com.tricenter.dto.request.SelectCityRequest;
 import com.tricenter.dto.response.LoginResponse;
 import com.tricenter.dto.response.UserResponse;
 import com.tricenter.security.LoginUser;
@@ -32,6 +33,13 @@ public class AuthController {
         return Result.success(response);
     }
 
+    @Operation(summary = "选择或切换当前城市")
+    @PostMapping("/select-city")
+    public Result<LoginResponse> selectCity(@AuthenticationPrincipal LoginUser loginUser,
+                                            @Valid @RequestBody SelectCityRequest request) {
+        return Result.success(authService.selectCity(loginUser.getId(), request.getCityId()));
+    }
+
     @Operation(summary = "用户登出")
     @PostMapping("/logout")
     public Result<Void> logout(@AuthenticationPrincipal LoginUser loginUser) {
@@ -42,7 +50,8 @@ public class AuthController {
     @Operation(summary = "获取当前用户信息")
     @GetMapping("/me")
     public Result<UserResponse> getCurrentUser(@AuthenticationPrincipal LoginUser loginUser) {
-        UserResponse response = authService.getCurrentUser(loginUser.getId());
+        UserResponse response = authService.getCurrentUser(
+                loginUser.getId(), loginUser.getCurrentCityId());
         return Result.success(response);
     }
 

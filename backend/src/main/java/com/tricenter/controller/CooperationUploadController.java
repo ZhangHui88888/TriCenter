@@ -35,11 +35,13 @@ public class CooperationUploadController {
     }
 
     @Operation(summary = "下载合作服务附件")
-    @GetMapping("/cooperation-attachment/download/{storedFileName:.+}")
+    @GetMapping("/cooperation-attachment/download/{serviceRecordId}/{storedFileName:.+}")
     public ResponseEntity<Resource> download(
+            @PathVariable Integer serviceRecordId,
             @PathVariable String storedFileName,
             @RequestParam(value = "name", required = false) String downloadName) {
-        Resource resource = cooperationUploadService.loadAsResource(storedFileName);
+        Resource resource = cooperationUploadService.loadAsResource(
+                serviceRecordId, storedFileName);
         MediaType mediaType = MediaType.APPLICATION_OCTET_STREAM;
         if (resource instanceof FileSystemResource fsr) {
             try {

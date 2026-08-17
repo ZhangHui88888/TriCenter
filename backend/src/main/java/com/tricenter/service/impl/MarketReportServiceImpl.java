@@ -6,6 +6,9 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tricenter.entity.MarketReport;
 import com.tricenter.mapper.MarketReportMapper;
+import com.tricenter.common.exception.BusinessException;
+import com.tricenter.security.CityContext;
+import com.tricenter.service.CityAccessService;
 import com.tricenter.service.MarketReportService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,10 +26,13 @@ import java.util.Collections;
 public class MarketReportServiceImpl implements MarketReportService {
 
     private final MarketReportMapper marketReportMapper;
+    private final CityContext cityContext;
+    private final CityAccessService cityAccessService;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     @Override
     public MarketReport create(Long enterpriseId, Long createdBy) {
+        cityAccessService.requireEnterprise(enterpriseId.intValue(), cityContext.requireCityId());
         MarketReport report = new MarketReport();
         report.setEnterpriseId(enterpriseId != null ? enterpriseId.intValue() : null);
         report.setBasicReportData(Collections.emptyMap());
@@ -41,11 +47,12 @@ public class MarketReportServiceImpl implements MarketReportService {
 
     @Override
     public MarketReport getById(Long id) {
-        return marketReportMapper.selectById(id);
+        return requireReport(id);
     }
 
     @Override
     public Page<MarketReport> getByEnterpriseId(Long enterpriseId, int page, int size) {
+        cityAccessService.requireEnterprise(enterpriseId.intValue(), cityContext.requireCityId());
         Page<MarketReport> pageParam = new Page<>(page, size);
         LambdaQueryWrapper<MarketReport> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(MarketReport::getEnterpriseId, enterpriseId != null ? enterpriseId.intValue() : null)
@@ -55,8 +62,7 @@ public class MarketReportServiceImpl implements MarketReportService {
 
     @Override
     public void updateReportData(Long id, String reportData) {
-        MarketReport report = new MarketReport();
-        report.setId(id);
+        MarketReport report = requireReport(id);
         try {
             report.setBasicReportData(OBJECT_MAPPER.readValue(reportData, Object.class));
         } catch (JsonProcessingException e) {
@@ -75,8 +81,7 @@ public class MarketReportServiceImpl implements MarketReportService {
 
     @Override
     public void updateAiSections(Long id, String aiGeneratedSections) {
-        MarketReport report = new MarketReport();
-        report.setId(id);
+        MarketReport report = requireReport(id);
         try {
             report.setDeepReportData(OBJECT_MAPPER.readValue(aiGeneratedSections, Object.class));
         } catch (JsonProcessingException e) {
@@ -89,6 +94,17 @@ public class MarketReportServiceImpl implements MarketReportService {
 
     @Override
     public void delete(Long id) {
+        requireReport(id);
         marketReportMapper.deleteById(id);
+    }
+
+    private MarketReport requireReport(Long id) {
+        MarketReport report = marketReportMapper.selectById(id);
+        if (report == null) {
+            throw BusinessException.notFound("市场报告不存在");
+        }
+        cityAccessService.requireEnterprise(
+                report.getEnterpriseId(), cityContext.requireCityId());
+        return report;
     }
 }

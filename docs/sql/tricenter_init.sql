@@ -14,6 +14,15 @@ TRUNCATE TABLE categories;
 TRUNCATE TABLE requirements;
 SET FOREIGN_KEY_CHECKS = 1;
 
+-- 城市基础数据（一期固定常州、苏州）
+INSERT INTO cities (code, name, status, sort_order) VALUES
+('changzhou', '常州', 1, 10),
+('suzhou', '苏州', 1, 20)
+ON DUPLICATE KEY UPDATE
+name = VALUES(name), status = VALUES(status), sort_order = VALUES(sort_order);
+
+SET @changzhou_city_id = (SELECT id FROM cities WHERE code = 'changzhou');
+
 -- ==================== 漏斗阶段 (stage) ====================
 INSERT INTO system_options (category, value, label, color, sort_order) VALUES
 ('stage', 'POTENTIAL', '潜在企业', '#94a3b8', 1),
@@ -1699,6 +1708,11 @@ INSERT INTO users (username, password, name, role, phone, email, status) VALUES
 ('user', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '普通用户', 'user', '13800000002', 'user@tricenter.com', 1)
 ON DUPLICATE KEY UPDATE name = VALUES(name);
 
+INSERT INTO user_cities (user_id, city_id)
+SELECT id, @changzhou_city_id
+FROM users
+ON DUPLICATE KEY UPDATE city_id = VALUES(city_id);
+
 -- ============================================================
 -- 默认账号信息:
 -- | 用户名   | 密码      | 角色     | 说明       |
@@ -1715,62 +1729,62 @@ ON DUPLICATE KEY UPDATE name = VALUES(name);
 -- ============================================================
 
 -- ==================== 企业主表 ====================
-INSERT INTO enterprises (id, name, credit_code, province, city, district, address, industry_id, enterprise_type, staff_size_id, website, source_id, stage, has_own_brand, brand_names, has_cross_border, has_import_export_license, created_at) VALUES
-(1, '常州绿源园艺工具有限公司', '91320400MA1XXXXX01', '江苏省', '常州市', '武进区', '武进区湖塘镇工业园88号', 101, '生产型', 
+INSERT INTO enterprises (id, city_id, name, credit_code, province, city, district, address, industry_id, enterprise_type, staff_size_id, website, source_id, stage, has_own_brand, brand_names, has_cross_border, has_import_export_license, created_at) VALUES
+(1, @changzhou_city_id, '常州绿源园艺工具有限公司', '91320400MA1XXXXX01', '江苏省', '常州市', '武进区', '武进区湖塘镇工业园88号', 101, '生产型',
  (SELECT id FROM system_options WHERE category='staff_size' AND value='50-200' LIMIT 1),
  'https://www.greensource-tools.com',
  (SELECT id FROM system_options WHERE category='source' AND value='survey' LIMIT 1),
  'SIGNED', 1, '绿源GreenSource', 1, 1, '2025-06-15 10:00:00'),
 
-(2, '常州博远电子科技有限公司', '91320400MA1XXXXX02', '江苏省', '常州市', '新北区', '新北区薛家镇科技路66号', 110, '生产型',
+(2, @changzhou_city_id, '常州博远电子科技有限公司', '91320400MA1XXXXX02', '江苏省', '常州市', '新北区', '新北区薛家镇科技路66号', 110, '生产型',
  (SELECT id FROM system_options WHERE category='staff_size' AND value='200-500' LIMIT 1),
  'https://www.boyuan-tech.com',
  (SELECT id FROM system_options WHERE category='source' AND value='referral' LIMIT 1),
  'SETTLED', 1, 'BoyuanTech', 1, 1, '2025-05-20 09:00:00'),
 
-(3, '常州锦程纺织有限公司', '91320400MA1XXXXX03', '江苏省', '常州市', '天宁区', '天宁区青龙街道纺织路12号', 103, '工贸一体',
+(3, @changzhou_city_id, '常州锦程纺织有限公司', '91320400MA1XXXXX03', '江苏省', '常州市', '天宁区', '天宁区青龙街道纺织路12号', 103, '工贸一体',
  (SELECT id FROM system_options WHERE category='staff_size' AND value='50-200' LIMIT 1),
  NULL,
  (SELECT id FROM system_options WHERE category='source' AND value='activity' LIMIT 1),
  'HAS_DEMAND', 0, NULL, 0, 1, '2025-07-10 14:00:00'),
 
-(4, '常州鼎盛机械制造有限公司', '91320400MA1XXXXX04', '江苏省', '常州市', '钟楼区', '钟楼区邹区镇机械产业园5号', 112, '生产型',
+(4, @changzhou_city_id, '常州鼎盛机械制造有限公司', '91320400MA1XXXXX04', '江苏省', '常州市', '钟楼区', '钟楼区邹区镇机械产业园5号', 112, '生产型',
  (SELECT id FROM system_options WHERE category='staff_size' AND value='500-1000' LIMIT 1),
  'https://www.dingsheng-machinery.com',
  (SELECT id FROM system_options WHERE category='source' AND value='survey' LIMIT 1),
  'INCUBATING', 1, '鼎盛DS', 1, 1, '2025-04-01 08:30:00'),
 
-(5, '常州优品家居用品有限公司', '91320400MA1XXXXX05', '江苏省', '常州市', '经开区', '经开区横山桥镇创业路99号', 102, '生产型',
+(5, @changzhou_city_id, '常州优品家居用品有限公司', '91320400MA1XXXXX05', '江苏省', '常州市', '经开区', '经开区横山桥镇创业路99号', 102, '生产型',
  (SELECT id FROM system_options WHERE category='staff_size' AND value='10-50' LIMIT 1),
  NULL,
  (SELECT id FROM system_options WHERE category='source' AND value='inquiry' LIMIT 1),
  'POTENTIAL', 0, NULL, 0, 0, '2025-08-20 11:00:00'),
 
-(6, '金坛华通进出口贸易有限公司', '91320400MA1XXXXX06', '江苏省', '常州市', '金坛区', '金坛区经济开发区商贸城A栋', 201, '贸易型',
+(6, @changzhou_city_id, '金坛华通进出口贸易有限公司', '91320400MA1XXXXX06', '江苏省', '常州市', '金坛区', '金坛区经济开发区商贸城A栋', 201, '贸易型',
  (SELECT id FROM system_options WHERE category='staff_size' AND value='10-50' LIMIT 1),
  NULL,
  (SELECT id FROM system_options WHERE category='source' AND value='referral' LIMIT 1),
  'NO_DEMAND', 0, NULL, 1, 1, '2025-09-05 15:00:00'),
 
-(7, '溧阳天力新能源科技有限公司', '91320400MA1XXXXX07', '江苏省', '常州市', '溧阳市', '溧阳市昆仑街道新能源产业园18号', 118, '生产型',
+(7, @changzhou_city_id, '溧阳天力新能源科技有限公司', '91320400MA1XXXXX07', '江苏省', '常州市', '溧阳市', '溧阳市昆仑街道新能源产业园18号', 118, '生产型',
  (SELECT id FROM system_options WHERE category='staff_size' AND value='200-500' LIMIT 1),
  'https://www.tianli-energy.com',
  (SELECT id FROM system_options WHERE category='source' AND value='survey' LIMIT 1),
  'SIGNED', 1, 'TianliPower', 1, 1, '2025-03-15 09:30:00'),
 
-(8, '常州美尚化妆品有限公司', '91320400MA1XXXXX08', '江苏省', '常州市', '武进区', '武进区西太湖科技产业园创新路28号', 108, '工贸一体',
+(8, @changzhou_city_id, '常州美尚化妆品有限公司', '91320400MA1XXXXX08', '江苏省', '常州市', '武进区', '武进区西太湖科技产业园创新路28号', 108, '工贸一体',
  (SELECT id FROM system_options WHERE category='staff_size' AND value='50-200' LIMIT 1),
  'https://www.meishang-beauty.com',
  (SELECT id FROM system_options WHERE category='source' AND value='activity' LIMIT 1),
  'HAS_DEMAND', 1, 'MeiShang美尚', 0, 0, '2025-10-01 10:00:00'),
 
-(9, '常州安盾安防设备有限公司', '91320400MA1XXXXX09', '江苏省', '常州市', '新北区', '新北区春江镇安防科技园7号', 116, '生产型',
+(9, @changzhou_city_id, '常州安盾安防设备有限公司', '91320400MA1XXXXX09', '江苏省', '常州市', '新北区', '新北区春江镇安防科技园7号', 116, '生产型',
  (SELECT id FROM system_options WHERE category='staff_size' AND value='50-200' LIMIT 1),
  'https://www.andun-security.com',
  (SELECT id FROM system_options WHERE category='source' AND value='inquiry' LIMIT 1),
  'NO_INTENTION', 0, NULL, 0, 1, '2025-11-10 16:00:00'),
 
-(10, '常州乐童玩具有限公司', '91320400MA1XXXXX10', '江苏省', '常州市', '天宁区', '天宁区郑陆镇玩具产业基地3号', 106, '生产型',
+(10, @changzhou_city_id, '常州乐童玩具有限公司', '91320400MA1XXXXX10', '江苏省', '常州市', '天宁区', '天宁区郑陆镇玩具产业基地3号', 106, '生产型',
  (SELECT id FROM system_options WHERE category='staff_size' AND value='10-50' LIMIT 1),
  NULL,
  (SELECT id FROM system_options WHERE category='source' AND value='survey' LIMIT 1),
@@ -1812,34 +1826,34 @@ INSERT INTO enterprise_products (enterprise_id, name, category_id, annual_sales)
 (1, '电动修枝剪', 102, '200-500万'),
 (1, '太阳能花园灯', 103, '200-500万'),
 -- 博远电子
-(2, '智能蓝牙耳机', 601, '1000-5000万'),
-(2, '无线充电器', 604, '500-1000万'),
-(2, '智能手环', 602, '500-1000万'),
+(2, '智能蓝牙耳机', 110, '1000-5000万'),
+(2, '无线充电器', 110, '500-1000万'),
+(2, '智能手环', 110, '500-1000万'),
 -- 锦程纺织
-(3, '运动速干T恤', 704, '200-500万'),
-(3, '瑜伽裤', 702, '200-500万'),
+(3, '运动速干T恤', 103, '200-500万'),
+(3, '瑜伽裤', 103, '200-500万'),
 -- 鼎盛机械
-(4, '数控车床', 901, '5000万以上'),
-(4, '自动包装机', 904, '1000-5000万'),
+(4, '数控车床', 112, '5000万以上'),
+(4, '自动包装机', 112, '1000-5000万'),
 -- 优品家居
-(5, '竹制厨房收纳架', 303, '200万以下'),
-(5, '硅胶厨具套装', 301, '200万以下'),
+(5, '竹制厨房收纳架', 102, '200万以下'),
+(5, '硅胶厨具套装', 102, '200万以下'),
 -- 华通贸易（贸易型，代理多品类）
-(6, '五金工具套装', 804, '200-500万'),
-(6, 'LED灯泡', 1704, '200-500万'),
+(6, '五金工具套装', 114, '200-500万'),
+(6, 'LED灯泡', 115, '200-500万'),
 -- 天力新能源
-(7, '便携式储能电源', 1902, '1000-5000万'),
-(7, '太阳能板', 1901, '500-1000万'),
-(7, '电动车充电桩', 1904, '500-1000万'),
+(7, '便携式储能电源', 118, '1000-5000万'),
+(7, '太阳能板', 118, '500-1000万'),
+(7, '电动车充电桩', 118, '500-1000万'),
 -- 美尚化妆品
-(8, '玻尿酸精华液', 1001, '200-500万'),
-(8, '气垫BB霜', 1002, '200万以下'),
+(8, '玻尿酸精华液', 108, '200-500万'),
+(8, '气垫BB霜', 108, '200万以下'),
 -- 安盾安防
-(9, '智能监控摄像头', 1801, '500-1000万'),
-(9, '无线门铃', 1802, '200-500万'),
+(9, '智能监控摄像头', 116, '500-1000万'),
+(9, '无线门铃', 116, '200-500万'),
 -- 乐童玩具
-(10, '磁力积木套装', 1101, '200万以下'),
-(10, '遥控赛车', 1102, '200万以下');
+(10, '磁力积木套装', 106, '200万以下'),
+(10, '遥控赛车', 106, '200万以下');
 
 
 -- ==================== 跟进记录 ====================

@@ -52,8 +52,11 @@ public interface EnterpriseServiceRecordMapper extends BaseMapper<EnterpriseServ
             "LEFT JOIN providers p ON r.provider_id = p.id " +
             "LEFT JOIN users u ON r.responsible_id = u.id " +
             "WHERE r.enterprise_id = #{enterpriseId} AND r.is_deleted = 0 " +
+            "AND e.city_id = #{cityId} AND e.is_deleted = 0 " +
             "ORDER BY r.service_date DESC, r.created_at DESC")
-    List<EnterpriseServiceRecord> selectByEnterpriseId(@Param("enterpriseId") Integer enterpriseId);
+    List<EnterpriseServiceRecord> selectByEnterpriseId(
+            @Param("enterpriseId") Integer enterpriseId,
+            @Param("cityId") Integer cityId);
 
     @ResultMap("serviceRecordResult")
     @Select("<script>" +
@@ -68,7 +71,7 @@ public interface EnterpriseServiceRecordMapper extends BaseMapper<EnterpriseServ
             "LEFT JOIN enterprises e ON r.enterprise_id = e.id " +
             "LEFT JOIN providers p ON r.provider_id = p.id " +
             "LEFT JOIN users u ON r.responsible_id = u.id " +
-            "WHERE r.is_deleted = 0 " +
+            "WHERE r.is_deleted = 0 AND e.city_id = #{cityId} AND e.is_deleted = 0 " +
             "<if test='enterpriseId != null'> AND r.enterprise_id = #{enterpriseId}</if>" +
             "<if test='providerId != null'> AND r.provider_id = #{providerId}</if>" +
             "<if test='serviceType != null and serviceType != \"\"'> AND r.service_type = #{serviceType}</if>" +
@@ -79,17 +82,20 @@ public interface EnterpriseServiceRecordMapper extends BaseMapper<EnterpriseServ
                                                      @Param("enterpriseId") Integer enterpriseId,
                                                      @Param("providerId") Integer providerId,
                                                      @Param("serviceType") String serviceType,
-                                                     @Param("status") String status);
+                                                     @Param("status") String status,
+                                                     @Param("cityId") Integer cityId);
 
     @Select("<script>" +
             "SELECT r.provider_id AS providerId, COUNT(*) AS totalServiceCount, COUNT(DISTINCT r.enterprise_id) AS totalServedEnterprises " +
-            "FROM enterprise_service_records r " +
-            "WHERE r.is_deleted = 0 AND r.provider_id IS NOT NULL " +
+            "FROM enterprise_service_records r JOIN enterprises e ON e.id = r.enterprise_id " +
+            "WHERE r.is_deleted = 0 AND e.is_deleted = 0 AND e.city_id = #{cityId} AND r.provider_id IS NOT NULL " +
             "AND r.provider_id IN " +
             "<foreach collection='providerIds' item='providerId' open='(' separator=',' close=')'>" +
             "#{providerId}" +
             "</foreach> " +
             "GROUP BY r.provider_id" +
             "</script>")
-    List<Map<String, Object>> selectProviderStats(@Param("providerIds") List<Integer> providerIds);
+    List<Map<String, Object>> selectProviderStats(
+            @Param("providerIds") List<Integer> providerIds,
+            @Param("cityId") Integer cityId);
 }

@@ -16,6 +16,9 @@ public class Enterprise {
     
     @TableId(type = IdType.AUTO)
     private Integer id;
+
+    /** 业务归属城市ID；只允许由服务端可信城市上下文赋值 */
+    private Integer cityId;
     
     /** 企业名称 */
     private String name;

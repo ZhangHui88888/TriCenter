@@ -10,6 +10,7 @@ import com.tricenter.mapper.EnterpriseMapper;
 import com.tricenter.mapper.FollowUpRecordMapper;
 import com.tricenter.service.DashboardService;
 import com.tricenter.service.DictionaryCacheService;
+import com.tricenter.security.CityContext;
 import com.tricenter.util.StageCodeUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +38,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final DictionaryCacheService dictionaryCache;
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
+    private final CityContext cityContext;
 
     private static final String CACHE_PREFIX = "dashboard:";
     private static final long CACHE_TTL_MINUTES = 10;
@@ -66,7 +68,7 @@ public class DashboardServiceImpl implements DashboardService {
     
     @Override
     public DashboardOverviewResponse getOverview() {
-        String cacheKey = CACHE_PREFIX + "overview";
+        String cacheKey = cacheKey("overview");
         DashboardOverviewResponse cached = getCachedValue(cacheKey, DashboardOverviewResponse.class);
         if (cached != null) {
             return cached;
@@ -81,7 +83,8 @@ public class DashboardServiceImpl implements DashboardService {
         DashboardOverviewResponse response = new DashboardOverviewResponse();
         
         // 查询各阶段企业数量
-        List<Map<String, Object>> stageCounts = enterpriseMapper.countByStage();
+        Integer cityId = cityContext.requireCityId();
+        List<Map<String, Object>> stageCounts = enterpriseMapper.countByStage(cityId);
         Map<String, Integer> stageMap = new HashMap<>();
         int total = 0;
         for (Map<String, Object> item : stageCounts) {
@@ -111,24 +114,28 @@ public class DashboardServiceImpl implements DashboardService {
         
         // 本月新增总数
         LambdaQueryWrapper<Enterprise> totalQuery = new LambdaQueryWrapper<>();
-        totalQuery.ge(Enterprise::getCreatedAt, monthStart);
+        totalQuery.eq(Enterprise::getCityId, cityId)
+                .ge(Enterprise::getCreatedAt, monthStart);
         monthlyChange.setTotal(Math.toIntExact(enterpriseMapper.selectCount(totalQuery)));
         
         // 本月新增潜在（兼容库中小写 stage）
         LambdaQueryWrapper<Enterprise> potentialQuery = new LambdaQueryWrapper<>();
-        potentialQuery.ge(Enterprise::getCreatedAt, monthStart)
+        potentialQuery.eq(Enterprise::getCityId, cityId)
+            .ge(Enterprise::getCreatedAt, monthStart)
             .in(Enterprise::getStage, StageCodeUtil.variantsForDbMatch("POTENTIAL"));
         monthlyChange.setPotential(Math.toIntExact(enterpriseMapper.selectCount(potentialQuery)));
         
         // 本月新增有需求
         LambdaQueryWrapper<Enterprise> demandQuery = new LambdaQueryWrapper<>();
-        demandQuery.ge(Enterprise::getCreatedAt, monthStart)
+        demandQuery.eq(Enterprise::getCityId, cityId)
+            .ge(Enterprise::getCreatedAt, monthStart)
             .in(Enterprise::getStage, StageCodeUtil.variantsForDbMatch("HAS_DEMAND"));
         monthlyChange.setHasDemand(Math.toIntExact(enterpriseMapper.selectCount(demandQuery)));
         
         // 本月新增签约入驻
         LambdaQueryWrapper<Enterprise> signedQuery = new LambdaQueryWrapper<>();
-        signedQuery.ge(Enterprise::getCreatedAt, monthStart)
+        signedQuery.eq(Enterprise::getCityId, cityId)
+            .ge(Enterprise::getCreatedAt, monthStart)
             .in(Enterprise::getStage, java.util.stream.Stream.of("SIGNED", "SETTLED", "INCUBATING")
                 .flatMap(s -> StageCodeUtil.variantsForDbMatch(s).stream())
                 .distinct()
@@ -141,7 +148,7 @@ public class DashboardServiceImpl implements DashboardService {
     
     @Override
     public List<FunnelStageResponse> getFunnelStats() {
-        String cacheKey = CACHE_PREFIX + "funnel";
+        String cacheKey = cacheKey("funnel");
         List<FunnelStageResponse> cached = getCachedValue(cacheKey, new TypeReference<List<FunnelStageResponse>>() {});
         if (cached != null) {
             return cached;
@@ -153,7 +160,8 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private List<FunnelStageResponse> doGetFunnelStats() {
-        List<Map<String, Object>> stageCounts = enterpriseMapper.countByStage();
+        List<Map<String, Object>> stageCounts = enterpriseMapper.countByStage(
+                cityContext.requireCityId());
         Map<String, Integer> stageMap = new HashMap<>();
         for (Map<String, Object> item : stageCounts) {
             String stage = (String) item.get("stage");
@@ -179,7 +187,7 @@ public class DashboardServiceImpl implements DashboardService {
     
     @Override
     public List<DistrictStatsResponse> getDistrictStats() {
-        String cacheKey = CACHE_PREFIX + "districts";
+        String cacheKey = cacheKey("districts");
         List<DistrictStatsResponse> cached = getCachedValue(cacheKey, new TypeReference<List<DistrictStatsResponse>>() {});
         if (cached != null) {
             return cached;
@@ -191,7 +199,8 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private List<DistrictStatsResponse> doGetDistrictStats() {
-        List<Map<String, Object>> districtCounts = enterpriseMapper.countByDistrict();
+        List<Map<String, Object>> districtCounts = enterpriseMapper.countByDistrict(
+                cityContext.requireCityId());
         return districtCounts.stream()
             .filter(item -> item.get("district") != null)
             .map(item -> new DistrictStatsResponse(
@@ -203,7 +212,7 @@ public class DashboardServiceImpl implements DashboardService {
     
     @Override
     public List<IndustryStatsResponse> getIndustryStats() {
-        String cacheKey = CACHE_PREFIX + "industries:l1-full";
+        String cacheKey = cacheKey("industries:l1-full");
         List<IndustryStatsResponse> cached = getCachedValue(cacheKey, new TypeReference<List<IndustryStatsResponse>>() {});
         if (cached != null) {
             return cached;
@@ -215,7 +224,8 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private List<IndustryStatsResponse> doGetIndustryStats() {
-        List<Map<String, Object>> industryCounts = enterpriseMapper.countByIndustry();
+        List<Map<String, Object>> industryCounts = enterpriseMapper.countByIndustry(
+                cityContext.requireCityId());
         Map<String, Integer> l1Counts = new LinkedHashMap<>();
         for (Map<String, Object> item : industryCounts) {
             Object rawId = item.get("industryId");
@@ -263,7 +273,7 @@ public class DashboardServiceImpl implements DashboardService {
     
     @Override
     public PendingFollowUpsResponse getPendingFollowUps() {
-        String cacheKey = CACHE_PREFIX + "pending-follow-ups";
+        String cacheKey = cacheKey("pending-follow-ups");
         PendingFollowUpsResponse cached = getCachedValue(cacheKey, PendingFollowUpsResponse.class);
         if (cached != null) {
             return cached;
@@ -281,7 +291,9 @@ public class DashboardServiceImpl implements DashboardService {
         
         // 查询所有未删除的企业
         LambdaQueryWrapper<Enterprise> enterpriseQuery = new LambdaQueryWrapper<>();
-        enterpriseQuery.select(Enterprise::getId, Enterprise::getName);
+        Integer cityId = cityContext.requireCityId();
+        enterpriseQuery.select(Enterprise::getId, Enterprise::getName)
+                .eq(Enterprise::getCityId, cityId);
         List<Enterprise> enterprises = enterpriseMapper.selectList(enterpriseQuery);
         
         List<PendingFollowUpsResponse.OverdueEnterprise> overdueList = new ArrayList<>();
@@ -316,13 +328,8 @@ public class DashboardServiceImpl implements DashboardService {
         
         // 本周需回访（基于最近跟进记录的next_step字段，简化处理）
         // 这里简化为：查询最近7天有跟进且有下一步计划的企业
-        LambdaQueryWrapper<FollowUpRecord> followUpQuery = new LambdaQueryWrapper<>();
-        followUpQuery.isNotNull(FollowUpRecord::getNextPlan)
-            .ne(FollowUpRecord::getNextPlan, "")
-            .orderByDesc(FollowUpRecord::getFollowDate)
-            .last("LIMIT 20");
-        
-        List<FollowUpRecord> recentFollowUps = followUpRecordMapper.selectList(followUpQuery);
+        List<FollowUpRecord> recentFollowUps =
+                followUpRecordMapper.selectRecentWithNextPlan(cityId, 20);
         
         // 去重，每个企业只取最新一条
         Map<Integer, FollowUpRecord> enterpriseFollowUpMap = new LinkedHashMap<>();
@@ -337,7 +344,10 @@ public class DashboardServiceImpl implements DashboardService {
             if (weeklyList.size() >= 5) break;
             
             FollowUpRecord record = entry.getValue();
-            Enterprise enterprise = enterpriseMapper.selectById(record.getEnterpriseId());
+            Enterprise enterprise = enterpriseMapper.selectOne(
+                    new LambdaQueryWrapper<Enterprise>()
+                            .eq(Enterprise::getId, record.getEnterpriseId())
+                            .eq(Enterprise::getCityId, cityId));
             if (enterprise != null) {
                 PendingFollowUpsResponse.WeeklyEnterprise weekly = new PendingFollowUpsResponse.WeeklyEnterprise();
                 weekly.setId(enterprise.getId());
@@ -356,7 +366,7 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public List<MonthlyTrendResponse> getMonthlyTrend() {
-        String cacheKey = CACHE_PREFIX + "monthly-trend";
+        String cacheKey = cacheKey("monthly-trend");
         List<MonthlyTrendResponse> cached = getCachedValue(cacheKey, new TypeReference<List<MonthlyTrendResponse>>() {});
         if (cached != null) {
             return cached;
@@ -369,7 +379,8 @@ public class DashboardServiceImpl implements DashboardService {
 
     private List<MonthlyTrendResponse> doGetMonthlyTrend() {
         LocalDateTime startDate = LocalDate.now().minusMonths(11).withDayOfMonth(1).atStartOfDay();
-        List<Map<String, Object>> rawData = enterpriseMapper.countMonthlyTrend(startDate);
+        List<Map<String, Object>> rawData = enterpriseMapper.countMonthlyTrend(
+                startDate, cityContext.requireCityId());
 
         Map<String, Map<String, Object>> dataMap = new LinkedHashMap<>();
         for (Map<String, Object> item : rawData) {
@@ -444,10 +455,15 @@ public class DashboardServiceImpl implements DashboardService {
         }
     }
 
+    private String cacheKey(String suffix) {
+        return CACHE_PREFIX + cityContext.requireCityId() + ":" + suffix;
+    }
+
     @Override
     public void evictAllCache() {
         try {
-            Set<String> keys = redisTemplate.keys(CACHE_PREFIX + "*");
+            Set<String> keys = redisTemplate.keys(
+                    CACHE_PREFIX + cityContext.requireCityId() + ":*");
             onRedisAvailable();
             if (keys != null && !keys.isEmpty()) {
                 redisTemplate.delete(keys);

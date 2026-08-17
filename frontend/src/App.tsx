@@ -4,8 +4,10 @@ import { App as AntdApp, ConfigProvider, Spin } from 'antd'
 import zhCN from 'antd/locale/zh_CN'
 import MainLayout from './layouts/MainLayout'
 import AuthGuard from './components/AuthGuard'
+import PermissionGuard from './components/PermissionGuard'
 
 const Login = lazy(() => import('./pages/Login'))
+const CitySelection = lazy(() => import('./pages/CitySelection'))
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const EnterpriseList = lazy(() => import('./pages/EnterpriseList'))
 const EnterpriseDetail = lazy(() => import('./pages/EnterpriseDetail'))
@@ -16,6 +18,7 @@ const DataDictionary = lazy(() => import('./pages/DataDictionary'))
 const ServiceRecords = lazy(() => import('./pages/ServiceRecords'))
 const DataAnalysis = lazy(() => import('./pages/DataAnalysis'))
 const ProviderList = lazy(() => import('./pages/provider/ProviderListPage'))
+const UserManagement = lazy(() => import('./pages/UserManagement'))
 import { useThemeStore } from './stores/themeStore'
 import { lightTheme, darkTheme } from './theme/themeConfig'
 
@@ -43,6 +46,7 @@ function App() {
             <Routes>
               {/* 登录页面 */}
               <Route path="/login" element={<Login />} />
+              <Route path="/select-city" element={<CitySelection />} />
 
               {/* 需要认证的页面 */}
               <Route
@@ -63,7 +67,14 @@ function App() {
                 <Route path="follow-up" element={<FollowUpRecords />} />
                 <Route path="service-records" element={<ServiceRecords />} />
                 <Route path="data-analysis" element={<DataAnalysis />} />
-                <Route path="dictionary" element={<DataDictionary />} />
+                <Route
+                  path="dictionary"
+                  element={<PermissionGuard permission="dictionary:manage"><DataDictionary /></PermissionGuard>}
+                />
+                <Route
+                  path="admin/users"
+                  element={<PermissionGuard permission="user:manage"><UserManagement /></PermissionGuard>}
+                />
               </Route>
             </Routes>
           </Suspense>

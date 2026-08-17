@@ -8,7 +8,7 @@ import { normalizeAttachmentList, type AttachmentMeta } from '../components/Coop
 
 const RULE = '#e5e7eb';
 
-function AttachmentItem({ att }: { att: AttachmentMeta }) {
+function AttachmentItem({ serviceRecordId, att }: { serviceRecordId: number; att: AttachmentMeta }) {
   const [imgUrl, setImgUrl] = useState<string | null>(null);
   const isImg = (att.contentType || '').startsWith('image/');
 
@@ -18,7 +18,7 @@ function AttachmentItem({ att }: { att: AttachmentMeta }) {
     let cancel = false;
     (async () => {
       try {
-        const res = await cooperationUploadApi.downloadAttachment(att.storedFileName, att.originalName);
+        const res = await cooperationUploadApi.downloadAttachment(serviceRecordId, att.storedFileName, att.originalName);
         const url = URL.createObjectURL(res.data);
         if (!cancel) {
           created = url;
@@ -32,11 +32,11 @@ function AttachmentItem({ att }: { att: AttachmentMeta }) {
       cancel = true;
       if (created) URL.revokeObjectURL(created);
     };
-  }, [att.storedFileName, att.originalName, att.contentType, isImg]);
+  }, [serviceRecordId, att.storedFileName, att.originalName, att.contentType, isImg]);
 
   const download = async () => {
     try {
-      const res = await cooperationUploadApi.downloadAttachment(att.storedFileName, att.originalName);
+      const res = await cooperationUploadApi.downloadAttachment(serviceRecordId, att.storedFileName, att.originalName);
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;
@@ -77,9 +77,11 @@ function AttachmentItem({ att }: { att: AttachmentMeta }) {
 }
 
 export default function ServiceRecordAttachmentsBlock({
+  serviceRecordId,
   raw,
   serifTitleStyle,
 }: {
+  serviceRecordId: number;
   raw: unknown;
   serifTitleStyle: CSSProperties;
 }) {
@@ -90,7 +92,7 @@ export default function ServiceRecordAttachmentsBlock({
       <div style={serifTitleStyle}>附件与图片</div>
       <div style={{ marginTop: 10 }}>
         {list.map((att) => (
-          <AttachmentItem key={att.storedFileName} att={att} />
+          <AttachmentItem key={att.storedFileName} serviceRecordId={serviceRecordId} att={att} />
         ))}
       </div>
     </div>

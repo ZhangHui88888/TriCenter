@@ -107,7 +107,7 @@ export default function ServiceRecordCardAttachmentActions({
 
   const downloadOne = async (storedFileName: string, originalName: string) => {
     try {
-      const res = await cooperationUploadApi.downloadAttachment(storedFileName, originalName);
+      const res = await cooperationUploadApi.downloadAttachment(Number(recordId), storedFileName, originalName);
       const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
       a.href = url;

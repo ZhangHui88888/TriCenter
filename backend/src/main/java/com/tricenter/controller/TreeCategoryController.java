@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +33,7 @@ public class TreeCategoryController {
 
     @Operation(summary = "新增分类节点")
     @PostMapping("/{type}")
+    @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<TreeCategoryResponse> create(
             @PathVariable String type,
             @Valid @RequestBody TreeCategoryCreateRequest request) {
@@ -40,6 +42,7 @@ public class TreeCategoryController {
 
     @Operation(summary = "更新分类节点")
     @PutMapping("/{type}/{id}")
+    @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<TreeCategoryResponse> update(
             @PathVariable String type,
             @PathVariable Integer id,
@@ -49,6 +52,7 @@ public class TreeCategoryController {
 
     @Operation(summary = "删除分类节点")
     @DeleteMapping("/{type}/{id}")
+    @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<Void> delete(
             @PathVariable String type,
             @PathVariable Integer id) {
@@ -58,6 +62,7 @@ public class TreeCategoryController {
 
     @Operation(summary = "恢复默认数据（清空并重新插入种子数据）")
     @PostMapping("/{type}/reset")
+    @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<List<TreeCategoryResponse>> resetToDefault(@PathVariable String type) {
         treeCategoryService.resetToDefault(type);
         return Result.success(treeCategoryService.listAll(type));

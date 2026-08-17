@@ -18,4 +18,6 @@ public class UserResponse {
     private String phone;
     private String email;
     private List<String> permissions;
+    private List<CityInfoResponse> availableCities;
+    private CityInfoResponse currentCity;
 }

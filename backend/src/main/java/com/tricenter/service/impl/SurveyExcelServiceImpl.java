@@ -22,6 +22,9 @@ import org.springframework.web.multipart.MultipartFile;
 import com.tricenter.config.SurveyExcelStyleHandler;
 import com.tricenter.service.OptionsService;
 import com.tricenter.service.RequirementMatchEngine;
+import com.tricenter.service.CityAccessService;
+import com.tricenter.security.CityContext;
+import com.tricenter.service.DashboardService;
 
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
@@ -45,27 +48,26 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     private final SystemOptionMapper systemOptionMapper;
     private final OptionsService optionsService;
     private final RequirementMatchEngine requirementMatchEngine;
+    private final CityContext cityContext;
+    private final CityAccessService cityAccessService;
+    private final DashboardService dashboardService;
 
     // ==================== 导出 ====================
 
     @Override
     public void exportSurveyExcel(Integer enterpriseId, HttpServletResponse response) {
-        Enterprise enterprise = enterpriseMapper.selectById(enterpriseId);
-        if (enterprise == null || enterprise.getIsDeleted() == 1) {
-            throw BusinessException.notFound("企业不存在");
-        }
+        Enterprise enterprise = cityAccessService.requireEnterprise(
+                enterpriseId, cityContext.requireCityId());
         exportToResponse(Collections.singletonList(enterprise), enterprise.getName() + "_调研表", response);
     }
 
     @Override
     public void exportBatchSurveyExcel(List<Integer> enterpriseIds, HttpServletResponse response) {
-        List<Enterprise> enterprises = new ArrayList<>();
-        for (Integer id : enterpriseIds) {
-            Enterprise e = enterpriseMapper.selectById(id);
-            if (e != null && e.getIsDeleted() != 1) {
-                enterprises.add(e);
-            }
-        }
+        List<Enterprise> enterprises = enterpriseMapper.selectList(
+                new LambdaQueryWrapper<Enterprise>()
+                        .in(Enterprise::getId, enterpriseIds)
+                        .eq(Enterprise::getCityId, cityContext.requireCityId())
+                        .eq(Enterprise::getIsDeleted, 0));
         if (enterprises.isEmpty()) {
             throw BusinessException.badRequest("没有可导出的企业");
         }
@@ -996,6 +998,10 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                         // 企业不存在，按新企业创建；创建前校验数据库必填字段
                         validateBasicInfoForInsert(data);
                         enterprise = new Enterprise();
+                        Integer currentCityId = cityContext.requireCityId();
+                        enterprise.setCityId(currentCityId);
+                        enterprise.setProvince("江苏省");
+                        enterprise.setCity(cityAccessService.requireActiveCity(currentCityId).getName() + "市");
                         enterprise.setName(StringUtils.hasText(data.getName()) ? data.getName().trim() : "未命名企业");
                         enterprise.setStage("POTENTIAL"); // 与字典 enterprises.stage 约定一致
                         enterprise.setIsDeleted(0);
@@ -1096,6 +1102,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 log.warn("  行{}: {}", err.getRow(), err.getMessage());
             }
         }
+        dashboardService.evictAllCache();
         return ImportResultResponse.builder()
                 .success(successCount).failed(failCount).errors(errors).build();
     }
@@ -1166,16 +1173,15 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
     private Enterprise resolveEnterpriseForImport(SurveyBasicInfoData data) {
         if (data.getEnterpriseId() != null) {
-            Enterprise byId = enterpriseMapper.selectById(data.getEnterpriseId());
-            if (byId != null && byId.getIsDeleted() != 1) {
-                return byId;
-            }
+            return cityAccessService.requireEnterprise(
+                    data.getEnterpriseId(), cityContext.requireCityId());
         }
 
         if (StringUtils.hasText(data.getCreditCode())) {
             LambdaQueryWrapper<Enterprise> creditWrapper = new LambdaQueryWrapper<>();
             creditWrapper.eq(Enterprise::getCreditCode, data.getCreditCode().trim())
                     .eq(Enterprise::getIsDeleted, 0)
+                    .eq(Enterprise::getCityId, cityContext.requireCityId())
                     .last("LIMIT 1");
             Enterprise byCreditCode = enterpriseMapper.selectOne(creditWrapper);
             if (byCreditCode != null) {
@@ -1187,6 +1193,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             LambdaQueryWrapper<Enterprise> nameWrapper = new LambdaQueryWrapper<>();
             nameWrapper.eq(Enterprise::getName, data.getName().trim())
                     .eq(Enterprise::getIsDeleted, 0)
+                    .eq(Enterprise::getCityId, cityContext.requireCityId())
                     .last("LIMIT 1");
             return enterpriseMapper.selectOne(nameWrapper);
         }
@@ -1248,8 +1255,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             List<SurveyContactData> contacts = entry.getValue();
 
             try {
-                Enterprise enterprise = enterpriseMapper.selectById(enterpriseId);
-                if (enterprise == null || enterprise.getIsDeleted() == 1) continue;
+                cityAccessService.requireEnterprise(
+                        enterpriseId, cityContext.requireCityId());
 
                 // 过滤掉空行（姓名为空的）
                 List<SurveyContactData> validContacts = contacts.stream()
@@ -1300,8 +1307,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             List<SurveyProductData> products = entry.getValue();
 
             try {
-                Enterprise enterprise = enterpriseMapper.selectById(enterpriseId);
-                if (enterprise == null || enterprise.getIsDeleted() == 1) continue;
+                cityAccessService.requireEnterprise(
+                        enterpriseId, cityContext.requireCityId());
 
                 List<SurveyProductData> validProducts = products.stream()
                         .filter(p -> StringUtils.hasText(p.getName()))
@@ -1366,8 +1373,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             }
             if (data.getEnterpriseId() == null) continue;
             try {
-                Enterprise enterprise = enterpriseMapper.selectById(data.getEnterpriseId());
-                if (enterprise == null || enterprise.getIsDeleted() == 1) continue;
+                Enterprise enterprise = cityAccessService.requireEnterprise(
+                        data.getEnterpriseId(), cityContext.requireCityId());
 
                 // 销售区域
                 if (StringUtils.hasText(data.getTargetRegions())) {
@@ -1428,8 +1435,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             }
             if (data.getEnterpriseId() == null) continue;
             try {
-                Enterprise enterprise = enterpriseMapper.selectById(data.getEnterpriseId());
-                if (enterprise == null || enterprise.getIsDeleted() == 1) continue;
+                Enterprise enterprise = cityAccessService.requireEnterprise(
+                        data.getEnterpriseId(), cityContext.requireCityId());
 
                 if (StringUtils.hasText(data.getHasCrossBorder())) {
                     enterprise.setHasCrossBorder("是".equals(data.getHasCrossBorder().trim()) ? 1 : 0);
@@ -1493,8 +1500,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             }
             if (data.getEnterpriseId() == null) continue;
             try {
-                Enterprise enterprise = enterpriseMapper.selectById(data.getEnterpriseId());
-                if (enterprise == null || enterprise.getIsDeleted() == 1) continue;
+                Enterprise enterprise = cityAccessService.requireEnterprise(
+                        data.getEnterpriseId(), cityContext.requireCityId());
 
                 enterprise.setServiceCooperationRating(parseRating(data.getServiceCooperationRating()));
                 enterprise.setInvestmentCooperationRating(parseRating(data.getInvestmentCooperationRating()));

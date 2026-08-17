@@ -26,6 +26,7 @@ import {
   FallOutlined,
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import { useNavigate } from 'react-router-dom';
 import { followUpApi, enterpriseApi } from '@/services/api';
 import { FOLLOW_UP_TYPES } from '@/utils/constants';
 import type { FollowUpRecord } from '@/types';
@@ -55,6 +56,7 @@ const stageOrder: Record<string, number> = {
 const { TextArea } = Input;
 
 function FollowUpRecords() {
+  const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -181,7 +183,16 @@ function FollowUpRecords() {
       key: 'enterprise_name',
       width: colPct,
       ellipsis: true,
-      render: (text) => <span style={{ fontWeight: 500 }}>{text}</span>,
+      render: (text, record) => (
+        <Button
+          type="link"
+          size="small"
+          style={{ padding: 0, fontWeight: 500, color: '#343C6A' }}
+          onClick={() => navigate(`/enterprise/${record.enterprise_id}`)}
+        >
+          {text || '-'}
+        </Button>
+      ),
     },
     {
       title: '跟进类型',

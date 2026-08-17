@@ -9,6 +9,7 @@ import com.tricenter.entity.*;
 import com.tricenter.mapper.*;
 import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.service.OptionsService;
+import com.tricenter.security.CityContext;
 import com.tricenter.util.RequirementFilterHelper;
 import com.tricenter.util.RequirementIdOrder;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +32,8 @@ public class OptionsServiceImpl implements OptionsService {
     private final SystemOptionMapper systemOptionMapper;
     private final CategoryMapper categoryMapper;
     private final UserMapper userMapper;
+    private final UserCityMapper userCityMapper;
+    private final CityContext cityContext;
     private final RequirementDimensionMappingMapper dimensionMappingMapper;
     private final DictionaryCacheService dictionaryCache;
     private final ProviderMapper providerMapper;
@@ -134,9 +137,20 @@ public class OptionsServiceImpl implements OptionsService {
 
     @Override
     public List<UserOptionResponse> getUserOptions() {
+        Integer currentCityId = cityContext.requireCityId();
+        List<Integer> authorizedUserIds = userCityMapper.selectList(
+                        new LambdaQueryWrapper<UserCity>()
+                                .eq(UserCity::getCityId, currentCityId))
+                .stream()
+                .map(UserCity::getUserId)
+                .toList();
+        if (authorizedUserIds.isEmpty()) {
+            return List.of();
+        }
         List<User> users = userMapper.selectList(
             new LambdaQueryWrapper<User>()
                 .eq(User::getStatus, 1)
+                .in(User::getId, authorizedUserIds)
                 .orderByAsc(User::getId)
         );
         

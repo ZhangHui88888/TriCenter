@@ -17,6 +17,7 @@ import com.tricenter.mapper.ProviderMapper;
 import com.tricenter.mapper.ProviderServiceAreaMapper;
 import com.tricenter.service.OptionsService;
 import com.tricenter.service.ProviderService;
+import com.tricenter.security.CityContext;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,6 +43,7 @@ public class ProviderServiceImpl implements ProviderService {
     private final ProviderContactMapper providerContactMapper;
     private final ProviderServiceAreaMapper providerServiceAreaMapper;
     private final EnterpriseServiceRecordMapper enterpriseServiceRecordMapper;
+    private final CityContext cityContext;
     private final OptionsService optionsService;
 
     @Override
@@ -276,7 +278,8 @@ public class ProviderServiceImpl implements ProviderService {
             return Map.of();
         }
 
-        return enterpriseServiceRecordMapper.selectProviderStats(providerIds).stream()
+        return enterpriseServiceRecordMapper.selectProviderStats(
+                        providerIds, cityContext.requireCityId()).stream()
                 .collect(Collectors.toMap(
                         row -> toInt(row.get("providerId")),
                         row -> new ProviderServiceStats(

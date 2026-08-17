@@ -11,6 +11,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -35,6 +36,7 @@ public class DictionaryController {
 
     @Operation(summary = "新增字典选项")
     @PostMapping("/{category}")
+    @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<OptionResponse> addDictionaryOption(
             @Parameter(description = "分类") @PathVariable String category,
             @Valid @RequestBody DictionaryRequest request) {
@@ -44,6 +46,7 @@ public class DictionaryController {
 
     @Operation(summary = "更新字典选项")
     @PutMapping("/{category}/{id}")
+    @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<OptionResponse> updateDictionaryOption(
             @Parameter(description = "分类") @PathVariable String category,
             @Parameter(description = "选项ID") @PathVariable Integer id,
@@ -54,6 +57,7 @@ public class DictionaryController {
 
     @Operation(summary = "删除字典选项")
     @DeleteMapping("/{category}/{id}")
+    @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<Void> deleteDictionaryOption(
             @Parameter(description = "分类") @PathVariable String category,
             @Parameter(description = "选项ID") @PathVariable Integer id) {

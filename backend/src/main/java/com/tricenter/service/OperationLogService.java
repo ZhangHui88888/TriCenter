@@ -11,7 +11,7 @@ public interface OperationLogService {
     /**
      * 记录操作日志
      */
-    void log(Integer userId, String username, String operation, String targetType,
+    void log(Integer userId, Integer cityId, String username, String operation, String targetType,
              String targetId, String targetName, String detail, String ipAddress);
 
     /**

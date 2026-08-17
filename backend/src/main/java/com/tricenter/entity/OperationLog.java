@@ -17,6 +17,9 @@ public class OperationLog {
     /** 操作人ID */
     private Integer userId;
 
+    /** 操作发生城市；全局用户管理操作允许为空 */
+    private Integer cityId;
+
     /** 操作人用户名 */
     private String username;
 

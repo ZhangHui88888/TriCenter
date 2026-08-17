@@ -49,3 +49,4 @@ knife4j:
 # 合作服务附件本地存储目录（生产请改为绝对路径并挂载卷）
 tricenter:
   cooperation-upload-dir: ./data/cooperation-uploads
+  booking-city-code: ${TRICENTER_BOOKING_CITY_CODE:changzhou}

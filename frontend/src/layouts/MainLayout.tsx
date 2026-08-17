@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Avatar, Dropdown, Space, Switch, Tooltip, Modal, message } from 'antd';
+import { Layout, Menu, Avatar, Button, Dropdown, Space, Switch, Tag, Tooltip, Modal, message } from 'antd';
 import {
   DashboardOutlined,
   ShopOutlined,
@@ -16,16 +16,21 @@ import {
   CustomerServiceOutlined,
   BarChartOutlined,
   ApartmentOutlined,
+  TeamOutlined,
+  EnvironmentOutlined,
+  DownOutlined,
 } from '@ant-design/icons';
 import type { MenuProps } from 'antd';
 import { useThemeStore } from '@/stores/themeStore';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/services/api';
 import AppGuide from '@/components/AppGuide';
+import { useEnterpriseListStore } from '@/stores/enterpriseListStore';
+import type { LoginResponseData } from '@/types/auth';
 
 const { Header, Sider, Content } = Layout;
 
-const menuItems: MenuProps['items'] = [
+const baseMenuItems: MenuProps['items'] = [
   { key: '/dashboard', icon: <DashboardOutlined />, label: '概览看板' },
   { key: '/data-analysis', icon: <BarChartOutlined />, label: '数据分析' },
   { key: '/enterprise', icon: <ShopOutlined />, label: '企业管理' },
@@ -33,7 +38,6 @@ const menuItems: MenuProps['items'] = [
   { key: '/follow-up', icon: <FileTextOutlined />, label: '跟进记录' },
   { key: '/service-records', icon: <CustomerServiceOutlined />, label: '合作服务' },
   { key: '/market-research', icon: <SearchOutlined />, label: '市场调研' },
-  { key: '/dictionary', icon: <BookOutlined />, label: '数据字典' },
 ];
 
 const userMenuItems: MenuProps['items'] = [
@@ -44,10 +48,27 @@ const userMenuItems: MenuProps['items'] = [
 
 function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [switchingCity, setSwitchingCity] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { mode, toggleTheme } = useThemeStore();
-  const { clearAuth } = useAuthStore();
+  const {
+    clearAuth,
+    setAuth,
+    currentCity,
+    availableCities,
+    hasPermission,
+  } = useAuthStore();
+  const menuItems = useMemo<MenuProps['items']>(() => {
+    const items = [...(baseMenuItems || [])];
+    if (hasPermission('dictionary:manage')) {
+      items.push({ key: '/dictionary', icon: <BookOutlined />, label: '数据字典' });
+    }
+    if (hasPermission('user:manage')) {
+      items.push({ key: '/admin/users', icon: <TeamOutlined />, label: '用户与城市权限' });
+    }
+    return items;
+  }, [hasPermission]);
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     navigate(key);
@@ -70,6 +91,37 @@ function MainLayout() {
     }
   };
 
+  const switchCity = async (cityId: number) => {
+    if (cityId === currentCity?.id || switchingCity) return;
+    setSwitchingCity(true);
+    try {
+      const response = await authApi.selectCity(cityId);
+      const session = response.data as LoginResponseData;
+      setAuth(session);
+      useEnterpriseListStore.getState().resetFilters();
+      message.success(`已切换到${session.currentCity?.name || '目标城市'}`);
+      navigate('/dashboard', { replace: true });
+    } finally {
+      setSwitchingCity(false);
+    }
+  };
+
+  const handleCityMenuClick: MenuProps['onClick'] = ({ key }) => {
+    const cityId = Number(key);
+    if (cityId === currentCity?.id) return;
+    if (location.pathname !== '/dashboard') {
+      Modal.confirm({
+        title: '确认切换城市',
+        content: '切换后将返回概览看板，当前页面尚未提交的内容会被放弃。',
+        okText: '确认切换',
+        cancelText: '取消',
+        onOk: () => switchCity(cityId),
+      });
+      return;
+    }
+    void switchCity(cityId);
+  };
+
   const getSelectedKeys = () => {
     const path = location.pathname;
     if (path.startsWith('/enterprise')) return ['/enterprise'];
@@ -77,8 +129,18 @@ function MainLayout() {
     if (path.startsWith('/market-research')) return ['/market-research'];
     if (path.startsWith('/data-analysis')) return ['/data-analysis'];
     if (path.startsWith('/providers')) return ['/providers'];
+    if (path.startsWith('/admin/users')) return ['/admin/users'];
     return [path];
   };
+
+  const currentTitle =
+    (menuItems || []).find((item) => item && 'key' in item && getSelectedKeys().includes(item.key as string));
+  const cityMenuItems: MenuProps['items'] = availableCities.map((city) => ({
+    key: String(city.id),
+    icon: <EnvironmentOutlined />,
+    label: city.name,
+    disabled: city.id === currentCity?.id,
+  }));
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -140,13 +202,26 @@ function MainLayout() {
               {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             </div>
             <span style={{ fontSize: 28, fontWeight: 600, color: '#343C6A' }}>
-              {menuItems?.find(item => item && 'key' in item && getSelectedKeys().includes(item.key as string))
-                ? (menuItems.find(item => item && 'key' in item && getSelectedKeys().includes(item.key as string)) as any)?.label
-                : '概览看板'}
+              {currentTitle && 'label' in currentTitle ? currentTitle.label : '概览看板'}
             </span>
           </Space>
 
           <Space size={20} align="center">
+            {currentCity && availableCities.length > 1 ? (
+              <Dropdown
+                menu={{ items: cityMenuItems, onClick: handleCityMenuClick }}
+                placement="bottomRight"
+                trigger={['click']}
+              >
+                <Button loading={switchingCity} icon={<EnvironmentOutlined />} style={{ borderRadius: 10 }}>
+                  {currentCity.name}<DownOutlined style={{ fontSize: 11 }} />
+                </Button>
+              </Dropdown>
+            ) : currentCity ? (
+              <Tag icon={<EnvironmentOutlined />} color="blue" style={{ margin: 0, padding: '5px 10px', borderRadius: 10 }}>
+                {currentCity.name}
+              </Tag>
+            ) : null}
             <AppGuide />
             <Tooltip title={mode === 'dark' ? '切换亮色' : '切换暗色'}>
               <Switch
@@ -174,7 +249,7 @@ function MainLayout() {
           overflow: 'auto',
           transition: 'background 0.3s ease',
         }}>
-          <Outlet />
+          <Outlet key={currentCity?.id} />
         </Content>
       </Layout>
     </Layout>

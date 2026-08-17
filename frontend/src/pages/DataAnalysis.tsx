@@ -216,7 +216,6 @@ function DataAnalysis() {
     }
     fetchData();
     // 仅响应顶部三项；关键词仍用「查询分析」
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stageFilter, districtFilter, industryId]);
 
   const handleClearCache = async () => {
@@ -279,6 +278,8 @@ function DataAnalysis() {
   const salesRegionStats: { name: string; count: number }[] = analysisStats?.salesRegionStats ?? [];
   const worldMapData = mapDisplayMode === 'country' ? salesCountryMapStats : salesRegionStats;
   const industryStats: { name: string; count: number }[] = analysisStats?.industryStats ?? [];
+  // 行业分布仅展示当前筛选条件下有企业的数据，避免零值行业挤占图表空间。
+  const displayedIndustryStats = industryStats.filter(s => Number(s.count) > 0);
   const funnelStats: { code: string; name: string; count: number }[] = analysisStats?.funnelStats ?? [];
   const funnelMaxCount = funnelStats.length ? Math.max(...funnelStats.map(s => Number(s.count) || 0), 0) : 0;
   const funnelYAxisMax = Math.max(5, funnelMaxCount);
@@ -322,9 +323,9 @@ function DataAnalysis() {
   const industryBarOption = {
     tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, backgroundColor: '#1A1F27', borderColor: D.cardBorder, textStyle: { color: D.white } },
     grid: { left: '3%', right: '5%', bottom: '12%', top: '8%', containLabel: true },
-    xAxis: { type: 'category', data: industryStats.map(s => s.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: D.muted, fontSize: 11, rotate: industryStats.length > 6 ? 30 : 0 } },
+    xAxis: { type: 'category', data: displayedIndustryStats.map(s => s.name), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: D.muted, fontSize: 11, rotate: displayedIndustryStats.length > 6 ? 30 : 0 } },
     yAxis: { type: 'value', axisLine: { show: false }, axisTick: { show: false }, splitLine: { lineStyle: { color: D.grid, type: 'dashed' } }, axisLabel: { color: D.muted, fontSize: 11 } },
-    series: [{ type: 'bar', barWidth: 16, barMaxWidth: 24, data: industryStats.map((s, i) => ({ value: s.count, itemStyle: { color: chartColors[i % chartColors.length], borderRadius: [4, 4, 0, 0] } })), label: { show: true, position: 'top', color: D.sub, fontSize: 11, fontWeight: 600 } }],
+    series: [{ type: 'bar', barWidth: 16, barMaxWidth: 24, data: displayedIndustryStats.map((s, i) => ({ value: s.count, itemStyle: { color: chartColors[i % chartColors.length], borderRadius: [4, 4, 0, 0] } })), label: { show: true, position: 'top', color: D.sub, fontSize: 11, fontWeight: 600 } }],
   };
 
   const trendOption = {
