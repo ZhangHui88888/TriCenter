@@ -95,7 +95,7 @@ type EnterpriseListQueryParams = {
   mainPlatforms?: string;
   targetMarkets?: string;
   hasForeignTrade?: number;
-  tradeModeId?: number;
+  tradeModeId?: string;
   hasExportQualification?: number;
   tradeTeamModeId?: number;
   tradeTeamSize?: string;
@@ -131,11 +131,14 @@ const FUNNEL_STAGES = [
 /** 与批量操作条同高（含底边），未选中时占位，避免布局跳动 */
 const SELECTION_ACTION_BAR_SLOT_MIN_PX = 60;
 
-/** 企业列表每页条数（与表格分页器联动） */
-const ENTERPRISE_PAGE_SIZE_OPTIONS = Array.from({ length: 26 }, (_, i) => {
-  const n = 5 + i;
-  return { label: `${n} 条/页`, value: n };
-});
+/** 企业列表每页条数；-1 表示加载当前筛选结果的全部企业。 */
+const ENTERPRISE_PAGE_SIZE_OPTIONS = [
+  { label: '全部', value: -1 },
+  ...Array.from({ length: 26 }, (_, i) => {
+    const n = 5 + i;
+    return { label: `${n} 条/页`, value: n };
+  }),
+];
 
 /** 列表「主联系人」副行：后端已按 is_primary 优先排序，此处再兜底排序后只取第一位；电话为空时用邮箱 */
 type ListContactRaw = {
@@ -467,7 +470,9 @@ function EnterpriseList() {
     hasForeignTrade: typeof filters.has_foreign_trade === 'boolean'
       ? (filters.has_foreign_trade ? 1 : 0)
       : undefined,
-    tradeModeId: filters.trade_mode || undefined,
+    tradeModeId: Array.isArray(filters.trade_mode) && filters.trade_mode.length > 0
+      ? filters.trade_mode.join(',')
+      : undefined,
     hasExportQualification: typeof filters.export_qualification === 'boolean'
       ? (filters.export_qualification ? 1 : 0)
       : undefined,
@@ -487,7 +492,9 @@ function EnterpriseList() {
       return undefined;
     })(),
     targetRegionId: filters.target_region_id || undefined,
-    targetCountryCode: filters.target_country_code || undefined,
+    targetCountryCode: Array.isArray(filters.target_country_code) && filters.target_country_code.length > 0
+      ? filters.target_country_code.join(',')
+      : undefined,
     productCertificationId: filters.product_certification_id || undefined,
     customsDeclarationMode: filters.customs_declaration_mode || undefined,
     hasDomesticEcommerce: typeof filters.has_domestic_ecommerce === 'boolean'
@@ -677,6 +684,8 @@ function EnterpriseList() {
       setLoading(false);
     }
   };
+
+  const showingAllEnterprises = pageSize === -1;
   
   // 加载选项数据
   const fetchOptions = async () => {
@@ -1486,7 +1495,7 @@ function EnterpriseList() {
               selectedRowKeys,
               onChange: (keys) => setSelectedRowKeys(keys),
             } : undefined}
-            pagination={{
+            pagination={showingAllEnterprises ? false : {
               current: page,
               total: _total,
               pageSize: pageSize,
@@ -1760,7 +1769,7 @@ function EnterpriseList() {
           setExporting(true);
           try {
             if (exportType === 'list') {
-              const params = buildListParams(1, 99999) as Record<string, unknown>;
+              const { page: _page, pageSize: _pageSize, ...params } = buildListParams(1, 1);
               const response = await enterpriseApi.export(params);
               const blob = await toXlsxBlobFromResponse(response);
               const url = window.URL.createObjectURL(blob);
@@ -1815,7 +1824,7 @@ function EnterpriseList() {
           </div>
           {exportType === 'list' ? (
             <>
-              <Text>将导出当前筛选条件下的企业（与列表统计口径一致，最多 10000 条）</Text>
+              <Text>将导出当前筛选条件下的全部企业（与列表统计口径一致）</Text>
               <div style={{ marginTop: 12 }}>
                 <Text type="secondary">
                   Excel（.xlsx）双 Sheet：① 企业列表（导入模板同结构字段）；②
@@ -1828,7 +1837,7 @@ function EnterpriseList() {
               <Text>
                 {selectedRowKeys.length > 0
                   ? <>将导出选中的 <Text strong>{selectedRowKeys.length}</Text> 家企业的调研表</>
-                  : <>将导出当前列表中 <Text strong>{filteredEnterprises.length}</Text> 家企业的调研表</>
+                  : <>将导出当前已加载的 <Text strong>{filteredEnterprises.length}</Text> 家企业的调研表；选择“全部”后可导出所有筛选结果</>
                 }
               </Text>
               <div style={{ marginTop: 12 }}>
@@ -2033,6 +2042,7 @@ function EnterpriseList() {
                     <Col span={8}>
                       <Form.Item name="target_country_code" label="主要销售国家">
                         <Select
+                          mode="multiple"
                           placeholder="请选择"
                           allowClear
                           showSearch
@@ -2102,6 +2112,7 @@ function EnterpriseList() {
                     <Col span={8}>
                       <Form.Item name="trade_mode" label="外贸模式">
                         <Select 
+                          mode="multiple"
                           placeholder="请选择" 
                           allowClear 
                           options={tradeModeOptions} 

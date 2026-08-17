@@ -74,8 +74,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     @Override
     public PageResult<EnterpriseListResponse> getEnterpriseList(EnterpriseQueryRequest request) {
         Set<Integer> matchedIds = resolveExternalFilters(request);
+        boolean loadAll = request.getPageSize() != null && request.getPageSize() < 1;
+        int responsePageSize = loadAll ? 1 : request.getPageSize();
         if (matchedIds != null && matchedIds.isEmpty()) {
-            return PageResult.of(Collections.emptyList(), 0, request.getPage(), request.getPageSize());
+            return PageResult.of(Collections.emptyList(), 0, request.getPage(), responsePageSize);
         }
 
         LambdaQueryWrapper<Enterprise> wrapper = buildFilterWrapper(request, matchedIds);
@@ -85,6 +87,12 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 Enterprise::getStage, Enterprise::getHasCrossBorder, Enterprise::getCreatedAt
         );
         wrapper.orderByDesc(Enterprise::getCreatedAt);
+
+        if (loadAll) {
+            List<Enterprise> enterprises = enterpriseMapper.selectList(wrapper);
+            List<EnterpriseListResponse> list = batchConvertToListResponse(enterprises);
+            return PageResult.of(list, enterprises.size(), 1, Math.max(enterprises.size(), 1));
+        }
 
         Page<Enterprise> page = new Page<>(request.getPage(), request.getPageSize());
         Page<Enterprise> result = enterpriseMapper.selectPage(page, wrapper);
@@ -307,8 +315,11 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             wrapper.apply("JSON_CONTAINS(target_region_ids, CAST({0} AS JSON))", rid);
         }
         if (StringUtils.hasText(request.getTargetCountryCode())) {
-            String cc = request.getTargetCountryCode().trim();
-            wrapper.apply("JSON_CONTAINS(target_country_ids, JSON_QUOTE({0}))", cc);
+            Set<String> countryCodes = parseStringSet(request.getTargetCountryCode());
+            if (!countryCodes.isEmpty()) {
+                wrapper.and(w -> countryCodes.forEach(countryCode ->
+                        w.or().apply("JSON_CONTAINS(target_country_ids, JSON_QUOTE({0}))", countryCode)));
+            }
         }
         if (StringUtils.hasText(request.getTransformationWillingness())) wrapper.eq(Enterprise::getTransformationWillingness, request.getTransformationWillingness());
 
@@ -326,8 +337,9 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             if (request.getHasForeignTrade() == 1) wrapper.isNotNull(Enterprise::getTradeModeId);
             else wrapper.isNull(Enterprise::getTradeModeId);
         }
-        if (request.getTradeModeId() != null && request.getTradeModeId() > 0) {
-            wrapper.eq(Enterprise::getTradeModeId, request.getTradeModeId());
+        Set<Integer> tradeModeIds = parseIntegerSet(request.getTradeModeId());
+        if (!tradeModeIds.isEmpty()) {
+            wrapper.in(Enterprise::getTradeModeId, tradeModeIds);
         }
         if (request.getHasExportQualification() != null) wrapper.eq(Enterprise::getHasImportExportLicense, request.getHasExportQualification());
         if (request.getTradeTeamModeId() != null && request.getTradeTeamModeId() > 0) {
@@ -1502,7 +1514,6 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         }
         LambdaQueryWrapper<Enterprise> wrapper = buildFilterWrapper(request, matchedIds);
         wrapper.orderByDesc(Enterprise::getCreatedAt);
-        wrapper.last("LIMIT 10000");
         List<Enterprise> enterprises = enterpriseMapper.selectList(wrapper);
 
         // 批量查主联系人

@@ -90,7 +90,7 @@ public class EnterpriseQueryRequest {
     /** 主要销售区域ID：企业主表 target_region_ids 含该 ID（与数据分析地图统计口径一致） */
     private Integer targetRegionId;
 
-    /** 主要销售国家：企业主表 target_country_ids 含该值（与数据分析地图统计口径一致） */
+    /** 主要销售国家，多个逗号分隔：企业主表 target_country_ids 含任一值（与数据分析地图统计口径一致） */
     private String targetCountryCode;
 
     /** 产品认证ID（JSON_CONTAINS 匹配 enterprise_products.certification_ids） */
@@ -114,8 +114,8 @@ public class EnterpriseQueryRequest {
     /** 是否开展外贸（1=是，0=否） */
     private Integer hasForeignTrade;
 
-    /** 外贸模式ID */
-    private Integer tradeModeId;
+    /** 外贸模式ID，多个逗号分隔，匹配任一值 */
+    private String tradeModeId;
 
     /** 是否有进出口资质（1=是，0=否） */
     private Integer hasExportQualification;
