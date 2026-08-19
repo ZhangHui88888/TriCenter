@@ -216,7 +216,11 @@ function MainLayout() {
                 placement="bottomRight"
                 trigger={['click']}
               >
-                <Button loading={switchingCity} icon={<EnvironmentOutlined />} style={{ borderRadius: 10 }}>
+                <Button
+                  loading={switchingCity}
+                  icon={<EnvironmentOutlined />}
+                  style={{ borderRadius: 10, position: 'relative', zIndex: 1101 }}
+                >
                   {currentCity.name}<DownOutlined style={{ fontSize: 11 }} />
                 </Button>
               </Dropdown>
