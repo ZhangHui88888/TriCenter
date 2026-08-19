@@ -1,5 +1,8 @@
 import axios, { AxiosInstance, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { message } from 'antd';
+import { publishAuthSync } from '@/services/authSync';
+import { beginWriteRequest, endWriteRequest, isWriteMethod } from '@/services/writeRequestTracker';
+import { getAuthErrorAction } from '@/services/authErrorPolicy';
 
 type RequestLogMeta = {
   requestId: number;
@@ -8,6 +11,7 @@ type RequestLogMeta = {
 
 type RequestConfigWithMeta = InternalAxiosRequestConfig & {
   metadata?: RequestLogMeta;
+  cityWriteTracked?: boolean;
   /** 为 true 时不弹全局 message，由调用方自行展示（避免与页面内提示重复叠在一起） */
   skipGlobalErrorToast?: boolean;
 };
@@ -42,8 +46,13 @@ request.interceptors.request.use(
       requestId: ++requestSequence,
       startedAt: performance.now(),
     };
+    if (isWriteMethod(nextConfig.method)) {
+      nextConfig.cityWriteTracked = true;
+      beginWriteRequest();
+    }
     const token = localStorage.getItem('token');
-    if (token && nextConfig.headers) {
+    const isLoginRequest = nextConfig.url?.endsWith('/auth/login') ?? false;
+    if (token && !isLoginRequest && nextConfig.headers) {
       nextConfig.headers.Authorization = `Bearer ${token}`;
     }
     console.info('[HTTP][start]', {
@@ -72,9 +81,43 @@ function showErrorOnce(msg: string) {
   setTimeout(() => recentErrors.delete(msg), ERROR_DEDUPE_MS);
 }
 
+const clearStoredAuth = () => {
+  localStorage.removeItem('token');
+  localStorage.removeItem('auth-storage');
+};
+
+const redirectAfterAuthError = (
+  targetPath: '/login' | '/select-city',
+  msg: string,
+  clearSession: boolean,
+  skipToast?: boolean,
+) => {
+  if (isRedirecting) return;
+  isRedirecting = true;
+  if (clearSession) {
+    clearStoredAuth();
+    publishAuthSync('AUTH_CLEARED', '/login');
+  } else {
+    publishAuthSync('SESSION_CHANGED', '/select-city');
+  }
+  if (!skipToast) showErrorOnce(msg);
+  if (window.location.pathname === targetPath) {
+    isRedirecting = false;
+    return;
+  }
+  setTimeout(() => {
+    window.location.href = targetPath;
+    isRedirecting = false;
+  }, 300);
+};
+
 request.interceptors.response.use(
   (response: AxiosResponse) => {
     const config = response.config as RequestConfigWithMeta;
+    if (config.cityWriteTracked) {
+      config.cityWriteTracked = false;
+      endWriteRequest();
+    }
     console.info('[HTTP][success]', {
       id: config.metadata?.requestId,
       method: (config.method || 'get').toUpperCase(),
@@ -96,6 +139,10 @@ request.interceptors.response.use(
   },
   (error) => {
     const config = error.config as RequestConfigWithMeta | undefined;
+    if (config?.cityWriteTracked) {
+      config.cityWriteTracked = false;
+      endWriteRequest();
+    }
     console.error('[HTTP][error]', {
       id: config?.metadata?.requestId,
       method: (config?.method || 'get').toUpperCase(),
@@ -107,35 +154,24 @@ request.interceptors.response.use(
     const skipToast = (config as RequestConfigWithMeta | undefined)?.skipGlobalErrorToast;
     if (error.response) {
       const { status } = error.response;
+      const errorKey = error.response.data?.errorKey as string | undefined;
+      const authAction = getAuthErrorAction(status, errorKey, window.location.pathname);
+      if (authAction.type === 'redirect') {
+        redirectAfterAuthError(
+          authAction.targetPath,
+          error.response.data?.message || '登录状态已失效',
+          authAction.clearSession,
+          skipToast,
+        );
+        return Promise.reject(error);
+      }
       switch (status) {
         case 401:
-          if (window.location.pathname === '/login') {
-            if (!skipToast) showErrorOnce(error.response.data?.message || '用户名或密码错误');
-          } else if (!isRedirecting) {
-            isRedirecting = true;
-            localStorage.removeItem('token');
-            localStorage.removeItem('auth-storage');
-            if (!skipToast) showErrorOnce('登录已过期或没有权限，请重新登录');
-            setTimeout(() => {
-              window.location.href = '/login';
-              isRedirecting = false;
-            }, 300);
-          }
+          if (!skipToast) showErrorOnce(error.response.data?.message || '用户名或密码错误');
           break;
         case 403: {
           const forbiddenMessage = error.response.data?.message || '没有权限执行此操作';
-          const citySessionInvalid =
-            forbiddenMessage.includes('城市') || forbiddenMessage.includes('选择');
-          if (citySessionInvalid && !isRedirecting) {
-            isRedirecting = true;
-            localStorage.removeItem('token');
-            localStorage.removeItem('auth-storage');
-            if (!skipToast) showErrorOnce(forbiddenMessage);
-            setTimeout(() => {
-              window.location.href = '/login';
-              isRedirecting = false;
-            }, 300);
-          } else if (!skipToast) {
+          if (!skipToast) {
             showErrorOnce(forbiddenMessage);
           }
           break;

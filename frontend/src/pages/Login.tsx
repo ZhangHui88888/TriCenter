@@ -6,6 +6,7 @@ import { authApi } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import AnimatedCharacters from '@/components/AnimatedCharacters';
 import type { LoginResponseData } from '@/types/auth';
+import { publishAuthSync } from '@/services/authSync';
 
 const { Title, Text } = Typography;
 
@@ -42,6 +43,11 @@ function Login() {
       const res = await authApi.login(values);
       const session = res.data as LoginResponseData;
       setAuth(session);
+      publishAuthSync(
+        'SESSION_CHANGED',
+        session.requiresCitySelection ? '/select-city' : '/dashboard',
+        session.currentCity?.id,
+      );
       const { user } = session;
       message.success(`欢迎回来，${user.name}！`);
       navigate(session.requiresCitySelection ? '/select-city' : '/dashboard', { replace: true });

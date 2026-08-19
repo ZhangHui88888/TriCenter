@@ -4,7 +4,8 @@ import { EnvironmentOutlined, ArrowRightOutlined, LogoutOutlined } from '@ant-de
 import { Navigate, useNavigate } from 'react-router-dom';
 import { authApi } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
-import type { LoginResponseData } from '@/types/auth';
+import { publishAuthSync } from '@/services/authSync';
+import { citySwitchTransaction } from '@/services/citySession';
 
 const { Title, Text } = Typography;
 
@@ -15,7 +16,6 @@ export default function CitySelection() {
     requiresCitySelection,
     currentCity,
     availableCities,
-    setAuth,
     clearAuth,
   } = useAuthStore();
   const [selectingId, setSelectingId] = useState<number | null>(null);
@@ -30,9 +30,7 @@ export default function CitySelection() {
   const selectCity = async (cityId: number) => {
     setSelectingId(cityId);
     try {
-      const response = await authApi.selectCity(cityId);
-      const session = response.data as LoginResponseData;
-      setAuth(session);
+      const session = await citySwitchTransaction.switchCity(cityId);
       message.success(`已进入${session.currentCity?.name || '所选城市'}`);
       navigate('/dashboard', { replace: true });
     } finally {
@@ -47,6 +45,7 @@ export default function CitySelection() {
       // 待选令牌失效时仍应允许本地退出。
     }
     clearAuth();
+    publishAuthSync('AUTH_CLEARED', '/login');
     navigate('/login', { replace: true });
   };
 

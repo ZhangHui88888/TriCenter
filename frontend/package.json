@@ -7,6 +7,7 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "test": "node --test tests/authErrorPolicy.test.ts tests/authSync.test.ts tests/citySwitchGuardStore.test.ts tests/citySwitchTransaction.test.ts tests/writeRequestTracker.test.ts",
     "preview": "vite preview"
   },
   "dependencies": {

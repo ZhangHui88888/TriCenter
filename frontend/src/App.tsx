@@ -5,6 +5,7 @@ import zhCN from 'antd/locale/zh_CN'
 import MainLayout from './layouts/MainLayout'
 import AuthGuard from './components/AuthGuard'
 import PermissionGuard from './components/PermissionGuard'
+import AuthSyncListener from './components/AuthSyncListener'
 
 const Login = lazy(() => import('./pages/Login'))
 const CitySelection = lazy(() => import('./pages/CitySelection'))
@@ -36,6 +37,7 @@ function App() {
             v7_relativeSplatPath: true,
           }}
         >
+          <AuthSyncListener />
           <Suspense
             fallback={
               <div className="flex min-h-[40vh] items-center justify-center">

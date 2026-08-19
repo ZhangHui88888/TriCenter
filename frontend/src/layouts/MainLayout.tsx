@@ -25,8 +25,9 @@ import { useThemeStore } from '@/stores/themeStore';
 import { useAuthStore } from '@/stores/authStore';
 import { authApi } from '@/services/api';
 import AppGuide from '@/components/AppGuide';
-import { useEnterpriseListStore } from '@/stores/enterpriseListStore';
-import type { LoginResponseData } from '@/types/auth';
+import { citySwitchTransaction } from '@/services/citySession';
+import { publishAuthSync } from '@/services/authSync';
+import { useCitySwitchGuardStore } from '@/stores/citySwitchGuardStore';
 
 const { Header, Sider, Content } = Layout;
 
@@ -48,17 +49,16 @@ const userMenuItems: MenuProps['items'] = [
 
 function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
-  const [switchingCity, setSwitchingCity] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { mode, toggleTheme } = useThemeStore();
   const {
     clearAuth,
-    setAuth,
     currentCity,
     availableCities,
     hasPermission,
   } = useAuthStore();
+  const switchingCity = useCitySwitchGuardStore((state) => state.switching);
   const menuItems = useMemo<MenuProps['items']>(() => {
     const items = [...(baseMenuItems || [])];
     if (hasPermission('dictionary:manage')) {
@@ -84,6 +84,7 @@ function MainLayout() {
         onOk: async () => {
           try { await authApi.logout(); } catch { /* ignore */ }
           clearAuth();
+          publishAuthSync('AUTH_CLEARED', '/login');
           message.success('已退出登录');
           navigate('/login', { replace: true });
         },
@@ -93,26 +94,28 @@ function MainLayout() {
 
   const switchCity = async (cityId: number) => {
     if (cityId === currentCity?.id || switchingCity) return;
-    setSwitchingCity(true);
     try {
-      const response = await authApi.selectCity(cityId);
-      const session = response.data as LoginResponseData;
-      setAuth(session);
-      useEnterpriseListStore.getState().resetFilters();
+      const session = await citySwitchTransaction.switchCity(cityId);
       message.success(`已切换到${session.currentCity?.name || '目标城市'}`);
       navigate('/dashboard', { replace: true });
-    } finally {
-      setSwitchingCity(false);
+    } catch {
+      // 失败提示由请求拦截器统一处理，当前城市和页面保持不变。
     }
   };
 
   const handleCityMenuClick: MenuProps['onClick'] = ({ key }) => {
     const cityId = Number(key);
     if (cityId === currentCity?.id) return;
-    if (location.pathname !== '/dashboard') {
+    const guard = useCitySwitchGuardStore.getState();
+    if (guard.hasBusy()) {
+      message.warning('当前有数据正在提交，请稍候再切换城市');
+      return;
+    }
+    if (guard.hasDirty()) {
+      const labels = guard.dirtyLabels();
       Modal.confirm({
         title: '确认切换城市',
-        content: '切换后将返回概览看板，当前页面尚未提交的内容会被放弃。',
+        content: `切换后将返回概览看板，未保存内容会被放弃${labels.length ? `：${labels.join('、')}` : ''}。`,
         okText: '确认切换',
         cancelText: '取消',
         onOk: () => switchCity(cityId),
