@@ -149,6 +149,47 @@ class JwtCityContextTest {
         assertThat(filterChain.getRequest()).isNull();
     }
 
+    @Test
+    void malformedTokenReturnsStableExpiredTokenKey() throws Exception {
+        JwtUtil jwtUtil = mock(JwtUtil.class);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(
+                jwtUtil,
+                mock(UserMapper.class),
+                mock(CityAccessService.class),
+                new PermissionService(),
+                new ObjectMapper());
+        when(jwtUtil.validateToken("malformed-token"))
+                .thenThrow(new IllegalArgumentException("malformed"));
+
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/enterprises");
+        request.addHeader("Authorization", "Bearer malformed-token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain filterChain = new MockFilterChain();
+
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(response.getContentAsString()).contains("TOKEN_EXPIRED");
+        assertThat(filterChain.getRequest()).isNull();
+    }
+
+    @Test
+    void cityContextUsesStableKeysForMissingSessionAndCity() {
+        CityContext cityContext = new CityContext();
+
+        BusinessException missingSession = org.assertj.core.api.Assertions.catchThrowableOfType(
+                cityContext::requireLoginUser, BusinessException.class);
+        assertThat(missingSession.getErrorKey()).isEqualTo(ErrorKeys.TOKEN_EXPIRED);
+
+        LoginUser pendingUser = new LoginUser(7, "manager", "manager", null, false);
+        SecurityContextHolder.getContext().setAuthentication(
+                new org.springframework.security.authentication.UsernamePasswordAuthenticationToken(
+                        pendingUser, null, new PermissionService().getAuthorities("manager")));
+        BusinessException missingCity = org.assertj.core.api.Assertions.catchThrowableOfType(
+                cityContext::requireCityId, BusinessException.class);
+        assertThat(missingCity.getErrorKey()).isEqualTo(ErrorKeys.CITY_SELECTION_REQUIRED);
+    }
+
     private JwtUtil jwtUtil() {
         JwtUtil jwtUtil = new JwtUtil();
         ReflectionTestUtils.setField(jwtUtil, "secret",

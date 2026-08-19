@@ -1,6 +1,7 @@
 package com.tricenter.security;
 
 import com.tricenter.common.exception.BusinessException;
+import com.tricenter.common.result.ErrorKeys;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
@@ -11,7 +12,7 @@ public class CityContext {
     public LoginUser requireLoginUser() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof LoginUser loginUser)) {
-            throw BusinessException.unauthorized("登录状态无效");
+            throw BusinessException.unauthorized(ErrorKeys.TOKEN_EXPIRED, "登录状态无效");
         }
         return loginUser;
     }
@@ -19,7 +20,7 @@ public class CityContext {
     public Integer requireCityId() {
         Integer cityId = requireLoginUser().getCurrentCityId();
         if (cityId == null) {
-            throw BusinessException.forbidden("请先选择城市");
+            throw BusinessException.forbidden(ErrorKeys.CITY_SELECTION_REQUIRED, "请先选择城市");
         }
         return cityId;
     }

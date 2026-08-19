@@ -78,14 +78,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 SecurityContextHolder.getContext().setAuthentication(authentication);
             }
         } catch (BusinessException e) {
-            if (e.getCode() == HttpServletResponse.SC_FORBIDDEN) {
-                writeError(response, HttpServletResponse.SC_FORBIDDEN,
-                        Result.forbidden(e.getErrorKey(), e.getMessage()));
-                return;
-            }
-            log.error("JWT认证失败: {}", e.getMessage());
+            int status = e.getCode() == HttpServletResponse.SC_FORBIDDEN
+                    ? HttpServletResponse.SC_FORBIDDEN
+                    : HttpServletResponse.SC_UNAUTHORIZED;
+            Result<Void> result = status == HttpServletResponse.SC_FORBIDDEN
+                    ? Result.forbidden(e.getErrorKey(), e.getMessage())
+                    : Result.unauthorized(
+                            e.getErrorKey() == null ? ErrorKeys.TOKEN_EXPIRED : e.getErrorKey(),
+                            e.getMessage());
+            writeError(response, status, result);
+            return;
         } catch (Exception e) {
             log.error("JWT认证失败: {}", e.getMessage());
+            writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
+                    Result.unauthorized(ErrorKeys.TOKEN_EXPIRED, "登录已过期，请重新登录"));
+            return;
         }
         
         filterChain.doFilter(request, response);
