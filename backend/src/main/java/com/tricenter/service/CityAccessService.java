@@ -2,6 +2,7 @@ package com.tricenter.service;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tricenter.common.exception.BusinessException;
+import com.tricenter.common.result.ErrorKeys;
 import com.tricenter.dto.response.CityInfoResponse;
 import com.tricenter.entity.City;
 import com.tricenter.entity.Enterprise;
@@ -44,7 +45,8 @@ public class CityAccessService {
 
     public City requireAuthorizedCity(Integer userId, Integer cityId) {
         if (cityId == null) {
-            throw BusinessException.forbidden("请先选择城市");
+            throw BusinessException.forbidden(
+                    ErrorKeys.CITY_SELECTION_REQUIRED, "请先选择城市");
         }
         Long authorizationCount = userCityMapper.selectCount(
                 new LambdaQueryWrapper<UserCity>()
@@ -52,7 +54,8 @@ public class CityAccessService {
                         .eq(UserCity::getCityId, cityId));
         City city = cityMapper.selectById(cityId);
         if (authorizationCount == 0 || city == null || !Integer.valueOf(1).equals(city.getStatus())) {
-            throw BusinessException.forbidden("无权访问该城市");
+            throw BusinessException.forbidden(
+                    ErrorKeys.CITY_ACCESS_REVOKED, "无权访问该城市");
         }
         return city;
     }

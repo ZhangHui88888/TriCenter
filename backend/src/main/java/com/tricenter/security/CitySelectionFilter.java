@@ -2,6 +2,7 @@ package com.tricenter.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tricenter.common.result.Result;
+import com.tricenter.common.result.ErrorKeys;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -42,7 +43,8 @@ public class CitySelectionFilter extends OncePerRequestFilter {
             response.setStatus(HttpServletResponse.SC_FORBIDDEN);
             response.setCharacterEncoding(StandardCharsets.UTF_8.name());
             response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-            objectMapper.writeValue(response.getWriter(), Result.forbidden("请先选择城市"));
+            objectMapper.writeValue(response.getWriter(), Result.forbidden(
+                    ErrorKeys.CITY_SELECTION_REQUIRED, "请先选择城市"));
             return;
         }
         filterChain.doFilter(request, response);

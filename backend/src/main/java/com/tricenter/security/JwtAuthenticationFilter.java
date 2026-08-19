@@ -3,6 +3,7 @@ package com.tricenter.security;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tricenter.common.exception.BusinessException;
 import com.tricenter.common.result.Result;
+import com.tricenter.common.result.ErrorKeys;
 import com.tricenter.entity.User;
 import com.tricenter.mapper.UserMapper;
 import com.tricenter.service.CityAccessService;
@@ -46,7 +47,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (StringUtils.hasText(token)) {
                 if (!jwtUtil.validateToken(token)) {
                     writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
-                            Result.unauthorized("登录已过期，请重新登录"));
+                            Result.unauthorized(
+                                    ErrorKeys.TOKEN_EXPIRED, "登录已过期，请重新登录"));
                     return;
                 }
                 Integer userId = jwtUtil.getUserIdFromToken(token);
@@ -55,7 +57,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 User user = userMapper.selectById(userId);
                 if (user == null || !Integer.valueOf(1).equals(user.getStatus())) {
                     writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
-                            Result.unauthorized("账号已禁用或不存在"));
+                            Result.unauthorized(
+                                    ErrorKeys.ACCOUNT_DISABLED, "账号已禁用或不存在"));
                     return;
                 }
                 if (currentCityId != null) {
@@ -77,7 +80,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (BusinessException e) {
             if (e.getCode() == HttpServletResponse.SC_FORBIDDEN) {
                 writeError(response, HttpServletResponse.SC_FORBIDDEN,
-                        Result.forbidden(e.getMessage()));
+                        Result.forbidden(e.getErrorKey(), e.getMessage()));
                 return;
             }
             log.error("JWT认证失败: {}", e.getMessage());

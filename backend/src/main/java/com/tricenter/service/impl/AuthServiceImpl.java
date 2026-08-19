@@ -2,6 +2,7 @@ package com.tricenter.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tricenter.common.exception.BusinessException;
+import com.tricenter.common.result.ErrorKeys;
 import com.tricenter.dto.request.ChangePasswordRequest;
 import com.tricenter.dto.request.LoginRequest;
 import com.tricenter.dto.response.CityInfoResponse;
@@ -52,7 +53,8 @@ public class AuthServiceImpl implements AuthService {
         
         // 检查用户状态
         if (user.getStatus() != 1) {
-            throw BusinessException.forbidden("账号已被禁用");
+            throw BusinessException.forbidden(
+                    ErrorKeys.ACCOUNT_DISABLED, "账号已被禁用");
         }
         
         // 验证密码
@@ -149,7 +151,8 @@ public class AuthServiceImpl implements AuthService {
             throw BusinessException.notFound("用户不存在");
         }
         if (!Integer.valueOf(1).equals(user.getStatus())) {
-            throw BusinessException.forbidden("账号已被禁用");
+            throw BusinessException.forbidden(
+                    ErrorKeys.ACCOUNT_DISABLED, "账号已被禁用");
         }
         return user;
     }

@@ -2,6 +2,7 @@ package com.tricenter.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tricenter.common.exception.BusinessException;
+import com.tricenter.common.result.ErrorKeys;
 import com.tricenter.entity.User;
 import com.tricenter.mapper.UserMapper;
 import com.tricenter.service.CityAccessService;
@@ -62,7 +63,8 @@ class JwtCityContextTest {
         when(jwtUtil.isCitySelectionPending("revoked-token")).thenReturn(false);
         when(userMapper.selectById(user.getId())).thenReturn(user);
         when(cityAccessService.requireAuthorizedCity(user.getId(), 2))
-                .thenThrow(BusinessException.forbidden("无权访问该城市"));
+                .thenThrow(BusinessException.forbidden(
+                        ErrorKeys.CITY_ACCESS_REVOKED, "无权访问该城市"));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/enterprises");
         request.addHeader("Authorization", "Bearer revoked-token");
@@ -73,6 +75,7 @@ class JwtCityContextTest {
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
         assertThat(response.getStatus()).isEqualTo(403);
         assertThat(response.getContentAsString()).contains("无权访问该城市");
+        assertThat(response.getContentAsString()).contains("CITY_ACCESS_REVOKED");
         assertThat(filterChain.getRequest()).isNull();
     }
 
@@ -90,6 +93,7 @@ class JwtCityContextTest {
 
         assertThat(response.getStatus()).isEqualTo(403);
         assertThat(response.getContentAsString()).contains("请先选择城市");
+        assertThat(response.getContentAsString()).contains("CITY_SELECTION_REQUIRED");
     }
 
     @Test
@@ -117,6 +121,7 @@ class JwtCityContextTest {
 
         assertThat(response.getStatus()).isEqualTo(401);
         assertThat(response.getContentAsString()).contains("账号已禁用或不存在");
+        assertThat(response.getContentAsString()).contains("ACCOUNT_DISABLED");
         assertThat(filterChain.getRequest()).isNull();
     }
 
@@ -140,6 +145,7 @@ class JwtCityContextTest {
 
         assertThat(response.getStatus()).isEqualTo(401);
         assertThat(response.getContentAsString()).contains("登录已过期");
+        assertThat(response.getContentAsString()).contains("TOKEN_EXPIRED");
         assertThat(filterChain.getRequest()).isNull();
     }
 

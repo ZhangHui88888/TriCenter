@@ -36,7 +36,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public org.springframework.http.ResponseEntity<Result<Void>> handleBusinessException(BusinessException e) {
         log.warn("业务异常: code={}, message={}", e.getCode(), e.getMessage());
-        Result<Void> result = Result.error(e.getCode(), e.getMessage());
+        Result<Void> result = Result.error(e.getCode(), e.getErrorKey(), e.getMessage());
         HttpStatus status = switch (e.getCode()) {
             case 400 -> HttpStatus.BAD_REQUEST;
             case 401 -> HttpStatus.UNAUTHORIZED;

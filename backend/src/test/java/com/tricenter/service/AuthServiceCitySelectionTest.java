@@ -1,6 +1,7 @@
 package com.tricenter.service;
 
 import com.tricenter.common.exception.BusinessException;
+import com.tricenter.common.result.ErrorKeys;
 import com.tricenter.dto.request.LoginRequest;
 import com.tricenter.dto.response.CityInfoResponse;
 import com.tricenter.dto.response.LoginResponse;
@@ -96,12 +97,16 @@ class AuthServiceCitySelectionTest {
 
         when(userMapper.selectById(user.getId())).thenReturn(user);
         when(cityAccessService.requireAuthorizedCity(user.getId(), 2))
-                .thenThrow(BusinessException.forbidden("无权访问该城市"));
+                .thenThrow(BusinessException.forbidden(
+                        ErrorKeys.CITY_ACCESS_REVOKED, "无权访问该城市"));
 
         assertThatThrownBy(() -> authService.selectCity(user.getId(), 2))
                 .isInstanceOf(BusinessException.class)
-                .extracting("code")
-                .isEqualTo(403);
+                .satisfies(error -> {
+                    BusinessException exception = (BusinessException) error;
+                    assertThat(exception.getCode()).isEqualTo(403);
+                    assertThat(exception.getErrorKey()).isEqualTo("CITY_ACCESS_REVOKED");
+                });
         verify(cityAccessService).requireAuthorizedCity(user.getId(), 2);
     }
 

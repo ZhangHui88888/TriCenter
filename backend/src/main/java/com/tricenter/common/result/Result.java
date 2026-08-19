@@ -9,6 +9,7 @@ import lombok.Data;
 public class Result<T> {
     
     private int code;
+    private String errorKey;
     private String message;
     private T data;
     private long timestamp;
@@ -47,6 +48,12 @@ public class Result<T> {
         return result;
     }
 
+    public static <T> Result<T> error(int code, String errorKey, String message) {
+        Result<T> result = error(code, message);
+        result.setErrorKey(errorKey);
+        return result;
+    }
+
     public static <T> Result<T> error(String message) {
         return error(500, message);
     }
@@ -59,8 +66,16 @@ public class Result<T> {
         return error(401, message);
     }
 
+    public static <T> Result<T> unauthorized(String errorKey, String message) {
+        return error(401, errorKey, message);
+    }
+
     public static <T> Result<T> forbidden(String message) {
         return error(403, message);
+    }
+
+    public static <T> Result<T> forbidden(String errorKey, String message) {
+        return error(403, errorKey, message);
     }
 
     public static <T> Result<T> notFound(String message) {
