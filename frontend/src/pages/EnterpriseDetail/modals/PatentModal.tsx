@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Modal, Form, Input, message } from 'antd';
 import { patentApi, enterpriseApi } from '@/services/api';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 interface PatentRecord {
   id?: number;
@@ -24,6 +25,7 @@ export default function PatentModal({
   onSuccess,
 }: PatentModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-patent', label: '企业专利信息', form, active: open });
 
   useEffect(() => {
     if (open && editingRecord) {

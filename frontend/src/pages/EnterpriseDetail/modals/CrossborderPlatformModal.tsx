@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { Modal, Form, Select, message } from 'antd';
 import request from '@/services/request';
+import { useCitySwitchValueGuard } from '@/hooks/useCitySwitchGuard';
 
 const PLATFORM_OPTIONS = [
   { label: '亚马逊 (Amazon)', value: '亚马逊 (Amazon)' },
@@ -39,13 +41,25 @@ export default function CrossborderPlatformModal({
   onClose,
   onSuccess,
 }: CrossborderPlatformModalProps) {
+  const [draftPlatforms, setDraftPlatforms] = useState<string[]>([]);
+  useEffect(() => {
+    if (open) setDraftPlatforms([...selectedPlatforms]);
+  }, [open, selectedPlatforms]);
+  useCitySwitchValueGuard({
+    id: 'enterprise-crossborder-platforms',
+    label: '主要跨境平台',
+    active: open,
+    value: draftPlatforms,
+    baselineValue: selectedPlatforms,
+  });
   const handleOk = async () => {
     try {
       await request.put(`/enterprises/${enterpriseId}`, {
-        crossBorderPlatforms: selectedPlatforms,
+        crossBorderPlatforms: draftPlatforms,
       });
       message.success('跨境平台信息更新成功');
-      onSuccess(selectedPlatforms);
+      onPlatformsChange(draftPlatforms);
+      onSuccess(draftPlatforms);
       onClose();
     } catch (e: any) {
       message.error(e?.message || '保存失败');
@@ -67,8 +81,8 @@ export default function CrossborderPlatformModal({
         <Form.Item label="主要跨境平台">
           <Select
             mode="multiple"
-            value={selectedPlatforms}
-            onChange={onPlatformsChange}
+            value={draftPlatforms}
+            onChange={setDraftPlatforms}
             placeholder="请选择跨境平台"
             options={PLATFORM_OPTIONS}
             showSearch

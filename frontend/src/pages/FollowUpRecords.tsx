@@ -30,6 +30,7 @@ import { useNavigate } from 'react-router-dom';
 import { followUpApi, enterpriseApi } from '@/services/api';
 import { FOLLOW_UP_TYPES } from '@/utils/constants';
 import type { FollowUpRecord } from '@/types';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 // 漏斗阶段配置（BankDash 色系）
 const FUNNEL_STAGES = [
@@ -61,6 +62,12 @@ function FollowUpRecords() {
   const [typeFilter, setTypeFilter] = useState<string>('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({
+    id: 'follow-up-create',
+    label: '新增跟进记录',
+    form,
+    active: isModalOpen,
+  });
   
   // API数据状态
   const [loading, setLoading] = useState(true);

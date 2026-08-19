@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Modal, Form, Select, Input, Row, Col, message } from 'antd';
 import request from '@/services/request';
 import { CUSTOMS_DECLARATION_MODE_OPTIONS } from '@/utils/constants';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 interface TradeModalProps {
   open: boolean;
@@ -40,6 +41,7 @@ export default function TradeModal({
   onSuccess,
 }: TradeModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-trade', label: '企业外贸信息', form, active: open });
 
   useEffect(() => {
     if (open) {

@@ -1,6 +1,8 @@
+import { useEffect, useState } from 'react';
 import { Modal, Select, Input, Button, Typography, message } from 'antd';
 import { PlusOutlined, DeleteOutlined, WarningOutlined } from '@ant-design/icons';
 import request from '@/services/request';
+import { useCitySwitchValueGuard } from '@/hooks/useCitySwitchGuard';
 
 const { Text } = Typography;
 
@@ -38,13 +40,25 @@ export default function MarketModal({
   onClose,
   onSuccess,
 }: MarketModalProps) {
-  const total = targetMarkets.reduce((sum, m) => sum + m.percentage, 0);
+  const [draftMarkets, setDraftMarkets] = useState<MarketItem[]>([]);
+  useEffect(() => {
+    if (open) setDraftMarkets(targetMarkets.map((item) => ({ ...item })));
+  }, [open, targetMarkets]);
+  useCitySwitchValueGuard({
+    id: 'enterprise-target-markets',
+    label: '目标市场与占比',
+    active: open,
+    value: draftMarkets,
+    baselineValue: targetMarkets,
+  });
+  const total = draftMarkets.reduce((sum, m) => sum + m.percentage, 0);
 
   const handleOk = async () => {
     try {
-      await request.put(`/enterprises/${enterpriseId}`, { targetMarkets });
+      await request.put(`/enterprises/${enterpriseId}`, { targetMarkets: draftMarkets });
       message.success('目标市场信息更新成功');
-      onSuccess(targetMarkets);
+      onMarketsChange(draftMarkets);
+      onSuccess(draftMarkets);
       onClose();
     } catch (e: any) {
       message.error(e?.message || '保存失败');
@@ -73,21 +87,21 @@ export default function MarketModal({
           <Button
             type="dashed"
             icon={<PlusOutlined />}
-            onClick={() => onMarketsChange([...targetMarkets, { market: '', percentage: 0 }])}
+            onClick={() => setDraftMarkets([...draftMarkets, { market: '', percentage: 0 }])}
           >
             添加市场
           </Button>
         </div>
-        {targetMarkets.map((item, index) => (
+        {draftMarkets.map((item, index) => (
           <div key={index} style={{ display: 'flex', gap: 12, marginBottom: 12, alignItems: 'center' }}>
             <Select
               style={{ flex: 1 }}
               placeholder="选择市场"
               value={item.market || undefined}
               onChange={(value) => {
-                const newMarkets = [...targetMarkets];
+                const newMarkets = [...draftMarkets];
                 newMarkets[index] = { ...newMarkets[index], market: value };
-                onMarketsChange(newMarkets);
+                setDraftMarkets(newMarkets);
               }}
               showSearch
               options={MARKET_OPTIONS}
@@ -100,17 +114,17 @@ export default function MarketModal({
               suffix="%"
               value={item.percentage}
               onChange={(e) => {
-                const newMarkets = [...targetMarkets];
+                const newMarkets = [...draftMarkets];
                 newMarkets[index] = { ...newMarkets[index], percentage: Number(e.target.value) || 0 };
-                onMarketsChange(newMarkets);
+                setDraftMarkets(newMarkets);
               }}
             />
             <Button
               type="text"
               danger
               icon={<DeleteOutlined />}
-              onClick={() => onMarketsChange(targetMarkets.filter((_, i) => i !== index))}
-              disabled={targetMarkets.length <= 1}
+              onClick={() => setDraftMarkets(draftMarkets.filter((_, i) => i !== index))}
+              disabled={draftMarkets.length <= 1}
             />
           </div>
         ))}

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Modal, Form, Select, Input, message } from 'antd';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 interface CompetitionModalProps {
   open: boolean;
@@ -20,6 +21,7 @@ export default function CompetitionModal({
   onSuccess,
 }: CompetitionModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-competition', label: '企业竞争力信息', form, active: open });
 
   useEffect(() => {
     if (open) {

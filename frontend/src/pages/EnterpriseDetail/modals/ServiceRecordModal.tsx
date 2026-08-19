@@ -12,6 +12,7 @@ import CooperationAttachmentsEditor, {
   normalizeAttachmentList,
   type AttachmentMeta,
 } from '../components/CooperationAttachmentsEditor';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 interface ServiceRecordModalProps {
   open: boolean;
@@ -29,6 +30,14 @@ export default function ServiceRecordModal({ open, enterpriseId, providerId, edi
   const [providerOptions, setProviderOptions] = useState<{ label: string; value: number }[]>([]);
   const [enterpriseOptions, setEnterpriseOptions] = useState<{ label: string; value: number }[]>([]);
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([]);
+  useAntFormCitySwitchGuard({
+    id: 'enterprise-service-record',
+    label: '合作服务记录',
+    form,
+    active: open,
+    busy: submitting,
+    extraDirty: JSON.stringify(attachments) !== JSON.stringify(normalizeAttachmentList(editingRecord?.attachments)),
+  });
 
   useEffect(() => {
     if (!open) return;

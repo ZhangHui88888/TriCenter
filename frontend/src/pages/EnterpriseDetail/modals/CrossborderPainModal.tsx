@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Modal, Form, Select, message } from 'antd';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const PAIN_OPTIONS = [
   { label: '流量获取困难', value: '流量获取困难' },
@@ -27,6 +28,7 @@ export default function CrossborderPainModal({
   onSuccess,
 }: CrossborderPainModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-crossborder-pain', label: '跨境转型痛点', form, active: open });
 
   useEffect(() => {
     if (open) {

@@ -4,6 +4,7 @@ import { Modal, Form, Input, InputNumber, Select, Row, Col, Cascader, DatePicker
 import { ENTERPRISE_TYPE_OPTIONS } from '@/utils/constants';
 import { enterpriseApi } from '@/services/api';
 import { findCascaderPath as findIndustryCascaderPath } from '../utils';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 interface EditEnterpriseModalProps {
   open: boolean;
@@ -27,6 +28,7 @@ export default function EditEnterpriseModal({
   onSuccess,
 }: EditEnterpriseModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-basic-editor', label: '企业基本信息', form, active: open });
   const sourceIdValue = Form.useWatch('source_id', form);
   const isProviderSource = sourceOptions.some((o: any) => o.value === sourceIdValue && o.label === '服务商');
 

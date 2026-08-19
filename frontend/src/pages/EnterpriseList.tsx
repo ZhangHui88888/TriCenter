@@ -54,6 +54,7 @@ import EnterpriseSearch from '@/components/EnterpriseSearch';
 import type { Enterprise } from '@/types';
 import { useEnterpriseListStore } from '@/stores/enterpriseListStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useAntFormCitySwitchGuard, useCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const { Text } = Typography;
 
@@ -353,6 +354,23 @@ function EnterpriseList() {
   const [batchStageModalOpen, setBatchStageModalOpen] = useState(false);
   const [batchStage, setBatchStage] = useState<string>('');
   const [batchReason, setBatchReason] = useState<string>('');
+
+  useAntFormCitySwitchGuard({
+    id: 'enterprise-create',
+    label: '新增企业表单',
+    form,
+    active: isModalOpen,
+  });
+  useCitySwitchGuard({
+    id: 'enterprise-import',
+    label: '待导入文件',
+    dirty: isImportModalOpen && importFile !== null,
+  });
+  useCitySwitchGuard({
+    id: 'enterprise-batch-stage',
+    label: '批量阶段变更',
+    dirty: batchStageModalOpen && (batchStage !== '' || batchReason.trim() !== ''),
+  });
   
   // API数据状态
   const [loading, setLoading] = useState(true);

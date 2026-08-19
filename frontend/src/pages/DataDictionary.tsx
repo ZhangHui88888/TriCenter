@@ -37,6 +37,7 @@ import type { DataNode } from 'antd/es/tree';
 import { dictionaryCategories, type DictionaryItem, type DictionaryCategory } from '@/data/dictionaryData';
 import { dimensions as personaDimensions } from '@/data/requirementsData';
 import { optionsApi, dictionaryApi, requirementItemAdminApi, treeCategoryApi, type TreeCategoryItem } from '@/services/api';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const { Text } = Typography;
 
@@ -121,6 +122,25 @@ function DataDictionary() {
   const [editingRequirement, setEditingRequirement] = useState<RequirementAdminRow | null>(null);
   const [reqDimensionSaving, setReqDimensionSaving] = useState(false);
   const [reqDimensionForm] = Form.useForm();
+
+  useAntFormCitySwitchGuard({
+    id: 'dictionary-option-editor',
+    label: '数据字典选项',
+    form,
+    active: modalVisible,
+  });
+  useAntFormCitySwitchGuard({
+    id: 'dictionary-tree-editor',
+    label: '分类字典表单',
+    form: treeForm,
+    active: treeModalVisible,
+  });
+  useAntFormCitySwitchGuard({
+    id: 'dictionary-requirement-dimensions',
+    label: '需求画像维度',
+    form: reqDimensionForm,
+    active: reqDimensionModalOpen,
+  });
 
   const isTreeCategory = selectedCategory != null && TREE_CATEGORY_KEYS.includes(selectedCategory as typeof TREE_CATEGORY_KEYS[number]);
   const isRequirementItemsCategory = selectedCategory === '_requirement_items';

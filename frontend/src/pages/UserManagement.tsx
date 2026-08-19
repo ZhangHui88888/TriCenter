@@ -17,6 +17,7 @@ import type { ColumnsType } from 'antd/es/table';
 import { adminUserApi } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 import type { AdminUser, AdminUserFormValues, CityInfo } from '@/types/auth';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const { Title, Text } = Typography;
 
@@ -43,6 +44,19 @@ export default function UserManagement() {
   const [resetting, setResetting] = useState<AdminUser | null>(null);
   const [form] = Form.useForm<AdminUserFormValues>();
   const [passwordForm] = Form.useForm<{ newPassword: string }>();
+
+  useAntFormCitySwitchGuard({
+    id: 'admin-user-editor',
+    label: '用户与城市权限表单',
+    form,
+    active: editorOpen,
+  });
+  useAntFormCitySwitchGuard({
+    id: 'admin-password-reset',
+    label: '重置密码表单',
+    form: passwordForm,
+    active: Boolean(resetting),
+  });
 
   const loadData = async () => {
     setLoading(true);

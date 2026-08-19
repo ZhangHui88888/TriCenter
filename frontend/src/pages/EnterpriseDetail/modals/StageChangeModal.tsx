@@ -1,5 +1,6 @@
 import { Modal, Select, Space, Badge, Typography } from 'antd';
 import { FUNNEL_STAGES } from '../constants';
+import { useCitySwitchValueGuard } from '@/hooks/useCitySwitchGuard';
 
 const { Text } = Typography;
 
@@ -18,6 +19,12 @@ export default function StageChangeModal({
   onOk,
   onClose,
 }: StageChangeModalProps) {
+  useCitySwitchValueGuard({
+    id: 'enterprise-stage-change',
+    label: '企业漏斗阶段',
+    active: open,
+    value: selectedStage,
+  });
   return (
     <Modal
       maskClosable={false}

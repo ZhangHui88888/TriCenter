@@ -2,6 +2,7 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { Typography, Button, Space, message, Select, Input, InputNumber, Modal, Card, Row, Col, Tag, Form, Segmented, DatePicker } from 'antd';
+import { useAntFormCitySwitchGuard, useCitySwitchValueGuard } from '@/hooks/useCitySwitchGuard';
 import {
   FilePdfOutlined,
   PrinterOutlined,
@@ -123,6 +124,18 @@ function MarketResearch() {
   const [pendingVersion, setPendingVersion] = useState<ReportVersion>('basic');
   const [pendingDetail, setPendingDetail] = useState<EnterpriseDetail | null>(null);
   const [missingForm] = Form.useForm();
+  useAntFormCitySwitchGuard({
+    id: 'market-report-missing-fields',
+    label: '市场报告补充信息',
+    form: missingForm,
+    active: missingFieldsModalOpen,
+  });
+  useCitySwitchValueGuard({
+    id: 'market-report-api-key',
+    label: 'DeepSeek API Key',
+    active: apiKeyModalOpen,
+    value: apiKeyInput,
+  });
 
   const fetchEnterpriseList = useCallback(async (keyword?: string) => {
     try {

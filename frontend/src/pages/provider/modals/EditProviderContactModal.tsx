@@ -4,6 +4,7 @@ import { DeleteOutlined, PlusOutlined, StarFilled } from '@ant-design/icons';
 import { providerApi } from '@/services/api';
 import type { ProviderDetail, ProviderEditableContact } from '@/types';
 import { buildProviderUpdatePayload, normalizeProviderContacts } from '../utils';
+import { useCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const { Text } = Typography;
 
@@ -21,20 +22,29 @@ export default function EditProviderContactModal({
   onSuccess,
 }: EditProviderContactModalProps) {
   const [contacts, setContacts] = useState<ProviderEditableContact[]>([]);
+  const [dirty, setDirty] = useState(false);
+  useCitySwitchGuard({
+    id: 'provider-contact-editor',
+    label: '服务商联系人信息',
+    dirty: open && dirty,
+  });
 
   useEffect(() => {
     if (open) {
       setContacts(normalizeProviderContacts(provider?.contacts));
+      setDirty(false);
     }
   }, [open, provider]);
 
   const handleFieldChange = (index: number, field: keyof ProviderEditableContact, value: string | boolean) => {
+    setDirty(true);
     setContacts((prev) => prev.map((contact, currentIndex) => (
       currentIndex === index ? { ...contact, [field]: value } : contact
     )));
   };
 
   const handleAdd = () => {
+    setDirty(true);
     setContacts((prev) => [
       ...prev,
       {
@@ -50,6 +60,7 @@ export default function EditProviderContactModal({
   };
 
   const handleRemove = (index: number) => {
+    setDirty(true);
     setContacts((prev) => {
       const next = prev.filter((_, currentIndex) => currentIndex !== index);
       if (next.length > 0 && !next.some((item) => item.isPrimary)) {
@@ -87,6 +98,7 @@ export default function EditProviderContactModal({
       const response = await providerApi.getDetail(provider.id);
       onSuccess(response?.data ?? response);
       message.success('联系人信息更新成功');
+      setDirty(false);
       onClose();
     } catch (error: any) {
       message.error(error?.message || '更新失败');
@@ -131,7 +143,10 @@ export default function EditProviderContactModal({
                   <Button
                     type="link"
                     size="small"
-                    onClick={() => setContacts((prev) => prev.map((item, currentIndex) => ({ ...item, isPrimary: currentIndex === index })))}
+                    onClick={() => {
+                      setDirty(true);
+                      setContacts((prev) => prev.map((item, currentIndex) => ({ ...item, isPrimary: currentIndex === index })));
+                    }}
                   >
                     设为主要
                   </Button>

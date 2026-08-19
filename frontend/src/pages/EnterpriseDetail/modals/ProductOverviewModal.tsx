@@ -2,6 +2,7 @@ import { useCallback, useEffect } from 'react';
 import { Modal, Form, Select, Row, Col, Alert, message } from 'antd';
 import request from '@/services/request';
 import { getCountryNameOptions, getRegionByCountryName, REGION_LABEL_MAP } from '@/data/countries';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 function mergeIds(enterprise: any, products: any[], fieldSnake: string, fieldCamel: string): any[] {
   const enterpriseIds =
@@ -35,6 +36,7 @@ export default function ProductOverviewModal({
   onSuccess,
 }: ProductOverviewModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-product-overview', label: '产品概况', form, active: open });
 
   const handleCountriesChange = useCallback(
     (selectedCountryNames: string[]) => {

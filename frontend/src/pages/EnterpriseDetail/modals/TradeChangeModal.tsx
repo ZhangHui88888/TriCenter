@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Modal, Form, Select, Input, Cascader, message } from 'antd';
 import request from '@/services/request';
 import { getCountryNameOptions } from '@/data/countries';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const REGION_OPTIONS = [
   { label: '北美', value: '北美' }, { label: '欧洲', value: '欧洲' },
@@ -98,6 +99,7 @@ export default function TradeChangeModal({
 }: TradeChangeModalProps) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  useAntFormCitySwitchGuard({ id: 'enterprise-trade-change', label: '外贸业绩变化', form, active: open, busy: saving });
 
   useEffect(() => {
     if (open && editingItem) {

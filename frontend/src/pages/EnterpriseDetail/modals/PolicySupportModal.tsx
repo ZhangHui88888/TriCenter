@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Modal, Form, Select, message } from 'antd';
 import { ENJOYED_POLICY_OPTIONS } from '../constants';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 interface PolicySupportModalProps {
   open: boolean;
@@ -21,6 +22,7 @@ export default function PolicySupportModal({
   onSuccess,
 }: PolicySupportModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-policy-support', label: '政策支持信息', form, active: open });
 
   useEffect(() => {
     if (open) {

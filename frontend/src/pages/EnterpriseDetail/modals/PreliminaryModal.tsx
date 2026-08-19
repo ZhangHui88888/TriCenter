@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Modal, Form, Select, Input, Row, Col, message } from 'antd';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const WILLINGNESS_OPTIONS = [
   { label: '高', value: '高' },
@@ -28,6 +29,7 @@ export default function PreliminaryModal({
   onSuccess,
 }: PreliminaryModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-preliminary', label: '企业初步评估', form, active: open });
 
   useEffect(() => {
     if (open) {

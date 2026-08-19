@@ -1,6 +1,7 @@
 import { useCallback, useEffect } from 'react';
 import { Modal, Form, Row, Col, Input, Select, Cascader, Card, message } from 'antd';
 import { productApi, enterpriseApi } from '@/services/api';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 import { getCountryNameOptions, getRegionByCountryName, REGION_LABEL_MAP } from '@/data/countries';
 import {
   findProductCategoryPath,
@@ -36,6 +37,7 @@ export default function ProductModal({
   onSuccess,
 }: ProductModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-product', label: '企业产品信息', form, active: open });
 
   const handleCountriesChange = useCallback(
     (selectedCountryNames: string[]) => {

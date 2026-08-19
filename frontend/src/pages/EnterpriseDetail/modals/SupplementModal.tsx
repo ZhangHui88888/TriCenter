@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Modal, Form, Input, message } from 'antd';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 interface SupplementModalProps {
   open: boolean;
@@ -18,6 +19,7 @@ export default function SupplementModal({
   onSuccess,
 }: SupplementModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-supplement', label: '企业补充信息', form, active: open });
 
   useEffect(() => {
     if (open) {

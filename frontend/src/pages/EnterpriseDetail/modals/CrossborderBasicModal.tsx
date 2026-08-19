@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Modal, Form, Select, Input, Row, Col, message } from 'antd';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const LOGISTICS_OPTIONS = [
   { label: '海运', value: '海运' },
@@ -76,6 +77,7 @@ export default function CrossborderBasicModal({
   onSuccess,
 }: CrossborderBasicModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-crossborder-basic', label: '跨境电商基本信息', form, active: open });
 
   useEffect(() => {
     if (open) {

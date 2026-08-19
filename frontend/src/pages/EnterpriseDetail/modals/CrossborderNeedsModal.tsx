@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Modal, Form, Select, Row, Col, message } from 'antd';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const NEEDS_ITEMS = [
   { label: '转型跨境意愿', key: 'transformation' },
@@ -32,6 +33,7 @@ export default function CrossborderNeedsModal({
   onSuccess,
 }: CrossborderNeedsModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-crossborder-needs', label: '三中心需求', form, active: open });
 
   useEffect(() => {
     if (open) {

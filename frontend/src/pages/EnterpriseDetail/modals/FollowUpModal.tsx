@@ -5,6 +5,7 @@ import { FOLLOW_UP_TYPES } from '@/utils/constants';
 import { enterpriseApi } from '@/services/api';
 import { FUNNEL_STAGES } from '../constants';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 interface FollowUpRecord {
   id: number;
@@ -32,6 +33,7 @@ export default function FollowUpModal({
   onSuccess,
 }: FollowUpModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-follow-up', label: '企业跟进记录', form, active: open });
 
   useEffect(() => {
     if (open && editingRecord) {

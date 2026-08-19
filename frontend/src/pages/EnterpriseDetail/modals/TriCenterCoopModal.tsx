@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Modal, Form, Select, Input, message } from 'antd';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const DEMANDS_OPTIONS = [
   { label: '跨境电商运营培训', value: '跨境电商运营培训' },
@@ -29,6 +30,7 @@ export default function TriCenterCoopModal({
   onSuccess,
 }: TriCenterCoopModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-tricenter-coop', label: '三中心合作意向', form, active: open });
 
   useEffect(() => {
     if (open) {

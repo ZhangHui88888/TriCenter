@@ -13,6 +13,7 @@ import RequirementOverviewStats from './RequirementOverviewStats';
 import RequirementPhaseList from './RequirementPhaseList';
 import { buildRequirementViewData, getRequirementStatItems, toggleRequirementStatFilter } from './utils';
 import type { EnterpriseCustomRequirement, RequirementDisplayMode, RequirementStatFilterKey } from './types';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const { Text } = Typography;
 
@@ -49,6 +50,12 @@ export default function RequirementsTab({
 }: RequirementsTabProps) {
   const [displayMode, setDisplayMode] = useState<RequirementDisplayMode>('default');
   const [activeFilters, setActiveFilters] = useState<RequirementStatFilterKey[]>(['all']);
+  useAntFormCitySwitchGuard({
+    id: 'enterprise-custom-requirement',
+    label: '企业自定义需求',
+    form: customRequirementForm,
+    active: isCustomRequirementModalOpen,
+  });
 
   const handleRemoveRequirement = (reqId: string) => {
     const newRemoved = [...new Set([...removedRequirements, reqId])];

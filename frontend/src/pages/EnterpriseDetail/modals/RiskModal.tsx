@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Modal, Form, Select, Input, message } from 'antd';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 const RISK_OPTIONS = [
   { label: '原材料价格波动风险', value: '原材料价格波动风险' },
@@ -29,6 +30,7 @@ export default function RiskModal({
   onSuccess,
 }: RiskModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-risk', label: '企业风险信息', form, active: open });
 
   useEffect(() => {
     if (open) {

@@ -13,6 +13,7 @@ import { providerApi } from '@/services/api';
 import type { ProviderDetail } from '@/types';
 import { requirementTreeData, type SelectOption } from '../constants';
 import { buildProviderUpdatePayload } from '../utils';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 type EditProviderBasicInfoModalProps = {
   open: boolean;
@@ -46,6 +47,12 @@ export default function EditProviderBasicInfoModal({
   onSuccess,
 }: EditProviderBasicInfoModalProps) {
   const [form] = Form.useForm<FormValues>();
+  useAntFormCitySwitchGuard({
+    id: 'provider-basic-editor',
+    label: '服务商基本信息',
+    form,
+    active: open,
+  });
 
   useEffect(() => {
     if (open && provider) {

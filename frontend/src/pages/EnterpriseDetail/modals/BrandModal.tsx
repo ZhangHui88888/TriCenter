@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Modal, Form, Select, message } from 'antd';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 interface BrandModalProps {
   open: boolean;
@@ -20,6 +21,7 @@ export default function BrandModal({
   onSuccess,
 }: BrandModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-brand', label: '企业品牌信息', form, active: open });
 
   useEffect(() => {
     if (open) {

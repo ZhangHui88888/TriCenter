@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Modal, Form, Select, message } from 'antd';
 import request from '@/services/request';
 import { RATING_ITEMS, FEASIBILITY_RATING_SELECT_OPTIONS } from '../constants';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 type EvaluationData = Record<string, number | undefined>;
 
@@ -21,6 +22,7 @@ export default function EvaluationModal({
   onSuccess,
 }: EvaluationModalProps) {
   const [form] = Form.useForm();
+  useAntFormCitySwitchGuard({ id: 'enterprise-evaluation', label: '企业合作评估', form, active: open });
 
   useEffect(() => {
     if (open) {

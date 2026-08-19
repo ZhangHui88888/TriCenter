@@ -3,6 +3,7 @@ import { Modal, Form, AutoComplete, message } from 'antd';
 import { dictionaryApi } from '@/services/api';
 import { makeCustomDictionaryValue } from '../utils';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 interface ReasonModalProps {
   open: boolean;
@@ -33,6 +34,7 @@ export default function ReasonModal({
 }: ReasonModalProps) {
   const [form] = Form.useForm();
   const [saving, setSaving] = React.useState(false);
+  useAntFormCitySwitchGuard({ id: 'enterprise-trade-reason', label: '外贸业绩原因', form, active: open, busy: saving });
 
   const handleOk = async () => {
     try {

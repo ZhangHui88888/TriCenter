@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Modal, Form, Input, Row, Col, message } from 'antd';
 import request from '@/services/request';
+import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
 
 interface TradePerformanceModalProps {
   open: boolean;
@@ -22,6 +23,7 @@ export default function TradePerformanceModal({
 }: TradePerformanceModalProps) {
   const [form] = Form.useForm();
   const [saving, setSaving] = useState(false);
+  useAntFormCitySwitchGuard({ id: 'enterprise-trade-performance', label: '企业外贸业绩', form, active: open, busy: saving });
 
   const handleOk = async () => {
     try {
