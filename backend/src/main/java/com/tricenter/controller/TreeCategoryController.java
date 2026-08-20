@@ -67,4 +67,12 @@ public class TreeCategoryController {
         treeCategoryService.resetToDefault(type);
         return Result.success(treeCategoryService.listAll(type));
     }
+
+    @Operation(summary = "补齐缺失默认分类（不删除或覆盖现有数据）")
+    @PostMapping("/{type}/restore-missing-defaults")
+    @PreAuthorize("hasAuthority('dictionary:manage')")
+    public Result<List<TreeCategoryResponse>> restoreMissingDefaults(@PathVariable String type) {
+        treeCategoryService.restoreMissingDefaults(type);
+        return Result.success(treeCategoryService.listAll(type));
+    }
 }

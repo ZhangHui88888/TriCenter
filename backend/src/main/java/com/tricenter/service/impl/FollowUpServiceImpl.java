@@ -17,7 +17,7 @@ import com.tricenter.mapper.EnterpriseMapper;
 import com.tricenter.mapper.FollowUpRecordMapper;
 import com.tricenter.mapper.StageChangeLogMapper;
 import com.tricenter.mapper.UserMapper;
-import com.tricenter.service.DashboardService;
+import com.tricenter.service.DashboardCacheInvalidator;
 import com.tricenter.service.FollowUpService;
 import com.tricenter.service.CityAccessService;
 import com.tricenter.security.CityContext;
@@ -44,7 +44,7 @@ public class FollowUpServiceImpl implements FollowUpService {
     private final EnterpriseMapper enterpriseMapper;
     private final UserMapper userMapper;
     private final StageChangeLogMapper stageChangeLogMapper;
-    private final DashboardService dashboardService;
+    private final DashboardCacheInvalidator dashboardCacheInvalidator;
     private final CityContext cityContext;
     private final CityAccessService cityAccessService;
 
@@ -138,7 +138,7 @@ public class FollowUpServiceImpl implements FollowUpService {
             stageChangeLogMapper.insert(log);
         }
         
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
         return convertToResponse(record);
     }
 
@@ -169,7 +169,7 @@ public class FollowUpServiceImpl implements FollowUpService {
         
         followUpRecordMapper.updateById(record);
         
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
         return convertToResponse(record);
     }
 
@@ -183,7 +183,7 @@ public class FollowUpServiceImpl implements FollowUpService {
         cityAccessService.requireEnterprise(record.getEnterpriseId(), cityContext.requireCityId());
         
         followUpRecordMapper.deleteById(id);
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
     }
 
     @Override

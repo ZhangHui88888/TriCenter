@@ -19,8 +19,9 @@ public interface TreeCategoryService {
 
     void delete(String type, Integer id);
 
-    /**
-     * 恢复默认数据（清空当前数据并重新插入种子数据）
-     */
+    /** 已停用的破坏性兼容接口。 */
     void resetToDefault(String type);
+
+    /** 仅补齐缺失默认项，不删除或覆盖任何现有分类。 */
+    int restoreMissingDefaults(String type);
 }

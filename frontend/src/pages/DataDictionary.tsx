@@ -584,8 +584,8 @@ function DataDictionary() {
   const handleResetTreeToDefault = async () => {
     try {
       setTreeLoading(true);
-      await treeCategoryApi.resetToDefault(treeType);
-      message.success('已恢复默认数据');
+      await treeCategoryApi.restoreMissingDefaults(treeType);
+      message.success('已补齐缺失默认项，现有分类未被修改');
       await loadTreeData(treeType);
     } catch (error: any) {
       message.error(error?.response?.data?.message || error?.message || '恢复失败');
@@ -837,9 +837,9 @@ function DataDictionary() {
                 {isTreeCategory && <ApartmentOutlined style={{ color: C.purple }} />}
                 <Text strong style={{ fontSize: 15 }}>{currentCategory.name}</Text>
                 {isTreeCategory && <Tag color="purple">多级分类</Tag>}
-                {isTreeCategory && (
-                  <Popconfirm title="确定恢复默认数据？当前数据将被清空并重置。" onConfirm={() => void handleResetTreeToDefault()} okText="确定恢复" cancelText="取消" okButtonProps={{ danger: true }}>
-                    <Button size="small" icon={<UndoOutlined />} style={{ borderRadius: 8 }}>恢复默认</Button>
+                {isTreeCategory && treeType === 'requirement' && (
+                  <Popconfirm title="确定补齐缺失默认项？现有分类和自定义项不会被删除或覆盖。" onConfirm={() => void handleResetTreeToDefault()} okText="确定补齐" cancelText="取消">
+                    <Button size="small" icon={<UndoOutlined />} style={{ borderRadius: 8 }}>补齐默认项</Button>
                   </Popconfirm>
                 )}
                 {isRequirementItemsCategory && <Tag color="blue">落库映射</Tag>}
@@ -1100,7 +1100,7 @@ function DataDictionary() {
                     showIcon
                     style={{ marginTop: 8 }}
                     message="未匹配到标准需求 ID"
-                    description="无法在此编辑五维。通常是因为新增/调整排序后，树形位置与 requirements 表中的编号（如 1.1.1）不一致。可在「需求项与画像维度」中按需求 ID 维护映射，或恢复默认分类树后重试。"
+                    description="无法在此编辑五维。通常是因为新增/调整排序后，树形位置与 requirements 表中的编号（如 1.1.1）不一致。可在「需求项与画像维度」中按需求 ID 维护映射，或补齐缺失默认项后重试。"
                   />
                 );
               }

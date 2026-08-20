@@ -1,8 +1,6 @@
 package com.tricenter.service.impl;
 
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.tricenter.entity.MarketReport;
 import com.tricenter.mapper.MarketReportMapper;
@@ -11,16 +9,14 @@ import com.tricenter.security.CityContext;
 import com.tricenter.service.CityAccessService;
 import com.tricenter.service.MarketReportService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.Collections;
+import java.util.Map;
 
 /**
  * 市场调研报告服务实现（与 market_reports 表结构一致：一企业一行，basic/deep JSON）
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MarketReportServiceImpl implements MarketReportService {
@@ -28,83 +24,43 @@ public class MarketReportServiceImpl implements MarketReportService {
     private final MarketReportMapper marketReportMapper;
     private final CityContext cityContext;
     private final CityAccessService cityAccessService;
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private final ObjectMapper objectMapper;
 
     @Override
-    public MarketReport create(Long enterpriseId, Long createdBy) {
-        cityAccessService.requireEnterprise(enterpriseId.intValue(), cityContext.requireCityId());
-        MarketReport report = new MarketReport();
-        report.setEnterpriseId(enterpriseId != null ? enterpriseId.intValue() : null);
-        report.setBasicReportData(Collections.emptyMap());
-        report.setDeepReportData(Collections.emptyMap());
-        LocalDateTime now = LocalDateTime.now();
-        report.setCreatedAt(now);
-        report.setUpdatedAt(now);
-        // createdBy：当前表无此字段，忽略
-        marketReportMapper.insert(report);
-        return report;
+    public MarketReport getByEnterpriseId(Integer enterpriseId) {
+        requireEnterpriseId(enterpriseId);
+        cityAccessService.requireEnterprise(enterpriseId, cityContext.requireCityId());
+        return marketReportMapper.selectOne(
+                new LambdaQueryWrapper<MarketReport>()
+                        .eq(MarketReport::getEnterpriseId, enterpriseId));
     }
 
     @Override
-    public MarketReport getById(Long id) {
-        return requireReport(id);
-    }
+    @Transactional
+    public void upsert(Integer enterpriseId, String version, Map<String, Object> reportData) {
+        requireEnterpriseId(enterpriseId);
+        if (reportData == null || reportData.isEmpty()) {
+            throw BusinessException.badRequest("报告内容不能为空");
+        }
+        cityAccessService.requireEnterprise(enterpriseId, cityContext.requireCityId());
 
-    @Override
-    public Page<MarketReport> getByEnterpriseId(Long enterpriseId, int page, int size) {
-        cityAccessService.requireEnterprise(enterpriseId.intValue(), cityContext.requireCityId());
-        Page<MarketReport> pageParam = new Page<>(page, size);
-        LambdaQueryWrapper<MarketReport> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(MarketReport::getEnterpriseId, enterpriseId != null ? enterpriseId.intValue() : null)
-                .orderByDesc(MarketReport::getCreatedAt);
-        return marketReportMapper.selectPage(pageParam, wrapper);
-    }
-
-    @Override
-    public void updateReportData(Long id, String reportData) {
-        MarketReport report = requireReport(id);
+        final String reportJson;
         try {
-            report.setBasicReportData(OBJECT_MAPPER.readValue(reportData, Object.class));
-        } catch (JsonProcessingException e) {
-            log.warn("updateReportData JSON 解析失败，按字符串存储: {}", e.getMessage());
-            report.setBasicReportData(reportData);
+            reportJson = objectMapper.writeValueAsString(reportData);
+        } catch (Exception e) {
+            throw BusinessException.badRequest("报告内容不是有效的 JSON 对象");
         }
-        report.setBasicGeneratedAt(LocalDateTime.now());
-        marketReportMapper.updateById(report);
-    }
 
-    @Override
-    public void updateStatus(Long id, String status) {
-        // 表结构已无 status 字段，保留接口兼容，不写库
-        log.debug("updateStatus 已忽略（market_reports 无 status 列）: id={}, status={}", id, status);
-    }
-
-    @Override
-    public void updateAiSections(Long id, String aiGeneratedSections) {
-        MarketReport report = requireReport(id);
-        try {
-            report.setDeepReportData(OBJECT_MAPPER.readValue(aiGeneratedSections, Object.class));
-        } catch (JsonProcessingException e) {
-            log.warn("updateAiSections JSON 解析失败，按字符串存储: {}", e.getMessage());
-            report.setDeepReportData(aiGeneratedSections);
+        switch (version) {
+            case "basic" -> marketReportMapper.upsertBasic(enterpriseId, reportJson);
+            case "deep" -> marketReportMapper.upsertDeep(enterpriseId, reportJson);
+            default -> throw BusinessException.badRequest("version 必须是 basic 或 deep");
         }
-        report.setDeepGeneratedAt(LocalDateTime.now());
-        marketReportMapper.updateById(report);
     }
 
-    @Override
-    public void delete(Long id) {
-        requireReport(id);
-        marketReportMapper.deleteById(id);
-    }
-
-    private MarketReport requireReport(Long id) {
-        MarketReport report = marketReportMapper.selectById(id);
-        if (report == null) {
-            throw BusinessException.notFound("市场报告不存在");
+    private void requireEnterpriseId(Integer enterpriseId) {
+        if (enterpriseId == null || enterpriseId <= 0) {
+            throw BusinessException.badRequest("enterpriseId 必须是正整数");
         }
-        cityAccessService.requireEnterprise(
-                report.getEnterpriseId(), cityContext.requireCityId());
-        return report;
     }
 }

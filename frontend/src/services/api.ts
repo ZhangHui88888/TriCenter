@@ -348,6 +348,8 @@ export const treeCategoryApi = {
     request.put<TreeCategoryItem>(`/tree-categories/${type}/${id}`, data),
   delete: (type: string, id: number) => request.delete(`/tree-categories/${type}/${id}`),
   resetToDefault: (type: string) => request.post<TreeCategoryItem[]>(`/tree-categories/${type}/reset`),
+  restoreMissingDefaults: (type: string) =>
+    request.post<TreeCategoryItem[]>(`/tree-categories/${type}/restore-missing-defaults`),
 };
 
 export interface TreeCategoryItem {

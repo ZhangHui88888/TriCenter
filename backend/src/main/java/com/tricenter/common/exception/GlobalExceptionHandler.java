@@ -42,6 +42,7 @@ public class GlobalExceptionHandler {
             case 401 -> HttpStatus.UNAUTHORIZED;
             case 403 -> HttpStatus.FORBIDDEN;
             case 404 -> HttpStatus.NOT_FOUND;
+            case 410 -> HttpStatus.GONE;
             default -> HttpStatus.INTERNAL_SERVER_ERROR;
         };
         return org.springframework.http.ResponseEntity.status(status).body(result);

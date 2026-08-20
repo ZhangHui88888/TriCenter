@@ -9,7 +9,7 @@ import com.tricenter.entity.StageChangeLog;
 import com.tricenter.mapper.EnterpriseMapper;
 import com.tricenter.mapper.EnterpriseServiceRecordMapper;
 import com.tricenter.mapper.StageChangeLogMapper;
-import com.tricenter.service.DashboardService;
+import com.tricenter.service.DashboardCacheInvalidator;
 import com.tricenter.service.EnterpriseServiceRecordService;
 import com.tricenter.service.CityAccessService;
 import com.tricenter.security.CityContext;
@@ -29,7 +29,7 @@ public class EnterpriseServiceRecordServiceImpl implements EnterpriseServiceReco
     private final EnterpriseServiceRecordMapper serviceRecordMapper;
     private final EnterpriseMapper enterpriseMapper;
     private final StageChangeLogMapper stageChangeLogMapper;
-    private final DashboardService dashboardService;
+    private final DashboardCacheInvalidator dashboardCacheInvalidator;
     private final CityContext cityContext;
     private final CityAccessService cityAccessService;
 
@@ -79,7 +79,7 @@ public class EnterpriseServiceRecordServiceImpl implements EnterpriseServiceReco
             stageChangeLogMapper.insert(log);
         }
 
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
         return serviceRecordMapper.selectByEnterpriseId(
                         enterpriseId, cityContext.requireCityId()).stream()
                 .filter(r -> r.getId().equals(body.getId()))
@@ -124,7 +124,7 @@ public class EnterpriseServiceRecordServiceImpl implements EnterpriseServiceReco
         }
 
         serviceRecordMapper.updateById(existing);
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
 
         return serviceRecordMapper.selectByEnterpriseId(
                         enterpriseId, cityContext.requireCityId()).stream()
@@ -144,7 +144,7 @@ public class EnterpriseServiceRecordServiceImpl implements EnterpriseServiceReco
             throw new BusinessException("服务记录不属于该企业");
         }
         serviceRecordMapper.deleteById(id);
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
     }
 
     private Enterprise checkEnterpriseExists(Integer enterpriseId) {

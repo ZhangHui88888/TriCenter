@@ -17,6 +17,14 @@ cd frontend && npm install && npm run dev
 start-all.bat
 ```
 
+## 数据库变更规则
+
+- 所有数据库结构变更必须写成 migration 脚本。
+- Flyway 自动执行脚本存放在 `migrations/`，命名为 `VNNN__description.sql`，只包含向前兼容的 up SQL。
+- 人工回退脚本存放在 `migrations/rollback/`，命名为 `UNNN__description.sql`，不进入 Flyway 扫描。
+- 回退脚本执行前必须备份并获得用户二次确认；不得由应用或 CI 自动执行。
+- 现有生产库只有在表、列、索引和约束校验完全通过后，才允许人工 baseline 到指定版本。
+
 ## 部署
 
 ```bash

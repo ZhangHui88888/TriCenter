@@ -9,6 +9,9 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -18,6 +21,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api")
 @RequiredArgsConstructor
+@Validated
 public class EnterpriseServiceRecordController {
 
     private final EnterpriseServiceRecordService serviceRecordService;
@@ -25,8 +29,8 @@ public class EnterpriseServiceRecordController {
     @Operation(summary = "全局服务记录列表", description = "分页查询所有企业的服务记录，支持按企业/服务商/类型/状态筛选")
     @GetMapping("/service-records")
     public Result<PageResult<EnterpriseServiceRecord>> getGlobalList(
-            @Parameter(description = "页码") @RequestParam(defaultValue = "1") int page,
-            @Parameter(description = "每页数量") @RequestParam(defaultValue = "10") int pageSize,
+            @Parameter(description = "页码") @RequestParam(defaultValue = "1") @Min(1) int page,
+            @Parameter(description = "每页数量") @RequestParam(defaultValue = "10") @Min(1) @Max(100) int pageSize,
             @Parameter(description = "企业ID") @RequestParam(required = false) Integer enterpriseId,
             @Parameter(description = "服务商ID") @RequestParam(required = false) Integer providerId,
             @Parameter(description = "服务类型") @RequestParam(required = false) String serviceType,

@@ -1,18 +1,14 @@
 package com.tricenter.controller;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.tricenter.common.result.Result;
 import com.tricenter.entity.MarketReport;
-import com.tricenter.mapper.MarketReportMapper;
-import com.tricenter.security.CityContext;
-import com.tricenter.service.CityAccessService;
+import com.tricenter.service.MarketReportService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 
 @Tag(name = "市场调研报告")
@@ -21,19 +17,13 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class MarketReportController {
 
-    private final MarketReportMapper reportMapper;
-    private final CityContext cityContext;
-    private final CityAccessService cityAccessService;
+    private final MarketReportService marketReportService;
 
     @Operation(summary = "查询企业已有报告")
     @GetMapping("/{enterpriseId}")
     @PreAuthorize("hasAuthority('report:view')")
     public Result<MarketReport> getReport(@PathVariable Integer enterpriseId) {
-        cityAccessService.requireEnterprise(enterpriseId, cityContext.requireCityId());
-        MarketReport report = reportMapper.selectOne(
-                new LambdaQueryWrapper<MarketReport>()
-                        .eq(MarketReport::getEnterpriseId, enterpriseId));
-        return Result.success(report);
+        return Result.success(marketReportService.getByEnterpriseId(enterpriseId));
     }
 
     @Operation(summary = "保存/覆盖报告")
@@ -42,32 +32,7 @@ public class MarketReportController {
     public Result<Void> saveReport(@PathVariable Integer enterpriseId,
                                    @PathVariable String version,
                                    @RequestBody Map<String, Object> reportData) {
-        cityAccessService.requireEnterprise(enterpriseId, cityContext.requireCityId());
-        MarketReport report = reportMapper.selectOne(
-                new LambdaQueryWrapper<MarketReport>()
-                        .eq(MarketReport::getEnterpriseId, enterpriseId));
-
-        if (report == null) {
-            report = new MarketReport();
-            report.setEnterpriseId(enterpriseId);
-        }
-
-        if ("basic".equals(version)) {
-            report.setBasicReportData(reportData);
-            report.setBasicGeneratedAt(LocalDateTime.now());
-        } else if ("deep".equals(version)) {
-            report.setDeepReportData(reportData);
-            report.setDeepGeneratedAt(LocalDateTime.now());
-        } else {
-            return Result.error("version 必须是 basic 或 deep");
-        }
-
-        if (report.getId() == null) {
-            reportMapper.insert(report);
-        } else {
-            reportMapper.updateById(report);
-        }
-
+        marketReportService.upsert(enterpriseId, version, reportData);
         return Result.success(null);
     }
 }

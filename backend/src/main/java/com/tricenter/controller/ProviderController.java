@@ -31,7 +31,7 @@ public class ProviderController {
 
     @Operation(summary = "服务商列表", description = "分页查询服务商列表，支持多条件筛选")
     @GetMapping
-    public Result<PageResult<ProviderListResponse>> getProviderList(ProviderQueryRequest request) {
+    public Result<PageResult<ProviderListResponse>> getProviderList(@Valid ProviderQueryRequest request) {
         PageResult<ProviderListResponse> result = providerService.getProviderList(request);
         return Result.success(result);
     }

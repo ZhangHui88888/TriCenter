@@ -15,7 +15,10 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -24,13 +27,15 @@ import com.tricenter.service.OptionsService;
 import com.tricenter.service.RequirementMatchEngine;
 import com.tricenter.service.CityAccessService;
 import com.tricenter.security.CityContext;
-import com.tricenter.service.DashboardService;
+import com.tricenter.service.DashboardCacheInvalidator;
 
 import java.io.ByteArrayOutputStream;
+import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.function.Supplier;
 
 /**
  * 调研Excel导入导出服务实现
@@ -50,7 +55,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     private final RequirementMatchEngine requirementMatchEngine;
     private final CityContext cityContext;
     private final CityAccessService cityAccessService;
-    private final DashboardService dashboardService;
+    private final DashboardCacheInvalidator dashboardCacheInvalidator;
+    private final PlatformTransactionManager transactionManager;
 
     // ==================== 导出 ====================
 
@@ -964,7 +970,6 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     // ==================== 导入 ====================
 
     @Override
-    @Transactional
     public ImportResultResponse importSurveyExcel(MultipartFile file) {
         List<ImportResultResponse.ErrorDetail> errors = new ArrayList<>();
         int successCount = 0;
@@ -972,11 +977,26 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         // 企业名称 → 新生成ID 的映射，用于无ID新建企业时关联后续Sheet
         Map<String, Integer> nameToIdMap = new HashMap<>();
 
+        final List<SurveyBasicInfoData> basicList;
+        final List<SurveyContactData> contactList;
+        final List<SurveyProductData> productList;
+        final List<SurveyTradeData> tradeList;
+        final List<SurveyCrossBorderData> crossBorderList;
+        final List<SurveyCooperationData> cooperationList;
         try {
-            // 读取Sheet1: 企业基本信息
-            List<SurveyBasicInfoData> basicList = EasyExcel.read(file.getInputStream())
-                    .head(SurveyBasicInfoData.class).sheet("企业基本信息").doReadSync();
+            byte[] workbook = file.getBytes();
+            basicList = readSheet(workbook, SurveyBasicInfoData.class, "企业基本信息");
+            contactList = readSheet(workbook, SurveyContactData.class, "联系人信息");
+            productList = readSheet(workbook, SurveyProductData.class, "产品信息");
+            tradeList = readSheet(workbook, SurveyTradeData.class, "外贸信息");
+            crossBorderList = readSheet(workbook, SurveyCrossBorderData.class, "跨境电商信息");
+            cooperationList = readSheet(workbook, SurveyCooperationData.class, "合作与政策信息");
+        } catch (Exception e) {
+            log.error("导入调研Excel解析失败", e);
+            throw BusinessException.badRequest("文件解析失败: " + e.getMessage());
+        }
 
+        try {
             for (int i = 0; i < basicList.size(); i++) {
                 int rowNum = i + 2;
                 SurveyBasicInfoData data = basicList.get(i);
@@ -987,29 +1007,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                         continue;
                     }
 
-                    Enterprise enterprise = resolveEnterpriseForImport(data);
-
-                    if (enterprise != null && enterprise.getIsDeleted() != 1) {
-                        // 已有企业，更新
-                        updateBasicInfo(enterprise, data);
-                        enterpriseMapper.updateById(enterprise);
-                        nameToIdMap.put(enterprise.getName(), enterprise.getId());
-                    } else {
-                        // 企业不存在，按新企业创建；创建前校验数据库必填字段
-                        validateBasicInfoForInsert(data);
-                        enterprise = new Enterprise();
-                        Integer currentCityId = cityContext.requireCityId();
-                        enterprise.setCityId(currentCityId);
-                        enterprise.setProvince("江苏省");
-                        enterprise.setCity(cityAccessService.requireActiveCity(currentCityId).getName() + "市");
-                        enterprise.setName(StringUtils.hasText(data.getName()) ? data.getName().trim() : "未命名企业");
-                        enterprise.setStage("POTENTIAL"); // 与字典 enterprises.stage 约定一致
-                        enterprise.setIsDeleted(0);
-                        updateBasicInfo(enterprise, data);
-                        enterpriseMapper.insert(enterprise);
-                        // 记录名称→ID映射，供后续Sheet使用
-                        nameToIdMap.put(enterprise.getName(), enterprise.getId());
-                    }
+                    Enterprise enterprise = inEnterpriseTransaction(() -> importBasicInfoRow(data));
+                    nameToIdMap.put(enterprise.getName(), enterprise.getId());
                     successCount++;
                 } catch (Exception e) {
                     failCount++;
@@ -1018,75 +1017,13 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 }
             }
 
-            // 读取Sheet2: 联系人信息
-            try {
-                int errorCountBefore = errors.size();
-                List<SurveyContactData> contactList = EasyExcel.read(file.getInputStream())
-                        .head(SurveyContactData.class).sheet("联系人信息").doReadSync();
-                importContacts(contactList, errors, nameToIdMap);
-                failCount += errors.size() - errorCountBefore;
-            } catch (Exception e) {
-                log.warn("读取联系人Sheet失败: {}", e.getMessage());
-                failCount++;
-                errors.add(ImportResultResponse.ErrorDetail.builder()
-                        .row(0).message("[联系人] Sheet读取失败: " + e.getMessage()).build());
-            }
-
-            // 读取Sheet3: 产品信息
-            try {
-                int errorCountBefore = errors.size();
-                List<SurveyProductData> productList = EasyExcel.read(file.getInputStream())
-                        .head(SurveyProductData.class).sheet("产品信息").doReadSync();
-                importProducts(productList, errors, nameToIdMap);
-                failCount += errors.size() - errorCountBefore;
-            } catch (Exception e) {
-                log.warn("读取产品Sheet失败: {}", e.getMessage());
-                failCount++;
-                errors.add(ImportResultResponse.ErrorDetail.builder()
-                        .row(0).message("[产品] Sheet读取失败: " + e.getMessage()).build());
-            }
-
-            // 读取Sheet4: 外贸信息
-            try {
-                int errorCountBefore = errors.size();
-                List<SurveyTradeData> tradeList = EasyExcel.read(file.getInputStream())
-                        .head(SurveyTradeData.class).sheet("外贸信息").doReadSync();
-                importTradeInfo(tradeList, errors, nameToIdMap);
-                failCount += errors.size() - errorCountBefore;
-            } catch (Exception e) {
-                log.warn("读取外贸信息Sheet失败: {}", e.getMessage());
-                failCount++;
-                errors.add(ImportResultResponse.ErrorDetail.builder()
-                        .row(0).message("[外贸] Sheet读取失败: " + e.getMessage()).build());
-            }
-
-            // 读取Sheet5: 跨境电商信息
-            try {
-                int errorCountBefore = errors.size();
-                List<SurveyCrossBorderData> cbList = EasyExcel.read(file.getInputStream())
-                        .head(SurveyCrossBorderData.class).sheet("跨境电商信息").doReadSync();
-                importCrossBorderInfo(cbList, errors, nameToIdMap);
-                failCount += errors.size() - errorCountBefore;
-            } catch (Exception e) {
-                log.warn("读取跨境电商Sheet失败: {}", e.getMessage());
-                failCount++;
-                errors.add(ImportResultResponse.ErrorDetail.builder()
-                        .row(0).message("[跨境电商] Sheet读取失败: " + e.getMessage()).build());
-            }
-
-            // 读取Sheet6: 合作与政策信息
-            try {
-                int errorCountBefore = errors.size();
-                List<SurveyCooperationData> coopList = EasyExcel.read(file.getInputStream())
-                        .head(SurveyCooperationData.class).sheet("合作与政策信息").doReadSync();
-                importCooperationInfo(coopList, errors, nameToIdMap);
-                failCount += errors.size() - errorCountBefore;
-            } catch (Exception e) {
-                log.warn("读取合作与政策Sheet失败: {}", e.getMessage());
-                failCount++;
-                errors.add(ImportResultResponse.ErrorDetail.builder()
-                        .row(0).message("[合作与政策] Sheet读取失败: " + e.getMessage()).build());
-            }
+            int errorCountBefore = errors.size();
+            importContacts(contactList, errors, nameToIdMap);
+            importProducts(productList, errors, nameToIdMap);
+            importTradeInfo(tradeList, errors, nameToIdMap);
+            importCrossBorderInfo(crossBorderList, errors, nameToIdMap);
+            importCooperationInfo(cooperationList, errors, nameToIdMap);
+            failCount += errors.size() - errorCountBefore;
 
         } catch (Exception e) {
             log.error("导入调研Excel失败", e);
@@ -1102,9 +1039,51 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 log.warn("  行{}: {}", err.getRow(), err.getMessage());
             }
         }
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
         return ImportResultResponse.builder()
                 .success(successCount).failed(failCount).errors(errors).build();
+    }
+
+    private <T> List<T> readSheet(byte[] workbook, Class<T> headType, String sheetName) {
+        return EasyExcel.read(new ByteArrayInputStream(workbook))
+                .head(headType)
+                .sheet(sheetName)
+                .doReadSync();
+    }
+
+    private Enterprise importBasicInfoRow(SurveyBasicInfoData data) {
+        Enterprise enterprise = resolveEnterpriseForImport(data);
+        if (enterprise != null && !Objects.equals(enterprise.getIsDeleted(), 1)) {
+            updateBasicInfo(enterprise, data);
+            enterpriseMapper.updateById(enterprise);
+            return enterprise;
+        }
+
+        validateBasicInfoForInsert(data);
+        enterprise = new Enterprise();
+        Integer currentCityId = cityContext.requireCityId();
+        enterprise.setCityId(currentCityId);
+        enterprise.setProvince("江苏省");
+        enterprise.setCity(cityAccessService.requireActiveCity(currentCityId).getName() + "市");
+        enterprise.setName(data.getName().trim());
+        enterprise.setStage("POTENTIAL");
+        enterprise.setIsDeleted(0);
+        updateBasicInfo(enterprise, data);
+        enterpriseMapper.insert(enterprise);
+        return enterprise;
+    }
+
+    private <T> T inEnterpriseTransaction(Supplier<T> action) {
+        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+        transaction.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        return transaction.execute(status -> action.get());
+    }
+
+    private void inEnterpriseTransaction(Runnable action) {
+        inEnterpriseTransaction(() -> {
+            action.run();
+            return null;
+        });
     }
 
     // ==================== 导入各Sheet数据 ====================
@@ -1255,35 +1234,37 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             List<SurveyContactData> contacts = entry.getValue();
 
             try {
-                cityAccessService.requireEnterprise(
-                        enterpriseId, cityContext.requireCityId());
+                inEnterpriseTransaction(() -> {
+                    cityAccessService.requireEnterprise(
+                            enterpriseId, cityContext.requireCityId());
 
-                // 过滤掉空行（姓名为空的）
-                List<SurveyContactData> validContacts = contacts.stream()
-                        .filter(c -> StringUtils.hasText(c.getName()))
-                        .collect(Collectors.toList());
+                    // 过滤掉空行（姓名为空的）
+                    List<SurveyContactData> validContacts = contacts.stream()
+                            .filter(c -> StringUtils.hasText(c.getName()))
+                            .collect(Collectors.toList());
 
-                if (validContacts.isEmpty()) continue;
+                    if (validContacts.isEmpty()) return;
 
-                // 删除旧联系人，插入新联系人
-                LambdaQueryWrapper<EnterpriseContact> delWrapper = new LambdaQueryWrapper<>();
-                delWrapper.eq(EnterpriseContact::getEnterpriseId, enterpriseId);
-                contactMapper.delete(delWrapper);
+                    // 同一企业的删除与全部插入处于独立事务，任一插入失败即完整回滚。
+                    LambdaQueryWrapper<EnterpriseContact> delWrapper = new LambdaQueryWrapper<>();
+                    delWrapper.eq(EnterpriseContact::getEnterpriseId, enterpriseId);
+                    contactMapper.delete(delWrapper);
 
-                for (SurveyContactData c : validContacts) {
-                    EnterpriseContact contact = new EnterpriseContact();
-                    contact.setEnterpriseId(enterpriseId);
-                    String contactName = c.getName().trim();
-                    if (contactName.length() > 100) contactName = contactName.substring(0, 100);
-                    contact.setName(contactName);
-                    contact.setPhone(c.getPhone());
-                    contact.setPosition(c.getPosition());
-                    contact.setEmail(c.getEmail());
-                    contact.setWechat(c.getWechat());
-                    contact.setIsPrimary("是".equals(c.getIsPrimary()) ? 1 : 0);
-                    contact.setRemark(c.getRemark());
-                    contactMapper.insert(contact);
-                }
+                    for (SurveyContactData c : validContacts) {
+                        EnterpriseContact contact = new EnterpriseContact();
+                        contact.setEnterpriseId(enterpriseId);
+                        String contactName = c.getName().trim();
+                        if (contactName.length() > 100) contactName = contactName.substring(0, 100);
+                        contact.setName(contactName);
+                        contact.setPhone(c.getPhone());
+                        contact.setPosition(c.getPosition());
+                        contact.setEmail(c.getEmail());
+                        contact.setWechat(c.getWechat());
+                        contact.setIsPrimary("是".equals(c.getIsPrimary()) ? 1 : 0);
+                        contact.setRemark(c.getRemark());
+                        contactMapper.insert(contact);
+                    }
+                });
             } catch (Exception e) {
                 errors.add(ImportResultResponse.ErrorDetail.builder()
                         .row(0).message("[联系人] 企业ID=" + enterpriseId + ": " + e.getMessage()).build());
@@ -1307,21 +1288,22 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             List<SurveyProductData> products = entry.getValue();
 
             try {
-                cityAccessService.requireEnterprise(
-                        enterpriseId, cityContext.requireCityId());
+                inEnterpriseTransaction(() -> {
+                    cityAccessService.requireEnterprise(
+                            enterpriseId, cityContext.requireCityId());
 
-                List<SurveyProductData> validProducts = products.stream()
-                        .filter(p -> StringUtils.hasText(p.getName()))
-                        .collect(Collectors.toList());
+                    List<SurveyProductData> validProducts = products.stream()
+                            .filter(p -> StringUtils.hasText(p.getName()))
+                            .collect(Collectors.toList());
 
-                if (validProducts.isEmpty()) continue;
+                    if (validProducts.isEmpty()) return;
 
-                // 删除旧产品，插入新产品
-                LambdaQueryWrapper<EnterpriseProduct> delWrapper = new LambdaQueryWrapper<>();
-                delWrapper.eq(EnterpriseProduct::getEnterpriseId, enterpriseId);
-                productMapper.delete(delWrapper);
+                    // 同一企业的删除与全部插入处于独立事务，任一插入失败即完整回滚。
+                    LambdaQueryWrapper<EnterpriseProduct> delWrapper = new LambdaQueryWrapper<>();
+                    delWrapper.eq(EnterpriseProduct::getEnterpriseId, enterpriseId);
+                    productMapper.delete(delWrapper);
 
-                for (SurveyProductData p : validProducts) {
+                    for (SurveyProductData p : validProducts) {
                     EnterpriseProduct product = new EnterpriseProduct();
                     product.setEnterpriseId(enterpriseId);
                     product.setName(p.getName());
@@ -1356,8 +1338,9 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                         if (opt != null) product.setAutomationLevelId(opt.getId());
                     }
 
-                    productMapper.insert(product);
-                }
+                        productMapper.insert(product);
+                    }
+                });
             } catch (Exception e) {
                 errors.add(ImportResultResponse.ErrorDetail.builder()
                         .row(0).message("[产品] 企业ID=" + enterpriseId + ": " + e.getMessage()).build());

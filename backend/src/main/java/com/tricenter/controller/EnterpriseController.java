@@ -38,14 +38,14 @@ public class EnterpriseController {
 
     @Operation(summary = "企业列表", description = "分页查询企业列表，支持多条件筛选")
     @GetMapping
-    public Result<PageResult<EnterpriseListResponse>> getEnterpriseList(EnterpriseQueryRequest request) {
+    public Result<PageResult<EnterpriseListResponse>> getEnterpriseList(@Valid EnterpriseQueryRequest request) {
         PageResult<EnterpriseListResponse> result = enterpriseService.getEnterpriseList(request);
         return Result.success(result);
     }
 
     @Operation(summary = "企业概览统计", description = "与列表相同的筛选条件，统计匹配全量企业的数量与上年外贸营业额（万元）；出口额按是否开展跨境电商拆分")
     @GetMapping("/overview-stats")
-    public Result<EnterpriseOverviewStatsResponse> getOverviewStats(EnterpriseQueryRequest request) {
+    public Result<EnterpriseOverviewStatsResponse> getOverviewStats(@Valid EnterpriseQueryRequest request) {
         return Result.success(enterpriseService.getOverviewStats(request));
     }
 

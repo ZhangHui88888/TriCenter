@@ -32,7 +32,7 @@ public class FollowUpController {
 
     @Operation(summary = "获取跟进记录列表", description = "支持按企业筛选、按类型筛选、关键词搜索")
     @GetMapping("/follow-ups")
-    public Result<PageResult<FollowUpResponse>> getFollowUpList(FollowUpQueryRequest request) {
+    public Result<PageResult<FollowUpResponse>> getFollowUpList(@Valid FollowUpQueryRequest request) {
         PageResult<FollowUpResponse> result = followUpService.getFollowUpList(request);
         return Result.success(result);
     }

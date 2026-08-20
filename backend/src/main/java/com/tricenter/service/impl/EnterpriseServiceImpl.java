@@ -14,7 +14,7 @@ import com.tricenter.dto.response.EnterpriseOverviewStatsResponse;
 import com.tricenter.dto.response.ImportResultResponse;
 import com.tricenter.entity.*;
 import com.tricenter.mapper.*;
-import com.tricenter.service.DashboardService;
+import com.tricenter.service.DashboardCacheInvalidator;
 import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.service.EnterpriseService;
 import com.tricenter.service.OptionsService;
@@ -64,7 +64,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     private final CategoryMapper categoryMapper;
     private final StageChangeLogMapper stageChangeLogMapper;
     private final FollowUpRecordMapper followUpRecordMapper;
-    private final DashboardService dashboardService;
+    private final DashboardCacheInvalidator dashboardCacheInvalidator;
     private final DictionaryCacheService dictionaryCache;
     private final RequirementMatchEngine requirementMatchEngine;
     private final OptionsService optionsService;
@@ -74,10 +74,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
     @Override
     public PageResult<EnterpriseListResponse> getEnterpriseList(EnterpriseQueryRequest request) {
         Set<Integer> matchedIds = resolveExternalFilters(request);
-        boolean loadAll = request.getPageSize() != null && request.getPageSize() < 1;
-        int responsePageSize = loadAll ? 1 : request.getPageSize();
         if (matchedIds != null && matchedIds.isEmpty()) {
-            return PageResult.of(Collections.emptyList(), 0, request.getPage(), responsePageSize);
+            return PageResult.of(Collections.emptyList(), 0, request.getPage(), request.getPageSize());
         }
 
         LambdaQueryWrapper<Enterprise> wrapper = buildFilterWrapper(request, matchedIds);
@@ -87,12 +85,6 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 Enterprise::getStage, Enterprise::getHasCrossBorder, Enterprise::getCreatedAt
         );
         wrapper.orderByDesc(Enterprise::getCreatedAt);
-
-        if (loadAll) {
-            List<Enterprise> enterprises = enterpriseMapper.selectList(wrapper);
-            List<EnterpriseListResponse> list = batchConvertToListResponse(enterprises);
-            return PageResult.of(list, enterprises.size(), 1, Math.max(enterprises.size(), 1));
-        }
 
         Page<Enterprise> page = new Page<>(request.getPage(), request.getPageSize());
         Page<Enterprise> result = enterpriseMapper.selectPage(page, wrapper);
@@ -876,7 +868,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         
         log.info("创建企业成功: id={}, name={}", enterprise.getId(), enterprise.getName());
         
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
         return enterprise;
     }
 
@@ -1000,7 +992,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         
         log.info("更新企业成功: id={}", id);
         
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
         return enterprise;
     }
 
@@ -1013,7 +1005,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         enterpriseMapper.deleteById(id);
         
         log.info("删除企业成功: id={}", id);
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
     }
 
     @Override
@@ -1043,7 +1035,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         stageChangeLogMapper.insert(changeLog);
         
         log.info("企业阶段变更: id={}, {} -> {}", id, oldStage, newStage);
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
     }
 
     @Override
@@ -1477,7 +1469,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         
         log.info("导入企业完成: success={}, failed={}", successCount, failCount);
         
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
         return ImportResultResponse.builder()
                 .success(successCount)
                 .failed(failCount)
@@ -1652,7 +1644,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         }
         int count = enterpriseMapper.deleteBatchIds(authorizedIds);
         log.info("批量删除企业成功: ids={}, 实际删除={}", ids, count);
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
         return count;
     }
 
@@ -1687,7 +1679,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             count++;
         }
         log.info("批量变更阶段成功: ids={}, stage={}, 实际变更={}", ids, stage, count);
-        dashboardService.evictAllCache();
+        dashboardCacheInvalidator.evictAfterCommit();
         return count;
     }
 }
