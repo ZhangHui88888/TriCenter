@@ -35,13 +35,25 @@ import java.nio.charset.StandardCharsets;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Value("${tricenter.auth.accept-bearer:false}")
-    private boolean acceptBearer = true;
+    private boolean acceptBearer;
 
     private final JwtUtil jwtUtil;
     private final UserMapper userMapper;
     private final CityAccessService cityAccessService;
     private final PermissionService permissionService;
     private final ObjectMapper objectMapper;
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getRequestURI();
+        return "/api/auth/login".equals(path)
+                || "/api/auth/refresh".equals(path)
+                || "/api/system/identity".equals(path)
+                || path.startsWith("/actuator/health")
+                || path.startsWith("/swagger-ui/")
+                || path.startsWith("/v3/api-docs/")
+                || "/doc.html".equals(path);
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, 

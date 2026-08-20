@@ -8,6 +8,8 @@ import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -62,6 +64,21 @@ public class DictionaryCacheService {
         log.info("数据字典缓存刷新完成: {} 个选项, {} 个分类, 耗时 {}ms",
                 allOptions.size(), allCategories.size(),
                 System.currentTimeMillis() - start);
+    }
+
+    /** Refresh only after the surrounding database transaction is durable. */
+    public void refreshAfterCommit() {
+        if (!TransactionSynchronizationManager.isActualTransactionActive()
+                || !TransactionSynchronizationManager.isSynchronizationActive()) {
+            refresh();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                refresh();
+            }
+        });
     }
 
     public SystemOption getOptionByValue(String category, String value) {

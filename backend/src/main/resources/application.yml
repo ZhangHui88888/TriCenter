@@ -58,6 +58,11 @@ tricenter:
   auth:
     secure-cookie: false
     accept-bearer: false
+  cors:
+    allowed-origins:
+      - http://localhost:5173
+      - http://localhost:3000
+      - http://localhost:3001
   clamav:
     host: ${CLAMAV_HOST:localhost}
     port: ${CLAMAV_PORT:3310}

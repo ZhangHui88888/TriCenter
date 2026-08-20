@@ -1,6 +1,5 @@
 package com.tricenter.controller;
 
-import com.tricenter.annotation.OpLog;
 import com.tricenter.common.result.Result;
 import com.tricenter.dto.response.ImportResultResponse;
 import com.tricenter.service.SurveyExcelService;
@@ -44,7 +43,6 @@ public class SurveyExcelController {
         surveyExcelService.exportBatchSurveyExcel(enterpriseIds, response);
     }
 
-    @OpLog(operation = "IMPORT", targetType = "ENTERPRISE", detail = "导入调研数据")
     @Operation(summary = "导入调研数据", description = "导入填写好的调研Excel，更新企业数据")
     @PostMapping("/import")
     @PreAuthorize("hasAuthority('enterprise:import')")

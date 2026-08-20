@@ -1,4 +1,7 @@
 # 生产环境配置
+server:
+  forward-headers-strategy: native
+
 spring:
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -34,6 +37,10 @@ tricenter:
   auth:
     secure-cookie: true
     accept-bearer: false
+  cors:
+    allowed-origins:
+      - https://czcrop.top
+      - https://www.czcrop.top
 
 springdoc:
   api-docs:

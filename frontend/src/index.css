@@ -482,113 +482,13 @@ body {
   50% { transform: translateY(-8px); }
 }
 
-/* ===== 暗色模式 ===== */
+/* ===== 暗色模式（Ant Design 组件颜色由 darkAlgorithm/token 统一管理） ===== */
 .dark-mode {
   --bg-primary: #111827;
   --bg-secondary: #1f2937;
   --text-primary: #f9fafb;
   --text-secondary: #9ca3af;
   --border-color: #374151;
-}
-
-.dark-mode body {
-  background: #111827;
-  color: #f9fafb;
-}
-
-.dark-mode .ant-card {
-  background: #1f2937 !important;
-  border-color: #374151 !important;
-}
-
-.dark-mode .ant-card-head {
-  border-color: #374151 !important;
-  color: #f9fafb !important;
-}
-
-.dark-mode .ant-card-head-title {
-  color: #f9fafb !important;
-}
-
-.dark-mode .ant-table {
-  background: #1f2937 !important;
-}
-
-.dark-mode .ant-table-thead > tr > th {
-  background: #374151 !important;
-  color: #f9fafb !important;
-  border-color: #4b5563 !important;
-}
-
-.dark-mode .ant-table-tbody > tr > td {
-  background: #1f2937 !important;
-  color: #e5e7eb !important;
-  border-color: #374151 !important;
-}
-
-.dark-mode .ant-table-tbody > tr:hover > td {
-  background: #374151 !important;
-}
-
-.dark-mode .ant-descriptions-item-label {
-  color: #9ca3af !important;
-}
-
-.dark-mode .ant-descriptions-item-content {
-  color: #e5e7eb !important;
-}
-
-.dark-mode .ant-tabs-tab {
-  color: #9ca3af !important;
-}
-
-.dark-mode .ant-tabs-tab-active {
-  color: #60a5fa !important;
-}
-
-.dark-mode .ant-modal-content {
-  background: #1f2937 !important;
-}
-
-.dark-mode .ant-modal-header {
-  background: #1f2937 !important;
-  border-color: #374151 !important;
-}
-
-.dark-mode .ant-modal-title {
-  color: #f9fafb !important;
-}
-
-.dark-mode .ant-modal-close-x {
-  color: #9ca3af !important;
-}
-
-.dark-mode .ant-form-item-label > label {
-  color: #e5e7eb !important;
-}
-
-.dark-mode .ant-input,
-.dark-mode .ant-select-selector,
-.dark-mode .ant-picker {
-  background: #374151 !important;
-  border-color: #4b5563 !important;
-  color: #f9fafb !important;
-}
-
-.dark-mode .ant-input::placeholder {
-  color: #6b7280 !important;
-}
-
-.dark-mode .ant-select-selection-placeholder {
-  color: #6b7280 !important;
-}
-
-.dark-mode .ant-statistic-title {
-  color: #9ca3af !important;
-}
-
-.dark-mode .ant-statistic-content-value {
-  color: #f9fafb !important;
 }
 
 .dark-mode .empty-state-icon {
@@ -601,14 +501,6 @@ body {
 
 .dark-mode .empty-state-description {
   color: #9ca3af;
-}
-
-.dark-mode .ant-typography {
-  color: #e5e7eb !important;
-}
-
-.dark-mode .ant-typography.ant-typography-secondary {
-  color: #9ca3af !important;
 }
 
 .dark-mode ::-webkit-scrollbar-track {

@@ -17,7 +17,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -28,6 +27,8 @@ import com.tricenter.service.RequirementMatchEngine;
 import com.tricenter.service.CityAccessService;
 import com.tricenter.security.CityContext;
 import com.tricenter.service.DashboardCacheInvalidator;
+import com.tricenter.service.AuditOutboxService;
+import com.tricenter.security.LoginUser;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
@@ -55,6 +56,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     private final CityContext cityContext;
     private final CityAccessService cityAccessService;
     private final DashboardCacheInvalidator dashboardCacheInvalidator;
+    private final AuditOutboxService auditOutboxService;
     private final PlatformTransactionManager transactionManager;
 
     // ==================== 导出 ====================
@@ -985,8 +987,6 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         List<ImportResultResponse.ErrorDetail> errors = new ArrayList<>();
         int successCount = 0;
         int failCount = 0;
-        // 企业名称 → 新生成ID 的映射，用于无ID新建企业时关联后续Sheet
-        Map<String, Integer> nameToIdMap = new HashMap<>();
 
         final List<SurveyBasicInfoData> basicList;
         final List<SurveyContactData> contactList;
@@ -1007,38 +1007,30 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             throw BusinessException.badRequest("文件解析失败: " + e.getMessage());
         }
 
-        try {
-            for (int i = 0; i < basicList.size(); i++) {
-                int rowNum = i + 2;
-                SurveyBasicInfoData data = basicList.get(i);
-                try {
-                    // 跳过提示行（企业ID为空且名称为空或为提示文本的行）
-                    if (data.getEnterpriseId() == null && (!StringUtils.hasText(data.getName())
-                            || data.getName().startsWith("【") || data.getName().startsWith("示例"))) {
-                        continue;
-                    }
-
-                    Enterprise enterprise = inEnterpriseTransaction(() -> importBasicInfoRow(data));
-                    nameToIdMap.put(enterprise.getName(), enterprise.getId());
-                    successCount++;
-                } catch (Exception e) {
-                    failCount++;
-                    errors.add(ImportResultResponse.ErrorDetail.builder()
-                            .row(rowNum).message("[基本信息] " + buildFriendlyImportMessage(data, e.getMessage())).build());
-                }
+        Map<String, EnterpriseImportBundle> bundles = buildImportBundles(
+                basicList, contactList, productList, tradeList, crossBorderList, cooperationList);
+        Set<String> invalidBundles = new HashSet<>();
+        for (Map.Entry<String, EnterpriseImportBundle> entry : bundles.entrySet()) {
+            try {
+                validateImportBundle(entry.getValue());
+            } catch (Exception e) {
+                invalidBundles.add(entry.getKey());
+                failCount++;
+                errors.add(ImportResultResponse.ErrorDetail.builder()
+                        .row(0).message("[校验] " + entry.getKey() + ": " + e.getMessage()).build());
             }
+        }
 
-            int errorCountBefore = errors.size();
-            importContacts(contactList, errors, nameToIdMap);
-            importProducts(productList, errors, nameToIdMap);
-            importTradeInfo(tradeList, errors, nameToIdMap);
-            importCrossBorderInfo(crossBorderList, errors, nameToIdMap);
-            importCooperationInfo(cooperationList, errors, nameToIdMap);
-            failCount += errors.size() - errorCountBefore;
-
-        } catch (Exception e) {
-            log.error("导入调研Excel失败", e);
-            throw BusinessException.badRequest("文件解析失败: " + e.getMessage());
+        for (Map.Entry<String, EnterpriseImportBundle> entry : bundles.entrySet()) {
+            if (invalidBundles.contains(entry.getKey())) continue;
+            try {
+                inEnterpriseTransaction(() -> applyImportBundle(entry.getValue()));
+                successCount++;
+            } catch (Exception e) {
+                failCount++;
+                errors.add(ImportResultResponse.ErrorDetail.builder()
+                        .row(0).message("[导入] " + entry.getKey() + ": " + e.getMessage()).build());
+            }
         }
 
         log.info("导入调研Excel完成: success={}, failed={}", successCount, failCount);
@@ -1060,6 +1052,241 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 .head(headType)
                 .sheet(sheetName)
                 .doReadSync();
+    }
+
+    private Map<String, EnterpriseImportBundle> buildImportBundles(
+            List<SurveyBasicInfoData> basics,
+            List<SurveyContactData> contacts,
+            List<SurveyProductData> products,
+            List<SurveyTradeData> trades,
+            List<SurveyCrossBorderData> crossBorders,
+            List<SurveyCooperationData> cooperations) {
+        Map<String, EnterpriseImportBundle> bundles = new LinkedHashMap<>();
+        for (SurveyBasicInfoData row : basics) {
+            if (row.getEnterpriseId() == null && (!StringUtils.hasText(row.getName())
+                    || row.getName().startsWith("【") || row.getName().startsWith("示例"))) continue;
+            bundle(bundles, row.getEnterpriseId(), row.getName()).basics.add(row);
+        }
+        for (SurveyContactData row : contacts) {
+            EnterpriseImportBundle bundle = optionalBundle(
+                    bundles, row.getEnterpriseId(), row.getEnterpriseName());
+            if (bundle != null) bundle.contacts.add(row);
+        }
+        for (SurveyProductData row : products) {
+            EnterpriseImportBundle bundle = optionalBundle(
+                    bundles, row.getEnterpriseId(), row.getEnterpriseName());
+            if (bundle != null) bundle.products.add(row);
+        }
+        for (SurveyTradeData row : trades) {
+            EnterpriseImportBundle bundle = optionalBundle(
+                    bundles, row.getEnterpriseId(), row.getEnterpriseName());
+            if (bundle != null) bundle.trades.add(row);
+        }
+        for (SurveyCrossBorderData row : crossBorders) {
+            EnterpriseImportBundle bundle = optionalBundle(
+                    bundles, row.getEnterpriseId(), row.getEnterpriseName());
+            if (bundle != null) bundle.crossBorders.add(row);
+        }
+        for (SurveyCooperationData row : cooperations) {
+            EnterpriseImportBundle bundle = optionalBundle(
+                    bundles, row.getEnterpriseId(), row.getEnterpriseName());
+            if (bundle != null) bundle.cooperations.add(row);
+        }
+        return bundles;
+    }
+
+    private EnterpriseImportBundle optionalBundle(
+            Map<String, EnterpriseImportBundle> bundles, Integer enterpriseId, String name) {
+        if (enterpriseId == null && !StringUtils.hasText(name)) return null;
+        return bundle(bundles, enterpriseId, name);
+    }
+
+    private EnterpriseImportBundle bundle(
+            Map<String, EnterpriseImportBundle> bundles, Integer enterpriseId, String name) {
+        String normalizedName = StringUtils.hasText(name) ? name.trim() : null;
+        String key = enterpriseId == null ? "name:" + normalizedName : "id:" + enterpriseId;
+        return bundles.computeIfAbsent(
+                key, ignored -> new EnterpriseImportBundle(enterpriseId, normalizedName));
+    }
+
+    private void validateImportBundle(EnterpriseImportBundle bundle) {
+        if (bundle.basics.size() > 1) {
+            throw BusinessException.badRequest("同一企业存在多行基本信息");
+        }
+        SurveyBasicInfoData basic = bundle.basics.isEmpty() ? null : bundle.basics.get(0);
+        if (basic == null && bundle.enterpriseId == null && !StringUtils.hasText(bundle.enterpriseName)) {
+            throw BusinessException.badRequest("缺少企业ID或企业名称");
+        }
+        if (basic != null && resolveEnterpriseForImport(basic) == null) {
+            validateBasicInfoForInsert(basic);
+        }
+        for (SurveyContactData contact : bundle.contacts) {
+            if (StringUtils.hasText(contact.getName()) && contact.getName().trim().length() > 100) {
+                throw BusinessException.badRequest("联系人姓名不能超过100个字符");
+            }
+        }
+        for (SurveyProductData product : bundle.products) {
+            if (StringUtils.hasText(product.getName()) && product.getName().trim().length() > 200) {
+                throw BusinessException.badRequest("产品名称不能超过200个字符");
+            }
+        }
+        for (SurveyTradeData trade : bundle.trades) {
+            validateInteger(trade.getTradeTeamSize(), "外贸团队人数");
+            validateDecimal(trade.getLastYearRevenue(), "上年外贸营收");
+            validateDecimal(trade.getYearBeforeLastRevenue(), "前年外贸营收");
+        }
+        for (SurveyCrossBorderData crossBorder : bundle.crossBorders) {
+            validateInteger(crossBorder.getCrossBorderTeamSize(), "跨境团队人数");
+        }
+        for (SurveyCooperationData cooperation : bundle.cooperations) {
+            validateRating(cooperation.getServiceCooperationRating());
+            validateRating(cooperation.getInvestmentCooperationRating());
+            validateRating(cooperation.getIncubationCooperationRating());
+            validateRating(cooperation.getBrandCooperationRating());
+            validateRating(cooperation.getTrainingCooperationRating());
+            validateRating(cooperation.getOverallCooperationRating());
+            validateInteger(cooperation.getBenchmarkPossibility(), "标杆可能性");
+        }
+    }
+
+    private void validateInteger(String value, String label) {
+        if (!StringUtils.hasText(value)) return;
+        try {
+            Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            throw BusinessException.badRequest(label + "必须是整数");
+        }
+    }
+
+    private void validateDecimal(String value, String label) {
+        if (!StringUtils.hasText(value)) return;
+        try {
+            new BigDecimal(value.trim());
+        } catch (NumberFormatException e) {
+            throw BusinessException.badRequest(label + "必须是数字");
+        }
+    }
+
+    private void validateRating(String value) {
+        if (!StringUtils.hasText(value)) return;
+        int rating;
+        try {
+            rating = Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            throw BusinessException.badRequest("合作评分必须是1到5的整数");
+        }
+        if (rating < 1 || rating > 5) {
+            throw BusinessException.badRequest("合作评分必须是1到5的整数");
+        }
+    }
+
+    private void applyImportBundle(EnterpriseImportBundle bundle) {
+        SurveyBasicInfoData basic = bundle.basics.isEmpty() ? null : bundle.basics.get(0);
+        Enterprise enterprise = basic == null
+                ? requireBundleEnterprise(bundle)
+                : importBasicInfoRow(basic);
+        replaceContacts(enterprise.getId(), bundle.contacts);
+        replaceProducts(enterprise.getId(), bundle.products);
+        setEnterpriseIds(enterprise.getId(), bundle);
+        List<ImportResultResponse.ErrorDetail> nestedErrors = new ArrayList<>();
+        Map<String, Integer> resolvedName = Map.of(enterprise.getName(), enterprise.getId());
+        importTradeInfo(bundle.trades, nestedErrors, resolvedName);
+        importCrossBorderInfo(bundle.crossBorders, nestedErrors, resolvedName);
+        importCooperationInfo(bundle.cooperations, nestedErrors, resolvedName);
+        if (!nestedErrors.isEmpty()) {
+            throw BusinessException.badRequest(nestedErrors.get(0).getMessage());
+        }
+        LoginUser loginUser = cityContext.requireLoginUser();
+        auditOutboxService.enqueue(
+                loginUser.getId(), loginUser.getCurrentCityId(), loginUser.getUsername(),
+                "IMPORT", "ENTERPRISE", enterprise.getId().toString(), enterprise.getName(),
+                "导入企业调研数据", null);
+    }
+
+    private Enterprise requireBundleEnterprise(EnterpriseImportBundle bundle) {
+        if (bundle.enterpriseId != null) {
+            return cityAccessService.requireEnterprise(
+                    bundle.enterpriseId, cityContext.requireCityId());
+        }
+        Enterprise enterprise = enterpriseMapper.selectOne(
+                new LambdaQueryWrapper<Enterprise>()
+                        .eq(Enterprise::getCityId, cityContext.requireCityId())
+                        .eq(Enterprise::getName, bundle.enterpriseName)
+                        .eq(Enterprise::getIsDeleted, 0));
+        if (enterprise == null) {
+            throw BusinessException.notFound("找不到企业且缺少基本信息，无法新建");
+        }
+        return enterprise;
+    }
+
+    private void setEnterpriseIds(Integer enterpriseId, EnterpriseImportBundle bundle) {
+        bundle.contacts.forEach(row -> row.setEnterpriseId(enterpriseId));
+        bundle.products.forEach(row -> row.setEnterpriseId(enterpriseId));
+        bundle.trades.forEach(row -> row.setEnterpriseId(enterpriseId));
+        bundle.crossBorders.forEach(row -> row.setEnterpriseId(enterpriseId));
+        bundle.cooperations.forEach(row -> row.setEnterpriseId(enterpriseId));
+    }
+
+    private void replaceContacts(Integer enterpriseId, List<SurveyContactData> contacts) {
+        List<SurveyContactData> valid = contacts.stream()
+                .filter(row -> StringUtils.hasText(row.getName()))
+                .toList();
+        if (valid.isEmpty()) return;
+        contactMapper.delete(new LambdaQueryWrapper<EnterpriseContact>()
+                .eq(EnterpriseContact::getEnterpriseId, enterpriseId));
+        for (SurveyContactData row : valid) {
+            EnterpriseContact contact = new EnterpriseContact();
+            contact.setEnterpriseId(enterpriseId);
+            contact.setName(row.getName().trim());
+            contact.setPhone(row.getPhone());
+            contact.setPosition(row.getPosition());
+            contact.setEmail(row.getEmail());
+            contact.setWechat(row.getWechat());
+            contact.setIsPrimary("是".equals(row.getIsPrimary()) ? 1 : 0);
+            contact.setRemark(row.getRemark());
+            contactMapper.insert(contact);
+        }
+    }
+
+    private void replaceProducts(Integer enterpriseId, List<SurveyProductData> products) {
+        List<SurveyProductData> valid = products.stream()
+                .filter(row -> StringUtils.hasText(row.getName()))
+                .toList();
+        if (valid.isEmpty()) return;
+        productMapper.delete(new LambdaQueryWrapper<EnterpriseProduct>()
+                .eq(EnterpriseProduct::getEnterpriseId, enterpriseId));
+        for (SurveyProductData row : valid) {
+            EnterpriseProduct product = new EnterpriseProduct();
+            product.setEnterpriseId(enterpriseId);
+            product.setName(row.getName().trim());
+            product.setAnnualSales(row.getAnnualSales());
+            product.setExportRatio(trimToNull(row.getExportRatio()));
+            product.setProfitMargin(trimToNull(row.getProfitMargin()));
+            product.setLocalProcurementRatio(row.getLocalProcurementRatio());
+            product.setAnnualCapacity(row.getAnnualCapacity());
+            if (StringUtils.hasText(row.getCategoryName())) {
+                Category category = categoryMapper.selectOne(new LambdaQueryWrapper<Category>()
+                        .eq(Category::getName, row.getCategoryName().trim())
+                        .ge(Category::getId, 100000));
+                if (category != null) product.setCategoryId(category.getId());
+            }
+            if (StringUtils.hasText(row.getCertifications())) {
+                product.setCertificationIds(resolveOptionIds("certification", row.getCertifications()));
+            }
+            if (StringUtils.hasText(row.getTargetRegions())) {
+                product.setTargetRegionIds(resolveOptionIds("region", row.getTargetRegions()));
+            }
+            if (StringUtils.hasText(row.getAutomationLevel())) {
+                SystemOption option = getOptionByLabel(
+                        "automation_level", row.getAutomationLevel().trim());
+                if (option != null) product.setAutomationLevelId(option.getId());
+            }
+            productMapper.insert(product);
+        }
+    }
+
+    private String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private Enterprise importBasicInfoRow(SurveyBasicInfoData data) {
@@ -1090,7 +1317,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         return transaction.execute(status -> action.get());
     }
 
-    private void inEnterpriseTransaction(Runnable action) {
+    void inEnterpriseTransaction(Runnable action) {
         inEnterpriseTransaction(() -> {
             action.run();
             return null;
@@ -1199,163 +1426,22 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         if (!StringUtils.hasText(data.getDistrict())) {
             missingFields.add("所属区域");
         }
+        if (!StringUtils.hasText(data.getEnterpriseType())) {
+            missingFields.add("企业类型");
+        }
 
         if (!missingFields.isEmpty()) {
             throw new BusinessException("无法新建企业，缺少必填字段: " + String.join("、", missingFields)
                     + "。建议补充企业ID，或补齐基础信息后重试。");
         }
-    }
-
-    private String buildFriendlyImportMessage(SurveyBasicInfoData data, String originalMessage) {
-        String enterpriseHint = StringUtils.hasText(data.getName()) ? "企业「" + data.getName().trim() + "」" : "当前行";
-
-        if (originalMessage != null && originalMessage.contains("cannot be null")) {
-            List<String> missingFields = new ArrayList<>();
-            if (!StringUtils.hasText(data.getDistrict())) {
-                missingFields.add("所属区域");
-            }
-            if (!StringUtils.hasText(data.getEnterpriseType())) {
-                missingFields.add("企业类型");
-            }
-            if (!StringUtils.hasText(data.getName())) {
-                missingFields.add("企业名称");
-            }
-            if (!missingFields.isEmpty()) {
-                return enterpriseHint + " 导入失败，缺少数据库必填字段: " + String.join("、", missingFields);
-            }
+        if (data.getName().trim().length() > 200) {
+            throw BusinessException.badRequest("企业名称不能超过200个字符");
         }
-
-        return enterpriseHint + " 导入失败: " + originalMessage;
-    }
-
-    private void importContacts(List<SurveyContactData> contactList, List<ImportResultResponse.ErrorDetail> errors, Map<String, Integer> nameToIdMap) {
-        // 按企业ID分组（先解析无ID的行）
-        for (SurveyContactData c : contactList) {
-            if (c.getEnterpriseId() == null && StringUtils.hasText(c.getEnterpriseName())) {
-                Integer resolvedId = nameToIdMap.get(c.getEnterpriseName().trim());
-                if (resolvedId != null) c.setEnterpriseId(resolvedId);
-            }
+        if (data.getDistrict().trim().length() > 20) {
+            throw BusinessException.badRequest("所属区域不能超过20个字符");
         }
-        Map<Integer, List<SurveyContactData>> grouped = contactList.stream()
-                .filter(c -> c.getEnterpriseId() != null)
-                .collect(Collectors.groupingBy(SurveyContactData::getEnterpriseId));
-
-        for (Map.Entry<Integer, List<SurveyContactData>> entry : grouped.entrySet()) {
-            Integer enterpriseId = entry.getKey();
-            List<SurveyContactData> contacts = entry.getValue();
-
-            try {
-                inEnterpriseTransaction(() -> {
-                    cityAccessService.requireEnterprise(
-                            enterpriseId, cityContext.requireCityId());
-
-                    // 过滤掉空行（姓名为空的）
-                    List<SurveyContactData> validContacts = contacts.stream()
-                            .filter(c -> StringUtils.hasText(c.getName()))
-                            .collect(Collectors.toList());
-
-                    if (validContacts.isEmpty()) return;
-
-                    // 同一企业的删除与全部插入处于独立事务，任一插入失败即完整回滚。
-                    LambdaQueryWrapper<EnterpriseContact> delWrapper = new LambdaQueryWrapper<>();
-                    delWrapper.eq(EnterpriseContact::getEnterpriseId, enterpriseId);
-                    contactMapper.delete(delWrapper);
-
-                    for (SurveyContactData c : validContacts) {
-                        EnterpriseContact contact = new EnterpriseContact();
-                        contact.setEnterpriseId(enterpriseId);
-                        String contactName = c.getName().trim();
-                        if (contactName.length() > 100) contactName = contactName.substring(0, 100);
-                        contact.setName(contactName);
-                        contact.setPhone(c.getPhone());
-                        contact.setPosition(c.getPosition());
-                        contact.setEmail(c.getEmail());
-                        contact.setWechat(c.getWechat());
-                        contact.setIsPrimary("是".equals(c.getIsPrimary()) ? 1 : 0);
-                        contact.setRemark(c.getRemark());
-                        contactMapper.insert(contact);
-                    }
-                });
-            } catch (Exception e) {
-                errors.add(ImportResultResponse.ErrorDetail.builder()
-                        .row(0).message("[联系人] 企业ID=" + enterpriseId + ": " + e.getMessage()).build());
-            }
-        }
-    }
-
-    private void importProducts(List<SurveyProductData> productList, List<ImportResultResponse.ErrorDetail> errors, Map<String, Integer> nameToIdMap) {
-        for (SurveyProductData p : productList) {
-            if (p.getEnterpriseId() == null && StringUtils.hasText(p.getEnterpriseName())) {
-                Integer resolvedId = nameToIdMap.get(p.getEnterpriseName().trim());
-                if (resolvedId != null) p.setEnterpriseId(resolvedId);
-            }
-        }
-        Map<Integer, List<SurveyProductData>> grouped = productList.stream()
-                .filter(p -> p.getEnterpriseId() != null)
-                .collect(Collectors.groupingBy(SurveyProductData::getEnterpriseId));
-
-        for (Map.Entry<Integer, List<SurveyProductData>> entry : grouped.entrySet()) {
-            Integer enterpriseId = entry.getKey();
-            List<SurveyProductData> products = entry.getValue();
-
-            try {
-                inEnterpriseTransaction(() -> {
-                    cityAccessService.requireEnterprise(
-                            enterpriseId, cityContext.requireCityId());
-
-                    List<SurveyProductData> validProducts = products.stream()
-                            .filter(p -> StringUtils.hasText(p.getName()))
-                            .collect(Collectors.toList());
-
-                    if (validProducts.isEmpty()) return;
-
-                    // 同一企业的删除与全部插入处于独立事务，任一插入失败即完整回滚。
-                    LambdaQueryWrapper<EnterpriseProduct> delWrapper = new LambdaQueryWrapper<>();
-                    delWrapper.eq(EnterpriseProduct::getEnterpriseId, enterpriseId);
-                    productMapper.delete(delWrapper);
-
-                    for (SurveyProductData p : validProducts) {
-                    EnterpriseProduct product = new EnterpriseProduct();
-                    product.setEnterpriseId(enterpriseId);
-                    product.setName(p.getName());
-                    product.setAnnualSales(p.getAnnualSales());
-                    if (StringUtils.hasText(p.getExportRatio())) product.setExportRatio(p.getExportRatio().trim());
-                    if (StringUtils.hasText(p.getProfitMargin())) product.setProfitMargin(p.getProfitMargin().trim());
-                    product.setLocalProcurementRatio(p.getLocalProcurementRatio());
-                    product.setAnnualCapacity(p.getAnnualCapacity());
-
-                    // 品类 - 按名称查找
-                    if (StringUtils.hasText(p.getCategoryName())) {
-                        LambdaQueryWrapper<Category> w = new LambdaQueryWrapper<>();
-                        w.eq(Category::getName, p.getCategoryName().trim())
-                                .ge(Category::getId, 100000);
-                        Category cat = categoryMapper.selectOne(w);
-                        if (cat != null) product.setCategoryId(cat.getId());
-                    }
-
-                    // 认证 - 按label查找ID列表
-                    if (StringUtils.hasText(p.getCertifications())) {
-                        product.setCertificationIds(resolveOptionIds("certification", p.getCertifications()));
-                    }
-
-                    // 销售区域
-                    if (StringUtils.hasText(p.getTargetRegions())) {
-                        product.setTargetRegionIds(resolveOptionIds("region", p.getTargetRegions()));
-                    }
-
-                    // 自动化程度
-                    if (StringUtils.hasText(p.getAutomationLevel())) {
-                        SystemOption opt = getOptionByLabel("automation_level", p.getAutomationLevel().trim());
-                        if (opt != null) product.setAutomationLevelId(opt.getId());
-                    }
-
-                        productMapper.insert(product);
-                    }
-                });
-            } catch (Exception e) {
-                errors.add(ImportResultResponse.ErrorDetail.builder()
-                        .row(0).message("[产品] 企业ID=" + enterpriseId + ": " + e.getMessage()).build());
-            }
+        if (data.getEnterpriseType().trim().length() > 20) {
+            throw BusinessException.badRequest("企业类型不能超过20个字符");
         }
     }
 
@@ -1828,6 +1914,22 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             return val >= 1 && val <= 5 ? val : null;
         } catch (NumberFormatException e) {
             return null;
+        }
+    }
+
+    private static final class EnterpriseImportBundle {
+        private final Integer enterpriseId;
+        private final String enterpriseName;
+        private final List<SurveyBasicInfoData> basics = new ArrayList<>();
+        private final List<SurveyContactData> contacts = new ArrayList<>();
+        private final List<SurveyProductData> products = new ArrayList<>();
+        private final List<SurveyTradeData> trades = new ArrayList<>();
+        private final List<SurveyCrossBorderData> crossBorders = new ArrayList<>();
+        private final List<SurveyCooperationData> cooperations = new ArrayList<>();
+
+        private EnterpriseImportBundle(Integer enterpriseId, String enterpriseName) {
+            this.enterpriseId = enterpriseId;
+            this.enterpriseName = enterpriseName;
         }
     }
 }

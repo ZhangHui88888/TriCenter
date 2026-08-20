@@ -18,6 +18,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class JwtCityContextTest {
@@ -67,7 +68,8 @@ class JwtCityContextTest {
                         ErrorKeys.CITY_ACCESS_REVOKED, "无权访问该城市"));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/enterprises");
-        request.addHeader("Authorization", "Bearer revoked-token");
+        request.setCookies(new org.springframework.mock.web.MockCookie(
+                "TRICENTER_ACCESS", "revoked-token"));
         MockHttpServletResponse response = new MockHttpServletResponse();
         MockFilterChain filterChain = new MockFilterChain();
         filter.doFilter(request, response, filterChain);
@@ -113,7 +115,8 @@ class JwtCityContextTest {
         when(userMapper.selectById(user.getId())).thenReturn(user);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/enterprises");
-        request.addHeader("Authorization", "Bearer disabled-token");
+        request.setCookies(new org.springframework.mock.web.MockCookie(
+                "TRICENTER_ACCESS", "disabled-token"));
         MockHttpServletResponse response = new MockHttpServletResponse();
         MockFilterChain filterChain = new MockFilterChain();
 
@@ -137,7 +140,8 @@ class JwtCityContextTest {
         when(jwtUtil.validateToken("expired-token")).thenReturn(false);
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/enterprises");
-        request.addHeader("Authorization", "Bearer expired-token");
+        request.setCookies(new org.springframework.mock.web.MockCookie(
+                "TRICENTER_ACCESS", "expired-token"));
         MockHttpServletResponse response = new MockHttpServletResponse();
         MockFilterChain filterChain = new MockFilterChain();
 
@@ -162,7 +166,8 @@ class JwtCityContextTest {
                 .thenThrow(new IllegalArgumentException("malformed"));
 
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/enterprises");
-        request.addHeader("Authorization", "Bearer malformed-token");
+        request.setCookies(new org.springframework.mock.web.MockCookie(
+                "TRICENTER_ACCESS", "malformed-token"));
         MockHttpServletResponse response = new MockHttpServletResponse();
         MockFilterChain filterChain = new MockFilterChain();
 
@@ -171,6 +176,26 @@ class JwtCityContextTest {
         assertThat(response.getStatus()).isEqualTo(401);
         assertThat(response.getContentAsString()).contains("TOKEN_EXPIRED");
         assertThat(filterChain.getRequest()).isNull();
+    }
+
+    @Test
+    void expiredAccessCookieDoesNotBlockRefreshEndpoint() throws Exception {
+        JwtUtil jwtUtil = mock(JwtUtil.class);
+        JwtAuthenticationFilter filter = new JwtAuthenticationFilter(
+                jwtUtil,
+                mock(UserMapper.class),
+                mock(CityAccessService.class),
+                new PermissionService(),
+                new ObjectMapper());
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/auth/refresh");
+        request.setCookies(new org.springframework.mock.web.MockCookie(
+                "TRICENTER_ACCESS", "expired-token"));
+        MockFilterChain filterChain = new MockFilterChain();
+
+        filter.doFilter(request, new MockHttpServletResponse(), filterChain);
+
+        assertThat(filterChain.getRequest()).isNotNull();
+        verifyNoInteractions(jwtUtil);
     }
 
     @Test

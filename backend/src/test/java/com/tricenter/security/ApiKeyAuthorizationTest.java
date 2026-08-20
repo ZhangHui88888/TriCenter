@@ -76,6 +76,28 @@ class ApiKeyAuthorizationTest {
         assertThat(filterChain.getRequest()).isNull();
     }
 
+    @Test
+    void invalidApiKeyCannotFallBackToCookieAuthenticationOrBypassCsrf() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/enterprises");
+        request.addHeader("X-API-Key", "invalid-key");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain filterChain = new MockFilterChain();
+
+        assertThat(filter.isCsrfExemptBookingRequest(request)).isFalse();
+        filter.doFilter(request, response, filterChain);
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        assertThat(filterChain.getRequest()).isNull();
+    }
+
+    @Test
+    void onlyValidBookingEndpointIsCsrfExempt() {
+        assertThat(filter.isCsrfExemptBookingRequest(
+                apiKeyRequest("POST", "/api/enterprises"))).isTrue();
+        assertThat(filter.isCsrfExemptBookingRequest(
+                apiKeyRequest("POST", "/api/providers"))).isFalse();
+    }
+
     private MockHttpServletRequest apiKeyRequest(String method, String path) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
         request.addHeader("X-API-Key", "booking-key");

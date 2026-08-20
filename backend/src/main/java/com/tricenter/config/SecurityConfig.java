@@ -5,6 +5,7 @@ import com.tricenter.security.JwtAuthenticationFilter;
 import com.tricenter.security.CitySelectionFilter;
 import com.tricenter.security.CsrfCookieFilter;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -40,15 +41,16 @@ public class SecurityConfig {
     private final CitySelectionFilter citySelectionFilter;
     private final CsrfCookieFilter csrfCookieFilter;
 
+    @Value("${tricenter.cors.allowed-origins}")
+    private List<String> corsAllowedOrigins;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                 .ignoringRequestMatchers("/api/auth/login", "/api/auth/refresh")
-                .ignoringRequestMatchers(request ->
-                        org.springframework.util.StringUtils.hasText(
-                                request.getHeader("X-API-Key"))))
+                .ignoringRequestMatchers(apiKeyAuthenticationFilter::isCsrfExemptBookingRequest))
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> 
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -82,10 +84,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of(
-            "http://localhost:5173", "http://localhost:3000", "http://localhost:3001",
-            "https://czcrop.top", "https://www.czcrop.top"
-        ));
+        configuration.setAllowedOrigins(corsAllowedOrigins);
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

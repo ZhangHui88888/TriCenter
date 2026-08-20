@@ -21,6 +21,7 @@ import NeonLoader from '@/components/NeonLoader';
 import { enterpriseApi, marketReportApi } from '@/services/api';
 import { setDeepSeekApiKey, getDeepSeekApiKey, hasDeepSeekApiKey } from '@/services/deepseek';
 import type { EnterpriseDetail } from '@/types';
+import type { ReportAiData } from './services/reportAiService';
 
 type ReportVersion = 'basic' | 'deep';
 
@@ -34,7 +35,6 @@ interface MissingField {
 
 const { Title, Text } = Typography;
 const AI_PROXY_AVAILABLE = true;
-type ReportAiData = Record<string, any>;
 
 /**
  * 第一层：阻断性检查 — 缺了不让生成
@@ -173,6 +173,7 @@ function MarketResearch() {
 
   useEffect(() => () => {
     searchAbortRef.current?.abort();
+    abortRef.current?.abort();
     setDeepSeekApiKey('');
   }, []);
 
@@ -215,12 +216,12 @@ function MarketResearch() {
       setLoadingStage('AI 正在分析企业数据并生成报告...');
       try {
         void existingReportData;
-        const aiResponse: any = await marketReportApi.generateAi({
+        const aiResponse = await marketReportApi.generateAi({
           enterpriseId: detail.id,
           version,
           providerApiKey: getDeepSeekApiKey(),
-        });
-        const generated = (aiResponse.data || {}) as ReportAiData;
+        }, controller.signal);
+        const generated = aiResponse.data || {};
         if (controller.signal.aborted) return;
         setAiData(generated);
         const name = detail.enterprise_name || (detail as any).enterpriseName || '企业';
@@ -646,7 +647,7 @@ function MarketResearch() {
         {reportVersion === 'basic' ? (
           <BasicReportTemplate ref={reportRef} enterprise={enterpriseData} aiData={aiData} />
         ) : (
-          <ReportTemplate ref={reportRef} enterprise={enterpriseData} />
+          <ReportTemplate ref={reportRef} enterprise={enterpriseData} aiData={aiData} />
         )}
       </div>
 

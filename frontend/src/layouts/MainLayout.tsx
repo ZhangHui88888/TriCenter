@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { Layout, Menu, Avatar, Button, Dropdown, Space, Switch, Tag, Tooltip, Modal, message } from 'antd';
+import { Layout, Menu, Avatar, Button, Drawer, Dropdown, Grid, Space, Switch, Tag, Tooltip, Modal, message } from 'antd';
 import {
   DashboardOutlined,
   ShopOutlined,
@@ -49,6 +49,9 @@ const userMenuItems: MenuProps['items'] = [
 
 function MainLayout() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const screens = Grid.useBreakpoint();
+  const isMobile = !screens.md;
   const navigate = useNavigate();
   const location = useLocation();
   const { mode, toggleTheme } = useThemeStore();
@@ -72,6 +75,7 @@ function MainLayout() {
 
   const handleMenuClick: MenuProps['onClick'] = ({ key }) => {
     navigate(key);
+    setMobileNavOpen(false);
   };
 
   const handleUserMenuClick: MenuProps['onClick'] = ({ key }) => {
@@ -144,57 +148,71 @@ function MainLayout() {
     label: city.name,
     disabled: city.id === currentCity?.id,
   }));
+  const navigation = (navigationCollapsed: boolean) => (
+    <>
+      <div style={{
+        height: isMobile ? 76 : 100, display: 'flex', alignItems: 'center',
+        padding: navigationCollapsed ? '0 16px' : '0 28px',
+      }}>
+        <div style={{
+          width: 36, height: 36, borderRadius: 12,
+          background: 'linear-gradient(135deg, #396AFF 0%, #2948FF 100%)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          fontSize: 18, color: '#fff', fontWeight: 700, flexShrink: 0,
+        }}>
+          三
+        </div>
+        {!navigationCollapsed && (
+          <div style={{ marginLeft: 12 }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: '#343C6A', lineHeight: 1.2 }}>
+              TriCenter
+            </div>
+            <div style={{ fontSize: 11, color: '#B1B1B1', marginTop: 2 }}>
+              企业信息管理
+            </div>
+          </div>
+        )}
+      </div>
+      <Menu
+        mode="inline"
+        selectedKeys={getSelectedKeys()}
+        items={menuItems}
+        onClick={handleMenuClick}
+        style={{ border: 'none', padding: '16px 0', fontSize: 18 }}
+      />
+    </>
+  );
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider
-        trigger={null}
-        collapsible
-        collapsed={collapsed}
-        width={250}
-        style={{ background: '#fff', borderRight: '1px solid #E6EFF5' }}
-      >
-        <div style={{
-          height: 100, display: 'flex', alignItems: 'center',
-          padding: collapsed ? '0 16px' : '0 28px',
-        }}>
-          <div style={{
-            width: 36, height: 36, borderRadius: 12,
-            background: 'linear-gradient(135deg, #396AFF 0%, #2948FF 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, color: '#fff', fontWeight: 700, flexShrink: 0,
-          }}>
-            三
-          </div>
-          {!collapsed && (
-            <div style={{ marginLeft: 12 }}>
-              <div style={{ fontSize: 18, fontWeight: 800, color: '#343C6A', lineHeight: 1.2 }}>
-                TriCenter
-              </div>
-              <div style={{ fontSize: 11, color: '#B1B1B1', marginTop: 2 }}>
-                企业信息管理
-              </div>
-            </div>
-          )}
-        </div>
-
-        <Menu
-          mode="inline"
-          selectedKeys={getSelectedKeys()}
-          items={menuItems}
-          onClick={handleMenuClick}
-          style={{
-            border: 'none',
-            padding: '16px 0',
-            fontSize: 18,
-          }}
-        />
-      </Sider>
+      {isMobile ? (
+        <Drawer
+          placement="left"
+          width={280}
+          open={mobileNavOpen}
+          onClose={() => setMobileNavOpen(false)}
+          styles={{ body: { padding: 0 } }}
+          aria-label="主导航"
+        >
+          {navigation(false)}
+        </Drawer>
+      ) : (
+        <Sider
+          trigger={null}
+          collapsible
+          collapsed={collapsed}
+          width={250}
+          style={{ background: '#fff', borderRight: '1px solid #E6EFF5' }}
+        >
+          {navigation(collapsed)}
+        </Sider>
+      )}
 
       <Layout>
         {/* 顶栏 */}
         <Header style={{
-          padding: '0 40px', height: 100, lineHeight: '100px',
+          padding: isMobile ? '0 16px' : '0 40px', height: isMobile ? 72 : 100,
+          lineHeight: isMobile ? '72px' : '100px',
           background: '#fff',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           borderBottom: '1px solid #E6EFF5',
@@ -203,12 +221,13 @@ function MainLayout() {
           <Space size="large" align="center">
             <Button
               type="text"
-              aria-label={collapsed ? '展开侧边导航' : '收起侧边导航'}
-              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-              onClick={() => setCollapsed(!collapsed)}
+              aria-label={isMobile ? '打开主导航' : collapsed ? '展开侧边导航' : '收起侧边导航'}
+              aria-expanded={isMobile ? mobileNavOpen : !collapsed}
+              icon={isMobile || collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => isMobile ? setMobileNavOpen(true) : setCollapsed(!collapsed)}
               style={{ fontSize: 22, color: '#333' }}
             />
-            <span style={{ fontSize: 28, fontWeight: 600, color: '#343C6A' }}>
+            <span style={{ fontSize: isMobile ? 20 : 28, fontWeight: 600, color: '#343C6A' }}>
               {currentTitle && 'label' in currentTitle ? currentTitle.label : '概览看板'}
             </span>
           </Space>
@@ -233,7 +252,7 @@ function MainLayout() {
                 {currentCity.name}
               </Tag>
             ) : null}
-            <AppGuide />
+            {!isMobile && <AppGuide />}
             <Tooltip title={mode === 'dark' ? '切换亮色' : '切换暗色'}>
               <Switch
                 checked={mode === 'dark'} onChange={toggleTheme}
@@ -244,7 +263,7 @@ function MainLayout() {
             <Dropdown menu={{ items: userMenuItems, onClick: handleUserMenuClick }} placement="bottomRight">
               <Space style={{ cursor: 'pointer' }}>
                 <Avatar
-                  size={60}
+                  size={isMobile ? 40 : 60}
                   style={{ background: 'linear-gradient(135deg, #396AFF 0%, #2948FF 100%)' }}
                   icon={<UserOutlined />}
                 />
@@ -255,7 +274,7 @@ function MainLayout() {
 
         {/* 内容区 */}
         <Content style={{
-          padding: '28px 40px',
+          padding: isMobile ? 16 : '28px 40px',
           background: mode === 'dark' ? '#111827' : '#F5F7FA',
           overflow: 'auto',
           transition: 'background 0.3s ease',

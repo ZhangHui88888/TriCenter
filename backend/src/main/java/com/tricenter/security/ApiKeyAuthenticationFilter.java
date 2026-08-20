@@ -21,6 +21,7 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.util.Collections;
 import java.util.regex.Pattern;
 
@@ -52,7 +53,15 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
 
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
             String apiKey = request.getHeader(API_KEY_HEADER);
-            if (StringUtils.hasText(apiKey) && apiKey.equals(validApiKey)) {
+            if (StringUtils.hasText(apiKey)) {
+                if (!isValidApiKey(apiKey)) {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    objectMapper.writeValue(
+                            response.getWriter(), Result.unauthorized("API Key 无效"));
+                    return;
+                }
                 if (!isBookingEndpoint(request)) {
                     response.setStatus(HttpServletResponse.SC_FORBIDDEN);
                     response.setCharacterEncoding(StandardCharsets.UTF_8.name());
@@ -73,6 +82,17 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    public boolean isCsrfExemptBookingRequest(HttpServletRequest request) {
+        String apiKey = request.getHeader(API_KEY_HEADER);
+        return StringUtils.hasText(apiKey) && isValidApiKey(apiKey) && isBookingEndpoint(request);
+    }
+
+    private boolean isValidApiKey(String apiKey) {
+        return MessageDigest.isEqual(
+                apiKey.getBytes(StandardCharsets.UTF_8),
+                validApiKey.getBytes(StandardCharsets.UTF_8));
     }
 
     private boolean isBookingEndpoint(HttpServletRequest request) {

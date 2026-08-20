@@ -1,6 +1,8 @@
+import { theme } from 'antd';
 import type { ThemeConfig } from 'antd';
 
 export const lightTheme: ThemeConfig = {
+  algorithm: theme.defaultAlgorithm,
   token: {
     colorPrimary: '#396AFF',
     colorSuccess: '#16DBCC',
@@ -56,6 +58,7 @@ export const lightTheme: ThemeConfig = {
 };
 
 export const darkTheme: ThemeConfig = {
+  algorithm: theme.darkAlgorithm,
   token: {
     colorPrimary: '#396AFF',
     colorSuccess: '#16DBCC',

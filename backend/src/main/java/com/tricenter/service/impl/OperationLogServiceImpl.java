@@ -7,15 +7,12 @@ import com.tricenter.mapper.OperationLogMapper;
 import com.tricenter.service.OperationLogService;
 import com.tricenter.security.CityContext;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 /**
  * 操作日志服务实现
  */
-@Slf4j
 @Service
 @RequiredArgsConstructor
 public class OperationLogServiceImpl implements OperationLogService {
@@ -23,25 +20,20 @@ public class OperationLogServiceImpl implements OperationLogService {
     private final OperationLogMapper operationLogMapper;
     private final CityContext cityContext;
 
-    @Async
     @Override
     public void log(Integer userId, Integer cityId, String username, String operation, String targetType,
                     String targetId, String targetName, String detail, String ipAddress) {
-        try {
-            OperationLog logEntry = new OperationLog();
-            logEntry.setUserId(userId);
-            logEntry.setCityId(cityId);
-            logEntry.setUsername(username);
-            logEntry.setOperation(operation);
-            logEntry.setTargetType(targetType);
-            logEntry.setTargetId(targetId);
-            logEntry.setTargetName(targetName);
-            logEntry.setDetail(detail);
-            logEntry.setIpAddress(ipAddress);
-            operationLogMapper.insert(logEntry);
-        } catch (Exception e) {
-            log.error("记录操作日志失败", e);
-        }
+        OperationLog logEntry = new OperationLog();
+        logEntry.setUserId(userId);
+        logEntry.setCityId(cityId);
+        logEntry.setUsername(username);
+        logEntry.setOperation(operation);
+        logEntry.setTargetType(targetType);
+        logEntry.setTargetId(targetId);
+        logEntry.setTargetName(targetName);
+        logEntry.setDetail(detail);
+        logEntry.setIpAddress(ipAddress);
+        operationLogMapper.insert(logEntry);
     }
 
     @Override

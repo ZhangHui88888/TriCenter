@@ -104,7 +104,7 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
             default -> throw BusinessException.badRequest("不支持的分类类型");
         };
 
-        dictionaryCache.refresh();
+        dictionaryCache.refreshAfterCommit();
         log.info("新增树分类: type={}, name={}, parentId={}, id={}", type, request.getName(), parentId, newId);
         return findById(type, newId);
     }
@@ -132,7 +132,7 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
             default -> throw new IllegalStateException("未支持的分类类型: " + type);
         }
 
-        dictionaryCache.refresh();
+        dictionaryCache.refreshAfterCommit();
         log.info("更新树分类: type={}, id={}", type, id);
         return findById(type, id);
     }
@@ -157,7 +157,7 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
             default -> throw new IllegalStateException("未支持的分类类型: " + type);
         }
 
-        dictionaryCache.refresh();
+        dictionaryCache.refreshAfterCommit();
         log.info("删除树分类: type={}, id={}", type, id);
     }
 
@@ -192,7 +192,7 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
             restored++;
         }
         if (restored > 0) {
-            dictionaryCache.refresh();
+            dictionaryCache.refreshAfterCommit();
         }
         log.info("补齐缺失默认分类: type={}, restored={}", type, restored);
         return restored;

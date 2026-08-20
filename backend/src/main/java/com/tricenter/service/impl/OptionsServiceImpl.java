@@ -204,7 +204,7 @@ public class OptionsServiceImpl implements OptionsService {
         option.setIsEnabled(request.getIsEnabled() != null ? request.getIsEnabled() : 1);
         
         systemOptionMapper.insert(option);
-        dictionaryCache.refresh();
+        dictionaryCache.refreshAfterCommit();
         log.info("新增字典选项: category={}, value={}", category, request.getValue());
         
         return toOptionResponse(option);
@@ -234,7 +234,7 @@ public class OptionsServiceImpl implements OptionsService {
         }
         
         systemOptionMapper.updateById(option);
-        dictionaryCache.refresh();
+        dictionaryCache.refreshAfterCommit();
         log.info("更新字典选项: id={}, category={}", id, category);
         
         return toOptionResponse(option);
@@ -260,7 +260,7 @@ public class OptionsServiceImpl implements OptionsService {
         }
         
         systemOptionMapper.deleteById(id);
-        dictionaryCache.refresh();
+        dictionaryCache.refreshAfterCommit();
         log.info("删除字典选项: id={}, category={}", id, category);
     }
 

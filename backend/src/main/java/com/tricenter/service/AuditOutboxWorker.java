@@ -31,10 +31,17 @@ public class AuditOutboxWorker {
 
     @Scheduled(fixedDelayString = "${tricenter.audit.poll-delay-ms:5000}")
     public void poll() {
+        LocalDateTime now = LocalDateTime.now();
+        outboxMapper.update(null,
+                new LambdaUpdateWrapper<AuditOutbox>()
+                        .eq(AuditOutbox::getStatus, "PROCESSING")
+                        .le(AuditOutbox::getAvailableAt, now)
+                        .set(AuditOutbox::getStatus, "PENDING")
+                        .set(AuditOutbox::getLastError, "recovered stale worker claim"));
         List<AuditOutbox> pending = outboxMapper.selectList(
                 new LambdaQueryWrapper<AuditOutbox>()
                         .eq(AuditOutbox::getStatus, "PENDING")
-                        .le(AuditOutbox::getAvailableAt, LocalDateTime.now())
+                        .le(AuditOutbox::getAvailableAt, now)
                         .orderByAsc(AuditOutbox::getId)
                         .last("LIMIT 100"));
         pending.forEach(event -> auditExecutor.execute(() -> process(event)));
@@ -45,7 +52,8 @@ public class AuditOutboxWorker {
                 new LambdaUpdateWrapper<AuditOutbox>()
                         .eq(AuditOutbox::getId, event.getId())
                         .eq(AuditOutbox::getStatus, "PENDING")
-                        .set(AuditOutbox::getStatus, "PROCESSING"));
+                        .set(AuditOutbox::getStatus, "PROCESSING")
+                        .set(AuditOutbox::getAvailableAt, LocalDateTime.now().plusMinutes(5)));
         if (claimed != 1) return;
 
         try {

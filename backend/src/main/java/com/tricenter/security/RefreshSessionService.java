@@ -1,6 +1,8 @@
 package com.tricenter.security;
 
 import com.tricenter.common.exception.BusinessException;
+import com.tricenter.entity.User;
+import com.tricenter.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -22,6 +24,7 @@ public class RefreshSessionService {
     private static final String REFRESH_PREFIX = "auth:refresh:";
     private static final String USER_PREFIX = "auth:user-sessions:";
     private final StringRedisTemplate redisTemplate;
+    private final UserMapper userMapper;
     private final SecureRandom secureRandom = new SecureRandom();
 
     public IssuedRefreshSession issue(
@@ -31,13 +34,15 @@ public class RefreshSessionService {
             secureRandom.nextBytes(random);
             String rawToken = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
             String tokenHash = sha256(rawToken);
+            int tokenVersion = currentTokenVersion(userId);
             String sessionValue = userId + ":" +
-                    (currentCityId == null ? "" : currentCityId) + ":" + citySelectionPending;
+                    (currentCityId == null ? "" : currentCityId) + ":" +
+                    citySelectionPending + ":" + tokenVersion;
             redisTemplate.opsForValue().set(REFRESH_PREFIX + tokenHash, sessionValue, SESSION_TTL);
             redisTemplate.opsForSet().add(USER_PREFIX + userId, tokenHash);
             redisTemplate.expire(USER_PREFIX + userId, SESSION_TTL);
             return new IssuedRefreshSession(rawToken,
-                    new RefreshContext(userId, currentCityId, citySelectionPending));
+                    new RefreshContext(userId, currentCityId, citySelectionPending, tokenVersion));
         } catch (Exception e) {
             log.error("无法创建 refresh session", e);
             throw new BusinessException(503, "认证会话服务暂不可用，请稍后重试");
@@ -56,6 +61,9 @@ public class RefreshSessionService {
             }
             RefreshContext context = parse(value);
             redisTemplate.opsForSet().remove(USER_PREFIX + context.userId(), tokenHash);
+            if (context.tokenVersion() != currentTokenVersion(context.userId())) {
+                throw BusinessException.unauthorized("refresh session 已撤销");
+            }
             return issue(context.userId(), context.currentCityId(), context.citySelectionPending());
         } catch (BusinessException e) {
             throw e;
@@ -79,11 +87,21 @@ public class RefreshSessionService {
 
     private RefreshContext parse(String value) {
         String[] parts = value.split(":", -1);
-        if (parts.length != 3) {
+        if (parts.length != 4) {
             throw BusinessException.unauthorized("refresh session 数据无效");
         }
         Integer cityId = parts[1].isBlank() ? null : Integer.valueOf(parts[1]);
-        return new RefreshContext(Integer.valueOf(parts[0]), cityId, Boolean.parseBoolean(parts[2]));
+        return new RefreshContext(
+                Integer.valueOf(parts[0]), cityId,
+                Boolean.parseBoolean(parts[2]), Integer.parseInt(parts[3]));
+    }
+
+    private int currentTokenVersion(Integer userId) {
+        User user = userMapper.selectById(userId);
+        if (user == null || !Integer.valueOf(1).equals(user.getStatus())) {
+            throw BusinessException.unauthorized("refresh session 所属账号不可用");
+        }
+        return user.getTokenVersion() == null ? 0 : user.getTokenVersion();
     }
 
     private String sha256(String rawToken) {
@@ -97,7 +115,7 @@ public class RefreshSessionService {
     }
 
     public record RefreshContext(
-            Integer userId, Integer currentCityId, boolean citySelectionPending) {
+            Integer userId, Integer currentCityId, boolean citySelectionPending, int tokenVersion) {
     }
 
     public record IssuedRefreshSession(String rawToken, RefreshContext context) {

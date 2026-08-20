@@ -316,8 +316,12 @@ export const marketReportApi = {
   save: (enterpriseId: number, version: 'basic' | 'deep', data: Record<string, any>) =>
     request.put(`/market-reports/${enterpriseId}/${version}`, data),
 
-  generateAi: (data: { enterpriseId: number; version: 'basic' | 'deep'; providerApiKey: string }) =>
-    request.post<Record<string, unknown>>('/market-reports/ai/generate', data, { timeout: 130000 }),
+  generateAi: (
+    data: { enterpriseId: number; version: 'basic' | 'deep'; providerApiKey: string },
+    signal?: AbortSignal,
+  ) => request.post<Record<string, string>>(
+    '/market-reports/ai/generate', data, { timeout: 130000, signal },
+  ),
 };
 
 // 基础数据/选项 API

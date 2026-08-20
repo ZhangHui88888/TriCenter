@@ -148,13 +148,8 @@ public class AuthController {
     }
 
     private String clientIp(HttpServletRequest request) {
-        String remote = request.getRemoteAddr();
-        if ("127.0.0.1".equals(remote) || "0:0:0:0:0:0:0:1".equals(remote) || "::1".equals(remote)) {
-            String forwarded = request.getHeader("X-Forwarded-For");
-            if (forwarded != null && !forwarded.isBlank()) {
-                return forwarded.split(",", 2)[0].trim();
-            }
-        }
-        return remote;
+        // Production uses Tomcat's trusted-proxy RemoteIpValve. Never parse a
+        // client-controlled forwarding header in application code.
+        return request.getRemoteAddr();
     }
 }
