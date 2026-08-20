@@ -1693,34 +1693,7 @@ INSERT INTO requirements (id, name, description, detail_description, phase, cate
 '遵循ESG（环境、社会、治理）合规要求，如碳排放披露、劳工标准；建设绿色供应链（环保材料、低碳物流）；履行社会责任（公益捐赠、供应商审计），提升品牌可持续发展形象。',
 'phase_4', '4.6', 1);
 
--- ============================================================
--- 常州跨境电商三中心 - 企业信息管理系统
--- 用户初始化数据
--- ============================================================
-
--- 初始化管理员用户
--- 密码: admin123 (BCrypt加密)
--- 注意: 如需修改密码，请使用BCrypt加密后替换
-
-INSERT INTO users (username, password, name, role, phone, email, status) VALUES
-('admin', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '系统管理员', 'admin', '13800000000', 'admin@tricenter.com', 1),
-('manager', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '业务主管', 'manager', '13800000001', 'manager@tricenter.com', 1),
-('user', '$2b$10$.zvpTySBuyu2opr2T8PdGe2QCZNibqsMv75oT8eIXS4Cl365Ew.dK', '普通用户', 'user', '13800000002', 'user@tricenter.com', 1)
-ON DUPLICATE KEY UPDATE name = VALUES(name);
-
-INSERT INTO user_cities (user_id, city_id)
-SELECT id, @changzhou_city_id
-FROM users
-ON DUPLICATE KEY UPDATE city_id = VALUES(city_id);
-
--- ============================================================
--- 默认账号信息:
--- | 用户名   | 密码      | 角色     | 说明       |
--- |---------|----------|---------|-----------|
--- | admin   | admin123 | admin   | 系统管理员 |
--- | manager | admin123 | manager | 业务主管   |
--- | user    | admin123 | user    | 普通用户   |
--- ============================================================
+-- 用户不再由初始化 SQL 创建；请通过受控的管理员流程创建并分配城市权限。
 
 
 -- ============================================================

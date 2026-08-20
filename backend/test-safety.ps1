@@ -30,3 +30,29 @@ function Assert-TriCenterTestTarget {
         throw "目标不是 TriCenter 后端，已拒绝执行"
     }
 }
+
+function Assert-TriCenterTestCredentials {
+    param(
+        [string]$Username,
+        [string]$Password
+    )
+
+    if ([string]::IsNullOrWhiteSpace($Username) -or [string]::IsNullOrWhiteSpace($Password)) {
+        throw "请通过 -TestUsername/-TestPassword 或 TRICENTER_TEST_USERNAME/TRICENTER_TEST_PASSWORD 提供隔离环境测试凭据"
+    }
+}
+
+function Get-TriCenterCsrfHeaders {
+    param(
+        [Parameter(Mandatory = $true)]
+        [Microsoft.PowerShell.Commands.WebRequestSession]$Session,
+        [Parameter(Mandatory = $true)]
+        [string]$ServerUrl
+    )
+
+    $cookie = $Session.Cookies.GetCookies([Uri]$ServerUrl)['XSRF-TOKEN']
+    if ($null -eq $cookie) {
+        throw "认证会话没有返回 XSRF-TOKEN Cookie，无法安全执行写请求"
+    }
+    return @{ 'X-XSRF-TOKEN' = [Uri]::UnescapeDataString($cookie.Value) }
+}

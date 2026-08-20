@@ -46,7 +46,7 @@ public class JwtUtil {
         claims.put("username", username);
         claims.put("role", role);
         claims.put("citySelectionPending", citySelectionPending);
-        claims.put("tokenVersion", tokenVersion == null ? 0 : tokenVersion);
+        claims.put("tokenVersion", tokenVersion == null ? Integer.valueOf(0) : tokenVersion);
         if (currentCityId != null) {
             claims.put("currentCityId", currentCityId);
         }

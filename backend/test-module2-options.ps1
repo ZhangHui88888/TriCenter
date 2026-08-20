@@ -5,6 +5,8 @@
 
 param(
     [string]$BaseUrl = "http://localhost:8081",
+    [string]$TestUsername = $env:TRICENTER_TEST_USERNAME,
+    [string]$TestPassword = $env:TRICENTER_TEST_PASSWORD,
     [switch]$AllowWriteTests,
     [switch]$AllowRemote
 )
@@ -12,8 +14,9 @@ param(
 . "$PSScriptRoot\test-safety.ps1"
 Assert-TriCenterTestTarget -ServerUrl $BaseUrl -AllowRemote:$AllowRemote `
     -RequireWritePermission -AllowWriteTests:$AllowWriteTests
+Assert-TriCenterTestCredentials -Username $TestUsername -Password $TestPassword
 
-$Token = ""
+$Session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 $TestResults = @()
 $PassCount = 0
 $FailCount = 0
@@ -43,16 +46,16 @@ function Invoke-Api {
         [string]$Method,
         [string]$Endpoint,
         [object]$Body = $null,
-        [bool]$UseToken = $true,
+        [bool]$UseSession = $true,
         [string]$CustomToken = ""
     )
     
     $headers = @{ "Content-Type" = "application/json" }
-    if ($UseToken -and $script:Token) {
-        $headers["Authorization"] = "Bearer $script:Token"
-    }
     if ($CustomToken) {
         $headers["Authorization"] = "Bearer $CustomToken"
+    }
+    if ($UseSession -and $Method -in @('POST', 'PUT', 'PATCH', 'DELETE')) {
+        $headers += Get-TriCenterCsrfHeaders -Session $script:Session -ServerUrl $BaseUrl
     }
     
     $params = @{
@@ -60,6 +63,9 @@ function Invoke-Api {
         Uri = "$BaseUrl$Endpoint"
         Headers = $headers
         ContentType = "application/json"
+    }
+    if ($UseSession -or $Endpoint -eq '/api/auth/login') {
+        $params['WebSession'] = $script:Session
     }
 
     if ($Body) {
@@ -82,15 +88,15 @@ function Invoke-Api {
 }
 
 # ============================================================
-# 前置条件：登录获取Token
+# 前置条件：登录建立 Cookie 会话
 # ============================================================
 
-Write-Test "前置条件：登录获取Token"
+Write-Test "前置条件：登录建立 Cookie 会话"
 
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "admin"; password = "admin123" } -UseToken $false
-if ($result.Success -and $result.Data.data.token) {
-    $script:Token = $result.Data.data.token
-    Write-Pass "登录成功，获取到Token"
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = $TestUsername; password = $TestPassword } -UseSession $false
+$accessCookie = $script:Session.Cookies.GetCookies([Uri]$BaseUrl)['TRICENTER_ACCESS']
+if ($result.Success -and $null -ne $accessCookie) {
+    Write-Pass "登录成功，已建立 Cookie 会话"
 } else {
     Write-Fail "登录失败，无法继续测试: $($result.Message)"
     exit 1
@@ -150,7 +156,7 @@ if ($result.Success) {
 }
 
 # 无Token访问options
-$result = Invoke-Api -Method "GET" -Endpoint "/api/options/stage" -UseToken $false
+$result = Invoke-Api -Method "GET" -Endpoint "/api/options/stage" -UseSession $false
 if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode -eq 403)) {
     Write-Pass "无Token访问options - 正确拒绝"
     Add-Result "GET /api/options/stage" "无Token" "401/403" "$($result.StatusCode)" $true
@@ -302,7 +308,7 @@ if ($result.Success -and $result.Data.data.sortOrder -eq 99) {
 }
 
 # 无Token新增
-$result = Invoke-Api -Method "POST" -Endpoint "/api/dictionary/source" -Body @{ value = "notoken"; label = "NoToken" } -UseToken $false
+$result = Invoke-Api -Method "POST" -Endpoint "/api/dictionary/source" -Body @{ value = "notoken"; label = "NoToken" } -UseSession $false
 if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode -eq 403)) {
     Write-Pass "无Token新增 - 正确拒绝"
     Add-Result "POST /api/dictionary/source" "无Token" "401/403" "$($result.StatusCode)" $true
@@ -379,7 +385,7 @@ if (-not $result.Success -and $result.StatusCode -eq 404) {
 }
 
 # 无Token更新
-$result = Invoke-Api -Method "PUT" -Endpoint "/api/dictionary/source/1" -Body @{ label = "Test" } -UseToken $false
+$result = Invoke-Api -Method "PUT" -Endpoint "/api/dictionary/source/1" -Body @{ label = "Test" } -UseSession $false
 if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode -eq 403)) {
     Write-Pass "无Token更新 - 正确拒绝"
     Add-Result "PUT /api/dictionary/source/1" "无Token" "401/403" "$($result.StatusCode)" $true
@@ -412,7 +418,7 @@ if (-not $result.Success -and $result.StatusCode -eq 404) {
 }
 
 # 无Token删除
-$result = Invoke-Api -Method "DELETE" -Endpoint "/api/dictionary/source/1" -UseToken $false
+$result = Invoke-Api -Method "DELETE" -Endpoint "/api/dictionary/source/1" -UseSession $false
 if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode -eq 403)) {
     Write-Pass "无Token删除 - 正确拒绝"
     Add-Result "DELETE /api/dictionary/source/1" "无Token" "401/403" "$($result.StatusCode)" $true

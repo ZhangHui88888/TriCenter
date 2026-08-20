@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.cursor
+.windsurf
+META-INF
+frontend/node_modules
+frontend/dist
+backend/target
+data
+*.log
+.env*

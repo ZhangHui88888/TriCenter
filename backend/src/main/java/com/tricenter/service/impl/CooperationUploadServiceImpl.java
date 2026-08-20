@@ -23,6 +23,7 @@ import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Locale;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import java.util.Set;
@@ -79,7 +80,7 @@ public class CooperationUploadServiceImpl implements CooperationUploadService {
         String ext = "";
         int dot = original.lastIndexOf('.');
         if (dot >= 0 && dot < original.length() - 1) {
-            String raw = original.substring(dot).toLowerCase();
+            String raw = original.substring(dot).toLowerCase(Locale.ROOT);
             if (raw.matches("^\\.[a-z0-9]{1,15}$")) {
                 ext = raw;
             }

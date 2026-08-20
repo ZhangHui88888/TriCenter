@@ -1,0 +1,26 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": ["src/main.tsx", "vite.config.ts", "vitest.config.ts"],
+  "project": ["src/**/*.{ts,tsx}", "tests/**/*.ts", "scripts/**/*.mjs"],
+  "ignore": [
+    "src/vite-env.d.ts",
+    "src/data/mockData.ts",
+    "src/components/EmptyState.tsx",
+    "src/components/index.ts",
+    "src/components/PageLoading.tsx",
+    "src/pages/ProviderList.tsx",
+    "src/services/index.ts",
+    "src/utils/exportEnterpriseExcel.ts"
+  ],
+  "ignoreDependencies": [
+    "@ant-design/pro-components",
+    "exceljs",
+    "file-saver",
+    "@types/file-saver",
+    "@typescript-eslint/eslint-plugin",
+    "eslint-plugin-react-refresh",
+    "autoprefixer",
+    "postcss",
+    "tailwindcss"
+  ]
+}

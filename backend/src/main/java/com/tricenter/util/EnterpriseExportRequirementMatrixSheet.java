@@ -132,7 +132,7 @@ public final class EnterpriseExportRequirementMatrixSheet {
         for (int r = 0; r < reqs.size(); r++) {
             RequirementConfigResponse.RequirementItemDTO item = reqs.get(r);
             Row row = sheet.createRow(dataStartRow + r);
-            boolean alt = r % 2 == 1;
+            boolean alt = r % 2 != 0;
             CellStyle base = alt ? dataAltStyle : dataStyle;
 
             setCell(row, 0, nz(item.getPhase()), base);

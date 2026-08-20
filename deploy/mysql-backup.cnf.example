@@ -1,0 +1,7 @@
+# Copy to /etc/tricenter/mysql-backup.cnf and chmod 600.
+[client]
+host=127.0.0.1
+port=3306
+user=replace_me
+password=replace_me
+default-character-set=utf8mb4

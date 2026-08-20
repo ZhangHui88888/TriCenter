@@ -29,6 +29,8 @@ jwt:
 # 系统间API Key认证
 tricenter:
   api-key: ${TRICENTER_API_KEY}
+  cooperation-upload-dir: ${TRICENTER_UPLOAD_DIR:/var/lib/tricenter/uploads}
+  upload-quarantine-dir: ${TRICENTER_QUARANTINE_DIR:/var/lib/tricenter/quarantine}
   auth:
     secure-cookie: true
     accept-bearer: false
@@ -41,6 +43,11 @@ springdoc:
 
 knife4j:
   enable: false
+
+management:
+  server:
+    address: 127.0.0.1
+    port: ${MANAGEMENT_PORT:8082}
 
 # 日志配置
 logging:

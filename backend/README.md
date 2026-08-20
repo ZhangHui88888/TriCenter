@@ -53,15 +53,14 @@ mvn spring-boot:run
 
 ### 5. 访问API文档
 
-启动后访问: http://localhost:8080/doc.html
+启动后访问: http://localhost:8081/doc.html
 
-## 默认账号
+## 开发账号
 
-| 用户名 | 密码 | 角色 |
-|--------|------|------|
-| admin | admin123 | 管理员 |
-| manager | admin123 | 业务主管 |
-| user | admin123 | 普通用户 |
+仓库不提供默认账号。仅在隔离的开发环境中，可设置
+`TRICENTER_DEV_SEED_ADMIN=true`，并通过
+`TRICENTER_DEV_ADMIN_USERNAME`、`TRICENTER_DEV_ADMIN_PASSWORD`
+显式提供一次性开发管理员凭据。
 
 ## API模块
 

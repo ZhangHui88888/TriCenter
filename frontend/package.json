@@ -7,7 +7,12 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "test": "node --test tests/authErrorPolicy.test.ts tests/authSync.test.ts tests/citySwitchGuardStore.test.ts tests/citySwitchTransaction.test.ts tests/writeRequestTracker.test.ts",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "bundle:budget": "node scripts/check-bundle-budget.mjs",
+    "knip": "knip --include files,dependencies,unlisted,binaries",
+    "jscpd": "jscpd src --threshold 1.2 --min-lines 10 --min-tokens 70 --ignore \"**/AnimatedCharacters.tsx\" --reporters console",
+    "quality:type-debt": "node scripts/check-type-debt.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -33,13 +38,17 @@
     "@typescript-eslint/eslint-plugin": "^6.18.0",
     "@typescript-eslint/parser": "^6.18.0",
     "@vitejs/plugin-react": "^4.2.1",
+    "@vitest/coverage-v8": "^2.1.9",
     "autoprefixer": "^10.4.16",
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "eslint-plugin-react-refresh": "^0.4.5",
+    "jscpd": "^4.0.5",
+    "knip": "^5.46.0",
     "postcss": "^8.4.33",
     "tailwindcss": "^3.4.1",
     "typescript": "^5.3.3",
-    "vite": "^5.0.11"
+    "vite": "^5.0.11",
+    "vitest": "^2.1.9"
   }
 }

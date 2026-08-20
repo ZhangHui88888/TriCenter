@@ -123,20 +123,11 @@ public class AiMarketReportService {
     }
 
     private String buildRedactedContext(Enterprise enterprise, String version) {
-        return """
-                报告版本：%s
-                企业名称：%s
-                企业类型：%s
-                所在地区：%s%s%s
-                行业分类ID：%s
-                品牌：%s
-                国内营收（万元）：%s
-                上年外贸营收（万元）：%s
-                是否开展跨境电商：%s
-                目标区域ID：%s
-                目标国家代码：%s
-                当前阶段：%s
-                """.formatted(
+        String format = String.join(System.lineSeparator(),
+                "报告版本：%s", "企业名称：%s", "企业类型：%s", "所在地区：%s%s%s",
+                "行业分类ID：%s", "品牌：%s", "国内营收（万元）：%s", "上年外贸营收（万元）：%s",
+                "是否开展跨境电商：%s", "目标区域ID：%s", "目标国家代码：%s", "当前阶段：%s");
+        return format.formatted(
                 version, safe(enterprise.getName()), safe(enterprise.getEnterpriseType()),
                 safe(enterprise.getProvince()), safe(enterprise.getCity()), safe(enterprise.getDistrict()),
                 safe(enterprise.getIndustryId()), safe(enterprise.getBrandNames()),

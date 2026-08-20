@@ -258,15 +258,12 @@ public class FollowUpServiceImpl implements FollowUpService {
         response.setCreatedAt(record.getCreatedAt());
         
         // 获取企业名称
-        Enterprise enterprise;
         try {
-            enterprise = cityAccessService.requireEnterprise(
+            Enterprise enterprise = cityAccessService.requireEnterprise(
                     record.getEnterpriseId(), cityContext.requireCityId());
-        } catch (BusinessException ignored) {
-            enterprise = null;
-        }
-        if (enterprise != null) {
             response.setEnterpriseName(enterprise.getName());
+        } catch (BusinessException ignored) {
+            // Historical records may refer to an enterprise outside the current city scope.
         }
         
         // 获取跟进人姓名

@@ -103,9 +103,11 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             // 从数据库加载所有选项，用于填写提示
             Map<String, List<String>> optionLabels = loadAllOptionLabels();
 
+            @SuppressWarnings("PMD.CloseResource") // EasyExcel uses finish(), not AutoCloseable.close().
             ExcelWriter writer = EasyExcel.write(response.getOutputStream())
                     .registerWriteHandler(new SurveyExcelStyleHandler())
                     .build();
+            try {
 
             // Sheet0: 填写说明（放在最前面）
             WriteSheet guideSheet = EasyExcel.writerSheet(0, "填写说明")
@@ -543,11 +545,16 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             reqData.add(customReqRow);
             writer.write(reqData, sheet7);
 
-            writer.finish();
+            } finally {
+                writer.finish();
+            }
             response.getOutputStream().flush();
             log.info("调研Excel流式导出成功: fileNamePrefix={}, enterpriseCount={}",
                     fileNamePrefix, enterprises.size());
-        } catch (Exception e) {
+        } catch (java.io.IOException e) {
+            log.error("导出调研Excel失败", e);
+            throw new BusinessException("导出失败: " + e.getMessage());
+        } catch (RuntimeException e) {
             log.error("导出调研Excel失败", e);
             throw new BusinessException("导出失败: " + e.getMessage());
         }
@@ -995,7 +1002,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             tradeList = readSheet(workbook, SurveyTradeData.class, "外贸信息");
             crossBorderList = readSheet(workbook, SurveyCrossBorderData.class, "跨境电商信息");
             cooperationList = readSheet(workbook, SurveyCooperationData.class, "合作与政策信息");
-        } catch (Exception e) {
+        } catch (java.io.IOException | RuntimeException e) {
             log.error("导入调研Excel解析失败", e);
             throw BusinessException.badRequest("文件解析失败: " + e.getMessage());
         }

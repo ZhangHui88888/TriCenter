@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.Locale;
 
 @Service
 public class PermissionService {
@@ -64,7 +65,7 @@ public class PermissionService {
 
     public List<GrantedAuthority> getAuthorities(String role) {
         List<GrantedAuthority> authorities = new ArrayList<>();
-        authorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase()));
+        authorities.add(new SimpleGrantedAuthority("ROLE_" + role.toUpperCase(Locale.ROOT)));
         getPermissions(role).stream()
                 .map(SimpleGrantedAuthority::new)
                 .forEach(authorities::add);

@@ -180,10 +180,11 @@ public class DashboardServiceImpl implements DashboardService {
         
         // 按固定顺序返回
         List<FunnelStageResponse> result = new ArrayList<>();
-        for (String stage : STAGE_NAMES.keySet()) {
+        for (Map.Entry<String, String> stageEntry : STAGE_NAMES.entrySet()) {
+            String stage = stageEntry.getKey();
             result.add(new FunnelStageResponse(
                 stage,
-                STAGE_NAMES.get(stage),
+                stageEntry.getValue(),
                 stageMap.getOrDefault(stage, 0),
                 STAGE_COLORS.get(stage)
             ));

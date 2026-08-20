@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<ruleset name="TriCenter production rules"
+         xmlns="http://pmd.sourceforge.net/ruleset/2.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://pmd.sourceforge.net/ruleset/2.0.0 https://pmd.sourceforge.io/ruleset_2_0_0.xsd">
+    <description>Priority 1-3 correctness and security rules used by CI.</description>
+    <rule ref="category/java/errorprone.xml">
+        <!-- Duplicated constants are measured by jscpd; literal-condition rules are style-only. -->
+        <exclude name="AvoidDuplicateLiterals"/>
+        <exclude name="AvoidLiteralsInIfCondition"/>
+        <!-- Several query helpers intentionally use null as the sentinel for "filter not requested". -->
+        <exclude name="ReturnEmptyCollectionRatherThanNull"/>
+        <exclude name="NullAssignment"/>
+    </rule>
+    <rule ref="category/java/security.xml"/>
+</ruleset>

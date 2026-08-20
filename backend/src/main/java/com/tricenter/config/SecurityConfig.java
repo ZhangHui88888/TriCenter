@@ -55,6 +55,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 // 公开接口
                 .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/system/identity").permitAll()
+                .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                 // Swagger文档
                 .requestMatchers("/doc.html", "/swagger-ui/**", "/v3/api-docs/**", 
                     "/swagger-resources/**", "/webjars/**").permitAll()

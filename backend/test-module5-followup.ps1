@@ -3,6 +3,8 @@
 
 param(
     [string]$ServerUrl = "http://localhost:8081",
+    [string]$TestUsername = $env:TRICENTER_TEST_USERNAME,
+    [string]$TestPassword = $env:TRICENTER_TEST_PASSWORD,
     [switch]$AllowWriteTests,
     [switch]$AllowRemote
 )
@@ -10,26 +12,28 @@ param(
 . "$PSScriptRoot\test-safety.ps1"
 Assert-TriCenterTestTarget -ServerUrl $ServerUrl -AllowRemote:$AllowRemote `
     -RequireWritePermission -AllowWriteTests:$AllowWriteTests
+Assert-TriCenterTestCredentials -Username $TestUsername -Password $TestPassword
 $baseUrl = "$($ServerUrl.TrimEnd('/'))/api"
-$token = ""
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 
 # Color output functions
 function Write-Success { param($msg) Write-Host $msg -ForegroundColor Green }
 function Write-Error { param($msg) Write-Host $msg -ForegroundColor Red }
 function Write-Info { param($msg) Write-Host $msg -ForegroundColor Cyan }
 
-# Login to get Token
+# Login and establish Cookie session
 function Login {
-    Write-Info "`n=== Login to get Token ==="
+    Write-Info "`n=== Login and establish Cookie session ==="
     $body = @{
-        username = "admin"
-        password = "admin123"
+        username = $TestUsername
+        password = $TestPassword
     } | ConvertTo-Json
     
     try {
-        $response = Invoke-RestMethod -Uri "$baseUrl/auth/login" -Method Post -Body $body -ContentType "application/json"
-        $script:token = $response.data.token
-        Write-Success "Login successful, Token: $($token.Substring(0, 20))..."
+        $response = Invoke-RestMethod -Uri "$baseUrl/auth/login" -Method Post -Body $body -ContentType "application/json" -WebSession $script:session
+        $accessCookie = $script:session.Cookies.GetCookies([Uri]$ServerUrl)['TRICENTER_ACCESS']
+        if ($response.code -ne 200 -or $null -eq $accessCookie) { throw 'Login did not establish an access Cookie' }
+        Write-Success "Login successful, Cookie session established"
         return $true
     } catch {
         Write-Error "Login failed: $_"
@@ -49,9 +53,9 @@ function Invoke-Api {
     Write-Info "`n=== $Description ==="
     Write-Host "Request: $Method $Endpoint"
     
-    $headers = @{
-        "Authorization" = "Bearer $token"
-        "Content-Type" = "application/json"
+    $headers = @{ "Content-Type" = "application/json" }
+    if ($Method -in @('POST', 'PUT', 'PATCH', 'DELETE')) {
+        $headers += Get-TriCenterCsrfHeaders -Session $script:session -ServerUrl $ServerUrl
     }
     
     try {
@@ -59,6 +63,7 @@ function Invoke-Api {
             Uri = "$baseUrl$Endpoint"
             Method = $Method
             Headers = $headers
+            WebSession = $script:session
         }
         
         if ($Body) {

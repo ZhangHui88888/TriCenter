@@ -28,7 +28,7 @@ class CityScopeMigrationTest {
     }
 
     @Test
-    void freshDatabaseScriptsIncludeCitiesAndDefaultChangzhouOwnership() throws IOException {
+    void legacyScriptsKeepCitySchemaButDoNotCreateDefaultAccounts() throws IOException {
         String schema = read("docs/sql/tricenter_schema.sql");
         String init = read("docs/sql/tricenter_init.sql");
 
@@ -39,8 +39,8 @@ class CityScopeMigrationTest {
                 .contains("changzhou", "常州", "suzhou", "苏州");
         assertThat(init)
                 .containsIgnoringCase("INSERT INTO cities")
-                .containsIgnoringCase("INSERT INTO user_cities")
-                .containsIgnoringCase("city_id");
+                .doesNotContainIgnoringCase("INSERT INTO users")
+                .doesNotContainIgnoringCase("INSERT INTO user_cities");
     }
 
     private String read(String relativePath) throws IOException {

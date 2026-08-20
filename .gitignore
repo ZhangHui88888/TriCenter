@@ -8,6 +8,7 @@ node_modules/
 # 构建输出
 dist/
 build/
+coverage/
 
 # 日志文件
 *.log

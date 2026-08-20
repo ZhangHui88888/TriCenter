@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { createCitySwitchTransaction } from '../src/services/citySwitchTransaction.ts'
 
 type Session = { token: string; currentCityId: number }

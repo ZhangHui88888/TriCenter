@@ -5,6 +5,8 @@
 
 param(
     [string]$BaseUrl = "http://localhost:8081",
+    [string]$TestUsername = $env:TRICENTER_TEST_USERNAME,
+    [string]$TestPassword = $env:TRICENTER_TEST_PASSWORD,
     [switch]$AllowWriteTests,
     [switch]$AllowRemote
 )
@@ -12,8 +14,9 @@ param(
 . "$PSScriptRoot\test-safety.ps1"
 Assert-TriCenterTestTarget -ServerUrl $BaseUrl -AllowRemote:$AllowRemote `
     -RequireWritePermission -AllowWriteTests:$AllowWriteTests
+Assert-TriCenterTestCredentials -Username $TestUsername -Password $TestPassword
 
-$Token = ""
+$Session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 $TestResults = @()
 $PassCount = 0
 $FailCount = 0
@@ -43,16 +46,17 @@ function Invoke-Api {
         [string]$Method,
         [string]$Endpoint,
         [object]$Body = $null,
-        [bool]$UseToken = $true,
+        [bool]$UseSession = $true,
         [string]$CustomToken = ""
     )
     
     $headers = @{ "Content-Type" = "application/json" }
-    if ($UseToken -and $script:Token) {
-        $headers["Authorization"] = "Bearer $script:Token"
-    }
     if ($CustomToken) {
         $headers["Authorization"] = "Bearer $CustomToken"
+    }
+    if ($UseSession -and $Method -in @('POST', 'PUT', 'PATCH', 'DELETE')) {
+        $csrfHeaders = Get-TriCenterCsrfHeaders -Session $script:Session -ServerUrl $BaseUrl
+        $headers += $csrfHeaders
     }
     
     $params = @{
@@ -60,6 +64,9 @@ function Invoke-Api {
         Uri = "$BaseUrl$Endpoint"
         Headers = $headers
         ContentType = "application/json"
+    }
+    if ($UseSession -or $Endpoint -eq '/api/auth/login') {
+        $params['WebSession'] = $script:Session
     }
 
     if ($Body) {
@@ -91,18 +98,18 @@ Write-Test "模块1: 用户认证测试"
 Write-Info "测试 POST /api/auth/login"
 
 # 正常登录
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "admin"; password = "admin123" } -UseToken $false
-if ($result.Success -and $result.Data.data.token) {
-    $script:Token = $result.Data.data.token
-    Write-Pass "正常登录成功，获取到Token"
-    Add-Result "POST /api/auth/login" "正常登录" "返回token" "成功" $true
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = $TestUsername; password = $TestPassword } -UseSession $false
+$accessCookie = $script:Session.Cookies.GetCookies([Uri]$BaseUrl)['TRICENTER_ACCESS']
+if ($result.Success -and $null -ne $accessCookie) {
+    Write-Pass "正常登录成功，建立 Cookie 会话"
+    Add-Result "POST /api/auth/login" "正常登录" "返回安全 Cookie" "成功" $true
 } else {
     Write-Fail "正常登录失败: $($result.Message)"
-    Add-Result "POST /api/auth/login" "正常登录" "返回token" "失败" $false
+    Add-Result "POST /api/auth/login" "正常登录" "返回安全 Cookie" "失败" $false
 }
 
 # 用户名为空
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = ""; password = "admin123" } -UseToken $false
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = ""; password = $TestPassword } -UseSession $false
 if (-not $result.Success -and $result.StatusCode -eq 400) {
     Write-Pass "用户名为空 - 正确返回400"
     Add-Result "POST /api/auth/login" "用户名为空" "400" "$($result.StatusCode)" $true
@@ -112,7 +119,7 @@ if (-not $result.Success -and $result.StatusCode -eq 400) {
 }
 
 # 密码为空
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "admin"; password = "" } -UseToken $false
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = $TestUsername; password = "" } -UseSession $false
 if (-not $result.Success -and $result.StatusCode -eq 400) {
     Write-Pass "密码为空 - 正确返回400"
     Add-Result "POST /api/auth/login" "密码为空" "400" "$($result.StatusCode)" $true
@@ -122,7 +129,7 @@ if (-not $result.Success -and $result.StatusCode -eq 400) {
 }
 
 # 用户名不存在
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "notexist"; password = "123456" } -UseToken $false
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "notexist"; password = "intentionally-invalid" } -UseSession $false
 if (-not $result.Success -and $result.StatusCode -eq 401) {
     Write-Pass "用户名不存在 - 正确返回401"
     Add-Result "POST /api/auth/login" "用户名不存在" "401" "$($result.StatusCode)" $true
@@ -132,7 +139,7 @@ if (-not $result.Success -and $result.StatusCode -eq 401) {
 }
 
 # 密码错误
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "admin"; password = "wrongpassword" } -UseToken $false
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = $TestUsername; password = "intentionally-invalid" } -UseSession $false
 if (-not $result.Success -and $result.StatusCode -eq 401) {
     Write-Pass "密码错误 - 正确返回401"
     Add-Result "POST /api/auth/login" "密码错误" "401" "$($result.StatusCode)" $true
@@ -142,7 +149,7 @@ if (-not $result.Success -and $result.StatusCode -eq 401) {
 }
 
 # SQL注入测试
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "admin' OR '1'='1"; password = "test" } -UseToken $false
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "admin' OR '1'='1"; password = "test" } -UseSession $false
 if (-not $result.Success -and $result.StatusCode -eq 401) {
     Write-Pass "SQL注入测试 - 正确拒绝"
     Add-Result "POST /api/auth/login" "SQL注入" "401" "$($result.StatusCode)" $true
@@ -153,7 +160,7 @@ if (-not $result.Success -and $result.StatusCode -eq 401) {
 
 # 超长用户名测试
 $longUsername = "a" * 200
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = $longUsername; password = "test" } -UseToken $false
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = $longUsername; password = "test" } -UseSession $false
 if (-not $result.Success -and ($result.StatusCode -eq 400 -or $result.StatusCode -eq 401)) {
     Write-Pass "超长用户名 - 正确拒绝"
     Add-Result "POST /api/auth/login" "超长用户名" "400/401" "$($result.StatusCode)" $true
@@ -163,7 +170,7 @@ if (-not $result.Success -and ($result.StatusCode -eq 400 -or $result.StatusCode
 }
 
 # 特殊字符用户名测试
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "<script>alert(1)</script>"; password = "test" } -UseToken $false
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "<script>alert(1)</script>"; password = "test" } -UseSession $false
 if (-not $result.Success -and $result.StatusCode -eq 401) {
     Write-Pass "特殊字符用户名 - 安全处理"
     Add-Result "POST /api/auth/login" "特殊字符用户名" "401" "$($result.StatusCode)" $true
@@ -176,7 +183,7 @@ if (-not $result.Success -and $result.StatusCode -eq 401) {
 Write-Info "测试 GET /api/auth/me"
 
 $result = Invoke-Api -Method "GET" -Endpoint "/api/auth/me"
-if ($result.Success -and $result.Data.data.username -eq "admin") {
+if ($result.Success -and $result.Data.data.username -eq $TestUsername) {
     Write-Pass "获取当前用户成功"
     Add-Result "GET /api/auth/me" "正常获取" "返回用户信息" "成功" $true
 } else {
@@ -185,7 +192,7 @@ if ($result.Success -and $result.Data.data.username -eq "admin") {
 }
 
 # 无Token访问
-$result = Invoke-Api -Method "GET" -Endpoint "/api/auth/me" -UseToken $false
+$result = Invoke-Api -Method "GET" -Endpoint "/api/auth/me" -UseSession $false
 if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode -eq 403)) {
     Write-Pass "无Token访问 - 正确拒绝"
     Add-Result "GET /api/auth/me" "无Token" "401/403" "$($result.StatusCode)" $true
@@ -195,7 +202,7 @@ if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode
 }
 
 # 无效Token访问
-$result = Invoke-Api -Method "GET" -Endpoint "/api/auth/me" -UseToken $false -CustomToken "invalid_token_12345"
+$result = Invoke-Api -Method "GET" -Endpoint "/api/auth/me" -UseSession $false -CustomToken "invalid_token_12345"
 if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode -eq 403)) {
     Write-Pass "无效Token - 正确拒绝"
     Add-Result "GET /api/auth/me" "无效Token" "401/403" "$($result.StatusCode)" $true
@@ -208,7 +215,7 @@ if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode
 Write-Info "测试 POST /api/auth/change-password"
 
 # 原密码错误
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/change-password" -Body @{ oldPassword = "wrongpassword"; newPassword = "newpass123" }
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/change-password" -Body @{ oldPassword = "intentionally-invalid"; newPassword = "newpass123" }
 if (-not $result.Success -and $result.StatusCode -eq 400) {
     Write-Pass "原密码错误 - 正确返回400"
     Add-Result "POST /api/auth/change-password" "原密码错误" "400" "$($result.StatusCode)" $true
@@ -218,7 +225,7 @@ if (-not $result.Success -and $result.StatusCode -eq 400) {
 }
 
 # 新密码为空
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/change-password" -Body @{ oldPassword = "admin123"; newPassword = "" }
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/change-password" -Body @{ oldPassword = $TestPassword; newPassword = "" }
 if (-not $result.Success -and $result.StatusCode -eq 400) {
     Write-Pass "新密码为空 - 正确返回400"
     Add-Result "POST /api/auth/change-password" "新密码为空" "400" "$($result.StatusCode)" $true
@@ -238,7 +245,7 @@ if (-not $result.Success -and $result.StatusCode -eq 400) {
 }
 
 # 新密码过短
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/change-password" -Body @{ oldPassword = "admin123"; newPassword = "123" }
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/change-password" -Body @{ oldPassword = $TestPassword; newPassword = "123" }
 if (-not $result.Success -and $result.StatusCode -eq 400) {
     Write-Pass "新密码过短 - 正确返回400"
     Add-Result "POST /api/auth/change-password" "新密码过短" "400" "$($result.StatusCode)" $true
@@ -248,7 +255,7 @@ if (-not $result.Success -and $result.StatusCode -eq 400) {
 }
 
 # 无Token修改密码
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/change-password" -Body @{ oldPassword = "admin123"; newPassword = "newpass123" } -UseToken $false
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/change-password" -Body @{ oldPassword = $TestPassword; newPassword = "newpass123" } -UseSession $false
 if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode -eq 403)) {
     Write-Pass "无Token修改密码 - 正确拒绝"
     Add-Result "POST /api/auth/change-password" "无Token" "401/403" "$($result.StatusCode)" $true
@@ -270,7 +277,7 @@ if ($result.Success) {
 }
 
 # 无Token登出
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/logout" -UseToken $false
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/logout" -UseSession $false
 if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode -eq 403)) {
     Write-Pass "无Token登出 - 正确拒绝"
     Add-Result "POST /api/auth/logout" "无Token" "401/403" "$($result.StatusCode)" $true

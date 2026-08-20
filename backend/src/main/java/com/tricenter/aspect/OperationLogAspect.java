@@ -35,6 +35,7 @@ public class OperationLogAspect {
     private final PlatformTransactionManager transactionManager;
 
     @Around("@annotation(com.tricenter.annotation.OpLog)")
+    @SuppressWarnings("PMD.AvoidCatchingThrowable") // Around advice must preserve Error and checked Throwable semantics.
     public Object around(ProceedingJoinPoint joinPoint) throws Throwable {
         try {
             TransactionTemplate transaction = new TransactionTemplate(transactionManager);
@@ -82,6 +83,8 @@ public class OperationLogAspect {
     }
 
     private static final class ProceedingFailure extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
         private ProceedingFailure(Throwable cause) {
             super(cause);
         }
@@ -108,7 +111,7 @@ public class OperationLogAspect {
                 Method getNameMethod = result.getClass().getMethod("getName");
                 Object name = getNameMethod.invoke(result);
                 if (name != null) return name.toString();
-            } catch (Exception ignored) {
+            } catch (ReflectiveOperationException | SecurityException ignored) {
             }
             // 尝试从 Result.data 中提取
             try {
@@ -119,7 +122,7 @@ public class OperationLogAspect {
                     Object name = nameMethod.invoke(data);
                     if (name != null) return name.toString();
                 }
-            } catch (Exception ignored) {
+            } catch (ReflectiveOperationException | SecurityException ignored) {
             }
         }
         return null;

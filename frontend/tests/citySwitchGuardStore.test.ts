@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
+import { test } from 'vitest'
 import { useCitySwitchGuardStore } from '../src/stores/citySwitchGuardStore.ts'
 
 test('tracks dirty and busy write sources independently', () => {

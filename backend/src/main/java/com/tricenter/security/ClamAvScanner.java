@@ -22,6 +22,7 @@ public class ClamAvScanner {
     @Value("${tricenter.clamav.port:3310}")
     private int port;
 
+    @SuppressWarnings("PMD.CloseResource") // Socket owns streams; output must remain open while reading the response.
     public void assertClean(Path file) {
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(host, port), 1000);
@@ -30,19 +31,24 @@ public class ClamAvScanner {
             try (BufferedInputStream input = new BufferedInputStream(Files.newInputStream(file))) {
                 output.write("zINSTREAM\0".getBytes(StandardCharsets.US_ASCII));
                 byte[] buffer = new byte[8192];
-                int read;
-                while ((read = input.read(buffer)) >= 0) {
-                    if (read == 0) continue;
-                    output.writeInt(read);
-                    output.write(buffer, 0, read);
+                int read = input.read(buffer);
+                while (read >= 0) {
+                    if (read > 0) {
+                        output.writeInt(read);
+                        output.write(buffer, 0, read);
+                    }
+                    read = input.read(buffer);
                 }
                 output.writeInt(0);
                 output.flush();
             }
 
             ByteArrayOutputStream response = new ByteArrayOutputStream();
-            int value;
-            while ((value = socket.getInputStream().read()) > 0) response.write(value);
+            int value = socket.getInputStream().read();
+            while (value > 0) {
+                response.write(value);
+                value = socket.getInputStream().read();
+            }
             String scanResult = response.toString(StandardCharsets.US_ASCII);
             if (scanResult.contains("FOUND")) {
                 throw BusinessException.badRequest("文件未通过病毒扫描");

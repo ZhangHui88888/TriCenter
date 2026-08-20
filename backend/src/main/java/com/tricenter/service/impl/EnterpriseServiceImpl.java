@@ -509,12 +509,18 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             wrapper.and(w -> w.isNull(column).or().eq(column, 0));
         } else if (s.contains("以上")) {
             String num = s.replace("以上", "").trim();
-            try { wrapper.gt(column, Integer.parseInt(num)); } catch (NumberFormatException ignored) {}
+            try {
+                wrapper.gt(column, Integer.parseInt(num));
+            } catch (NumberFormatException ignored) {
+                log.debug("忽略无效范围筛选: {}", rangeText);
+            }
         } else if (s.contains("-")) {
             String[] parts = s.split("-");
             try {
                 wrapper.between(column, Integer.parseInt(parts[0].trim()), Integer.parseInt(parts[1].trim()));
-            } catch (Exception ignored) {}
+            } catch (NumberFormatException ignored) {
+                log.debug("忽略无效范围筛选: {}", rangeText);
+            }
         }
     }
 

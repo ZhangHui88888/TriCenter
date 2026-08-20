@@ -64,3 +64,14 @@ tricenter:
 
 jwt:
   access-expiration: 1800000
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: never
+  endpoints:
+    web:
+      exposure:
+        include: health

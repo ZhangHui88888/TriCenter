@@ -5,6 +5,8 @@
 
 param(
     [string]$BaseUrl = "http://localhost:8081",
+    [string]$TestUsername = $env:TRICENTER_TEST_USERNAME,
+    [string]$TestPassword = $env:TRICENTER_TEST_PASSWORD,
     [switch]$AllowWriteTests,
     [switch]$AllowRemote
 )
@@ -12,8 +14,9 @@ param(
 . "$PSScriptRoot\test-safety.ps1"
 Assert-TriCenterTestTarget -ServerUrl $BaseUrl -AllowRemote:$AllowRemote `
     -RequireWritePermission -AllowWriteTests:$AllowWriteTests
+Assert-TriCenterTestCredentials -Username $TestUsername -Password $TestPassword
 
-$Token = ""
+$Session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 $TestResults = @()
 $PassCount = 0
 $FailCount = 0
@@ -33,12 +36,12 @@ function Invoke-Api {
         [string]$Method,
         [string]$Endpoint,
         [object]$Body = $null,
-        [bool]$UseToken = $true
+        [bool]$UseSession = $true
     )
     
     $headers = @{ "Content-Type" = "application/json" }
-    if ($UseToken -and $script:Token) {
-        $headers["Authorization"] = "Bearer $script:Token"
+    if ($UseSession -and $Method -in @('POST', 'PUT', 'PATCH', 'DELETE')) {
+        $headers += Get-TriCenterCsrfHeaders -Session $script:Session -ServerUrl $BaseUrl
     }
     
     $uri = "$BaseUrl$Endpoint"
@@ -49,6 +52,9 @@ function Invoke-Api {
             Method = $Method
             Headers = $headers
             ContentType = "application/json"
+        }
+        if ($UseSession -or $Endpoint -eq '/api/auth/login') {
+            $params['WebSession'] = $script:Session
         }
         
         if ($Body) {
@@ -70,14 +76,14 @@ function Invoke-Api {
 }
 
 # ============================================================
-# Pre-condition: Login to get Token
+# Pre-condition: establish Cookie session
 # ============================================================
 
-Write-Test "Pre-condition: Login to get Token"
-$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = "admin"; password = "admin123" } -UseToken $false
-if ($result.Success -and $result.Data.data.token) {
-    $script:Token = $result.Data.data.token
-    Write-Pass "Login successful, Token obtained"
+Write-Test "Pre-condition: establish Cookie session"
+$result = Invoke-Api -Method "POST" -Endpoint "/api/auth/login" -Body @{ username = $TestUsername; password = $TestPassword } -UseSession $false
+$accessCookie = $script:Session.Cookies.GetCookies([Uri]$BaseUrl)['TRICENTER_ACCESS']
+if ($result.Success -and $null -ne $accessCookie) {
+    Write-Pass "Login successful, Cookie session established"
 } else {
     Write-Fail "Login failed, cannot continue testing"
     exit 1
@@ -104,7 +110,7 @@ if ($result.Success -and $result.Data.code -eq 200) {
 }
 
 Write-Test "3.1 Enterprise List - Without Token"
-$result = Invoke-Api -Method "GET" -Endpoint "/api/enterprises" -UseToken $false
+$result = Invoke-Api -Method "GET" -Endpoint "/api/enterprises" -UseSession $false
 if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode -eq 403)) {
     Write-Pass "Correctly rejected request without Token (Status: $($result.StatusCode))"
 } else {
@@ -240,7 +246,7 @@ if ($result.Success -and $result.Data.code -eq 200) {
 }
 
 Write-Test "3.3 Create Enterprise - Without Token"
-$result = Invoke-Api -Method "POST" -Endpoint "/api/enterprises" -Body @{} -UseToken $false
+$result = Invoke-Api -Method "POST" -Endpoint "/api/enterprises" -Body @{} -UseSession $false
 if (-not $result.Success -and ($result.StatusCode -eq 401 -or $result.StatusCode -eq 403)) {
     Write-Pass "Correctly rejected request without Token (Status: $($result.StatusCode))"
 } else {

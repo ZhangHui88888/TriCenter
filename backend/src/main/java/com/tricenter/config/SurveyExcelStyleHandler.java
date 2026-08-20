@@ -23,6 +23,7 @@ public class SurveyExcelStyleHandler implements CellWriteHandler {
     private final Map<Workbook, CachedStyles> styleCache = new IdentityHashMap<>();
 
     @Override
+    @SuppressWarnings("PMD.CloseResource") // EasyExcel owns and closes the workbook after handlers finish.
     public void afterCellDispose(WriteSheetHolder writeSheetHolder, WriteTableHolder writeTableHolder,
                                   List<WriteCellData<?>> cellDataList, Cell cell, Head head,
                                   Integer relativeRowIndex, Boolean isHead) {

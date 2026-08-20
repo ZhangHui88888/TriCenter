@@ -1,0 +1,33 @@
+[Unit]
+Description=TriCenter Backend Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=tricenter
+Group=tricenter
+WorkingDirectory=/opt/tricenter/current/backend
+EnvironmentFile=/etc/tricenter/tricenter.env
+ExecStart=/usr/bin/java -Xms256m -Xmx512m -Dspring.profiles.active=prod -jar /opt/tricenter/current/backend/tricenter.jar
+Restart=on-failure
+RestartSec=10
+TimeoutStopSec=30
+SuccessExitStatus=143
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+SystemCallArchitectures=native
+ReadWritePaths=/var/lib/tricenter /var/log/tricenter
+
+[Install]
+WantedBy=multi-user.target

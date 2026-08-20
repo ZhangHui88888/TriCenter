@@ -3,28 +3,32 @@
 
 param(
     [string]$ServerUrl = "http://localhost:8081",
+    [string]$TestUsername = $env:TRICENTER_TEST_USERNAME,
+    [string]$TestPassword = $env:TRICENTER_TEST_PASSWORD,
     [switch]$AllowRemote
 )
 
 . "$PSScriptRoot\test-safety.ps1"
 Assert-TriCenterTestTarget -ServerUrl $ServerUrl -AllowRemote:$AllowRemote
+Assert-TriCenterTestCredentials -Username $TestUsername -Password $TestPassword
 $baseUrl = "$($ServerUrl.TrimEnd('/'))/api"
-$token = ""
+$session = New-Object Microsoft.PowerShell.Commands.WebRequestSession
 
 # Color output functions
 function Write-Success { param($msg) Write-Host $msg -ForegroundColor Green }
 function Write-Fail { param($msg) Write-Host $msg -ForegroundColor Red }
 function Write-Info { param($msg) Write-Host $msg -ForegroundColor Cyan }
 
-# Login to get Token
+# Login and establish Cookie session
 function Login {
-    Write-Info "`n========== Login to get Token =========="
-    $body = @{ username = "admin"; password = "admin123" } | ConvertTo-Json
+    Write-Info "`n========== Login and establish Cookie session =========="
+    $body = @{ username = $TestUsername; password = $TestPassword } | ConvertTo-Json
     try {
-        $response = Invoke-RestMethod -Uri "$baseUrl/auth/login" -Method POST -Body $body -ContentType "application/json"
+        $response = Invoke-RestMethod -Uri "$baseUrl/auth/login" -Method POST -Body $body -ContentType "application/json" -WebSession $script:session
         if ($response.code -eq 200) {
-            $script:token = $response.data.token
-            Write-Success "Login success, Token: $($token.Substring(0, 30))..."
+            $accessCookie = $script:session.Cookies.GetCookies([Uri]$ServerUrl)['TRICENTER_ACCESS']
+            if ($null -eq $accessCookie) { throw 'Login did not establish an access Cookie' }
+            Write-Success "Login success, Cookie session established"
             return $true
         }
     } catch {
@@ -43,15 +47,15 @@ function Invoke-Api {
     )
     
     $headers = @{}
-    if ($NeedAuth -and $token) {
-        $headers["Authorization"] = "Bearer $token"
-    }
     
     $params = @{
         Uri = "$baseUrl$Endpoint"
         Method = $Method
         Headers = $headers
         ContentType = "application/json"
+    }
+    if ($NeedAuth) {
+        $params['WebSession'] = $script:session
     }
     
     if ($Body) {
@@ -184,9 +188,6 @@ function Test-PendingFollowUps {
 function Test-NoToken {
     Write-Info "`n========== Edge Test: No Token Access =========="
     
-    $savedToken = $script:token
-    $script:token = ""
-    
     $response = Invoke-Api -Method GET -Endpoint "/dashboard/overview" -NeedAuth $false
     
     if ($response.code -eq 401 -or $response.error) {
@@ -195,7 +196,6 @@ function Test-NoToken {
         Write-Fail "[FAIL] No token access should return 401, actual: $($response.code)"
     }
     
-    $script:token = $savedToken
 }
 
 # Main test flow

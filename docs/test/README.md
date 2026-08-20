@@ -24,7 +24,7 @@
 | 后端地址 | http://localhost:8080 |
 | API文档 | http://localhost:8080/doc.html |
 | 测试脚本 | `backend/test-api.ps1` |
-| 测试账号 | admin / admin123 |
+| 测试账号 | 通过 `TRICENTER_TEST_USERNAME` / `TRICENTER_TEST_PASSWORD` 提供 |
 
 ## 测试状态说明
 

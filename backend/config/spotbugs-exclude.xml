@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<FindBugsFilter>
+    <!-- Framework DTO/entity collections are intentionally mutable for Jackson/MyBatis binding. -->
+    <Match>
+        <Class name="~com\.tricenter\.(dto|entity|common\.result)(\..*)?"/>
+        <Bug pattern="EI_EXPOSE_REP,EI_EXPOSE_REP2"/>
+    </Match>
+    <!-- Constructor-injected Spring collaborators are container singletons, not exposed value state. -->
+    <Match>
+        <Class name="~com\.tricenter\.(aspect|config|controller|security|service)(\..*)?"/>
+        <Bug pattern="EI_EXPOSE_REP2"/>
+    </Match>
+</FindBugsFilter>

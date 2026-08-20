@@ -129,6 +129,7 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
                 applyUpdates(entity, request);
                 requirementCategoryMapper.updateById(entity);
             }
+            default -> throw new IllegalStateException("未支持的分类类型: " + type);
         }
 
         dictionaryCache.refresh();
@@ -153,6 +154,7 @@ public class TreeCategoryServiceImpl implements TreeCategoryService {
         switch (type) {
             case "industry", "product", "category" -> categoryMapper.deleteById(id);
             case "requirement" -> requirementCategoryMapper.deleteById(id);
+            default -> throw new IllegalStateException("未支持的分类类型: " + type);
         }
 
         dictionaryCache.refresh();

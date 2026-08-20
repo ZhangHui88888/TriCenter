@@ -22,6 +22,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.Locale;
 
 /**
  * 全局异常处理器
@@ -120,7 +121,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Map<String, Object>> handleException(Exception e, HttpServletRequest request) {
-        String errorId = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
+        String errorId = UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase(Locale.ROOT);
         String method = request.getMethod();
         String path = request.getRequestURI();
         String query = request.getQueryString();

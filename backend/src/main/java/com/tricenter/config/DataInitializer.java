@@ -10,6 +10,8 @@ import com.tricenter.mapper.UserCityMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Component
 @Profile({"dev", "test"})
+@ConditionalOnProperty(prefix = "tricenter.dev.seed-admin", name = "enabled", havingValue = "true")
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
@@ -27,6 +30,12 @@ public class DataInitializer implements CommandLineRunner {
     private final CityMapper cityMapper;
     private final UserCityMapper userCityMapper;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${tricenter.dev.seed-admin.username}")
+    private String seedUsername;
+
+    @Value("${tricenter.dev.seed-admin.password}")
+    private String seedPassword;
 
     @Override
     public void run(String... args) {
@@ -58,13 +67,13 @@ public class DataInitializer implements CommandLineRunner {
     private void initAdminUser() {
         // 检查是否已存在admin用户
         User existingAdmin = userMapper.selectOne(
-            new LambdaQueryWrapper<User>().eq(User::getUsername, "admin")
+            new LambdaQueryWrapper<User>().eq(User::getUsername, seedUsername)
         );
         
         if (existingAdmin == null) {
             User admin = new User();
-            admin.setUsername("admin");
-            admin.setPassword(passwordEncoder.encode("admin123"));
+            admin.setUsername(seedUsername);
+            admin.setPassword(passwordEncoder.encode(seedPassword));
             admin.setName("系统管理员");
             admin.setRole("admin");
             admin.setPhone("13800000000");
