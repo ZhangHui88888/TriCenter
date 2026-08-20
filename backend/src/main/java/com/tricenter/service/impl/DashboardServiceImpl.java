@@ -23,6 +23,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -43,6 +44,11 @@ public class DashboardServiceImpl implements DashboardService {
     private static final String CACHE_PREFIX = "dashboard:";
     private static final long CACHE_TTL_MINUTES = 10;
     private final AtomicBoolean redisDegradedLogged = new AtomicBoolean(false);
+    private final AtomicLong redisRetryAfterNanos = new AtomicLong(0);
+    private static final long REDIS_RETRY_DELAY_NANOS = TimeUnit.SECONDS.toNanos(5);
+    private static final List<String> CACHE_SUFFIXES = List.of(
+            "overview", "funnel", "districts", "industries:l1-full",
+            "pending-follow-ups", "monthly-trend");
     
     // 漏斗阶段配置
     private static final Map<String, String> STAGE_NAMES = new LinkedHashMap<>();
@@ -407,6 +413,7 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private <T> T getCachedValue(String cacheKey, Class<T> targetType) {
+        if (redisCircuitOpen()) return null;
         try {
             Object cached = redisTemplate.opsForValue().get(cacheKey);
             onRedisAvailable();
@@ -421,6 +428,7 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private <T> T getCachedValue(String cacheKey, TypeReference<T> targetType) {
+        if (redisCircuitOpen()) return null;
         try {
             Object cached = redisTemplate.opsForValue().get(cacheKey);
             onRedisAvailable();
@@ -435,6 +443,7 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private void setCachedValue(String cacheKey, Object value) {
+        if (redisCircuitOpen()) return;
         try {
             redisTemplate.opsForValue().set(cacheKey, value, CACHE_TTL_MINUTES, TimeUnit.MINUTES);
             onRedisAvailable();
@@ -444,15 +453,21 @@ public class DashboardServiceImpl implements DashboardService {
     }
 
     private void onRedisAvailable() {
+        redisRetryAfterNanos.set(0);
         if (redisDegradedLogged.compareAndSet(true, false)) {
             log.info("Redis连接已恢复，Dashboard缓存重新启用");
         }
     }
 
     private void logRedisDegraded(String action, Exception e) {
+        redisRetryAfterNanos.set(System.nanoTime() + REDIS_RETRY_DELAY_NANOS);
         if (redisDegradedLogged.compareAndSet(false, true)) {
             log.warn("Redis不可用，Dashboard缓存已降级，{}将直接走数据库: {}", action, e.getMessage());
         }
+    }
+
+    private boolean redisCircuitOpen() {
+        return System.nanoTime() < redisRetryAfterNanos.get();
     }
 
     private String cacheKey(String suffix) {
@@ -461,14 +476,15 @@ public class DashboardServiceImpl implements DashboardService {
 
     @Override
     public void evictAllCache() {
+        if (redisCircuitOpen()) return;
         try {
-            Set<String> keys = redisTemplate.keys(
-                    CACHE_PREFIX + cityContext.requireCityId() + ":*");
+            Integer cityId = cityContext.requireCityId();
+            List<String> keys = CACHE_SUFFIXES.stream()
+                    .map(suffix -> CACHE_PREFIX + cityId + ':' + suffix)
+                    .toList();
             onRedisAvailable();
-            if (keys != null && !keys.isEmpty()) {
-                redisTemplate.delete(keys);
-                log.info("已清除看板缓存，共{}个key", keys.size());
-            }
+            redisTemplate.delete(keys);
+            log.info("已清除看板缓存，共{}个候选key", keys.size());
         } catch (Exception e) {
             logRedisDegraded("清理缓存", e);
         }

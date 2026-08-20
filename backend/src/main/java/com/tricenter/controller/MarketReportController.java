@@ -3,10 +3,15 @@ package com.tricenter.controller;
 import com.tricenter.common.result.Result;
 import com.tricenter.entity.MarketReport;
 import com.tricenter.service.MarketReportService;
+import com.tricenter.service.AiMarketReportService;
+import com.tricenter.dto.request.AiReportGenerateRequest;
+import com.tricenter.security.LoginUser;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -18,6 +23,7 @@ import java.util.Map;
 public class MarketReportController {
 
     private final MarketReportService marketReportService;
+    private final AiMarketReportService aiMarketReportService;
 
     @Operation(summary = "查询企业已有报告")
     @GetMapping("/{enterpriseId}")
@@ -34,5 +40,14 @@ public class MarketReportController {
                                    @RequestBody Map<String, Object> reportData) {
         marketReportService.upsert(enterpriseId, version, reportData);
         return Result.success(null);
+    }
+
+    @Operation(summary = "使用本次请求提供的 Key 生成 AI 报告")
+    @PostMapping("/ai/generate")
+    @PreAuthorize("hasAuthority('report:generate')")
+    public Result<Map<String, Object>> generate(
+            @AuthenticationPrincipal LoginUser loginUser,
+            @Valid @RequestBody AiReportGenerateRequest request) {
+        return Result.success(aiMarketReportService.generate(loginUser.getId(), request));
     }
 }

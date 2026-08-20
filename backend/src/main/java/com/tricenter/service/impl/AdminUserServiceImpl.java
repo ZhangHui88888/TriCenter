@@ -119,6 +119,8 @@ public class AdminUserServiceImpl implements AdminUserService {
             throw BusinessException.notFound("用户不存在");
         }
         user.setPassword(passwordEncoder.encode(newPassword));
+        user.setTokenVersion((user.getTokenVersion() == null ? 0 : user.getTokenVersion()) + 1);
+        user.setMustChangePassword(1);
         userMapper.updateById(user);
     }
 

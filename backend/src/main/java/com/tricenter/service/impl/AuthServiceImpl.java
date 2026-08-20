@@ -77,7 +77,8 @@ public class AuthServiceImpl implements AuthService {
                 user.getUsername(),
                 user.getRole(),
                 currentCity == null ? null : currentCity.getId(),
-                requiresCitySelection);
+                requiresCitySelection,
+                normalizedTokenVersion(user));
         
         log.info("用户登录成功: {}", user.getUsername());
         
@@ -91,13 +92,32 @@ public class AuthServiceImpl implements AuthService {
         List<CityInfoResponse> availableCities = cityAccessService.getAvailableCities(userId);
         CityInfoResponse currentCity = cityAccessService.toResponse(city);
         String token = jwtUtil.generateToken(
-                user.getId(), user.getUsername(), user.getRole(), city.getId(), false);
+                user.getId(), user.getUsername(), user.getRole(), city.getId(), false,
+                normalizedTokenVersion(user));
         return buildLoginResponse(user, token, availableCities, currentCity, false);
     }
 
     @Override
+    public LoginResponse refresh(Integer userId, Integer currentCityId, boolean citySelectionPending) {
+        User user = requireEnabledUser(userId);
+        List<CityInfoResponse> availableCities = cityAccessService.getAvailableCities(userId);
+        CityInfoResponse currentCity = currentCityId == null
+                ? null
+                : cityAccessService.toResponse(
+                        cityAccessService.requireAuthorizedCity(userId, currentCityId));
+        boolean pending = citySelectionPending && currentCity == null;
+        String token = jwtUtil.generateToken(
+                user.getId(), user.getUsername(), user.getRole(), currentCityId, pending,
+                normalizedTokenVersion(user));
+        return buildLoginResponse(user, token, availableCities, currentCity, pending);
+    }
+
+    @Override
+    @Transactional
     public void logout(Integer userId) {
-        // 可以将Token加入黑名单（可选实现）
+        User user = requireEnabledUser(userId);
+        user.setTokenVersion(normalizedTokenVersion(user) + 1);
+        userMapper.updateById(user);
         log.info("用户登出: userId={}", userId);
     }
 
@@ -140,9 +160,15 @@ public class AuthServiceImpl implements AuthService {
         
         // 更新密码
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
+        user.setTokenVersion(normalizedTokenVersion(user) + 1);
+        user.setMustChangePassword(0);
         userMapper.updateById(user);
         
         log.info("用户修改密码成功: {}", user.getUsername());
+    }
+
+    private int normalizedTokenVersion(User user) {
+        return user.getTokenVersion() == null ? 0 : user.getTokenVersion();
     }
 
     private User requireEnabledUser(Integer userId) {

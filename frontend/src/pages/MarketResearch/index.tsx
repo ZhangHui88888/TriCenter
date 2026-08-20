@@ -20,7 +20,6 @@ import BasicReportTemplate from './components/BasicReportTemplate';
 import NeonLoader from '@/components/NeonLoader';
 import { enterpriseApi, marketReportApi } from '@/services/api';
 import { setDeepSeekApiKey, getDeepSeekApiKey, hasDeepSeekApiKey } from '@/services/deepseek';
-import { generateBasicReportAi, type ReportAiData } from './services/reportAiService';
 import type { EnterpriseDetail } from '@/types';
 
 type ReportVersion = 'basic' | 'deep';
@@ -34,7 +33,8 @@ interface MissingField {
 }
 
 const { Title, Text } = Typography;
-const AI_PROXY_AVAILABLE = false;
+const AI_PROXY_AVAILABLE = true;
+type ReportAiData = Record<string, any>;
 
 /**
  * 第一层：阻断性检查 — 缺了不让生成
@@ -119,6 +119,7 @@ function MarketResearch() {
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(false);
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [hasApiKey, setHasApiKey] = useState(hasDeepSeekApiKey());
+  const [thirdPartyConsentGiven, setThirdPartyConsentGiven] = useState(false);
 
   const [missingFieldsModalOpen, setMissingFieldsModalOpen] = useState(false);
   const [missingFields, setMissingFields] = useState<MissingField[]>([]);
@@ -156,6 +157,8 @@ function MarketResearch() {
   useEffect(() => {
     fetchEnterpriseList();
   }, [fetchEnterpriseList]);
+
+  useEffect(() => () => setDeepSeekApiKey(''), []);
 
   const handleSelectEnterprise = (id: number) => {
     setSelectedEnterpriseId(id);
@@ -195,30 +198,20 @@ function MarketResearch() {
     if (hasDeepSeekApiKey()) {
       setLoadingStage('AI 正在分析企业数据并生成报告...');
       try {
-        const generated = await generateBasicReportAi(detail, (stage) => {
-          if (controller.signal.aborted) return;
-          setLoadingStage(stage);
-        }, existingReportData);
+        void existingReportData;
+        const aiResponse: any = await marketReportApi.generateAi({
+          enterpriseId: detail.id,
+          version,
+          providerApiKey: getDeepSeekApiKey(),
+        });
+        const generated = (aiResponse.data || {}) as ReportAiData;
         if (controller.signal.aborted) return;
         setAiData(generated);
         const name = detail.enterprise_name || (detail as any).enterpriseName || '企业';
         const versionLabel = version === 'basic' ? '基础版' : '深度版';
         const fieldCount = Object.keys(generated).filter(k => !k.startsWith('_')).length;
-        const aiErrors = generated._errors ? JSON.parse(generated._errors) as string[] : [];
-        if (aiErrors.length > 0) {
-          message.warning({ content: `部分章节 AI 生成失败：${aiErrors.join('；')}`, duration: 8 });
-        }
         if (fieldCount > 0) {
           message.success(`已生成企业「${name}」的${versionLabel}报告（AI 生成了 ${fieldCount} 个分析字段）`);
-          // 自动保存到数据库
-          try {
-            const saveData = { ...generated };
-            delete saveData._errors;
-            delete saveData._missingKeys;
-            await marketReportApi.save(detail.id, version, saveData);
-          } catch (saveErr) {
-            console.error('保存报告到数据库失败:', saveErr);
-          }
         } else {
           message.error({ content: 'AI 分析内容全部为空，请检查 API Key 和网络连接', duration: 8 });
         }
@@ -316,6 +309,27 @@ function MarketResearch() {
     if (!selectedEnterpriseId) {
       message.warning('请先选择企业');
       return;
+    }
+
+    if (!hasDeepSeekApiKey()) {
+      setApiKeyModalOpen(true);
+      message.info('请先输入本次生成使用的 DeepSeek API Key');
+      return;
+    }
+
+    if (!thirdPartyConsentGiven) {
+      const confirmed = await new Promise<boolean>((resolve) => {
+        Modal.confirm({
+          title: '确认向第三方 AI 传输企业信息',
+          content: '将发送企业名称、行业、地区、营收、品牌和目标市场等非联系人信息。API Key 与联系人信息不会被保存。',
+          okText: '同意并继续',
+          cancelText: '取消',
+          onOk: () => resolve(true),
+          onCancel: () => resolve(false),
+        });
+      });
+      if (!confirmed) return;
+      setThirdPartyConsentGiven(true);
     }
 
     try {
@@ -682,7 +696,7 @@ function MarketResearch() {
         cancelText="取消"
       >
         <p style={{ color: '#666', fontSize: 13, marginBottom: 12 }}>
-          API Key 仅保存在当前页面内存中；安全代理上线前不会向第三方服务发起请求。
+          API Key 仅保存在当前页面内存中，每次生成时提交给后端代理，不写入数据库、Redis 或日志。
         </p>
         <Input.Password
           value={apiKeyInput}

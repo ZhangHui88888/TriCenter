@@ -27,6 +27,10 @@ public class User {
     private String email;
     
     private Integer status;
+
+    private Integer tokenVersion;
+
+    private Integer mustChangePassword;
     
     private LocalDateTime lastLoginAt;
     

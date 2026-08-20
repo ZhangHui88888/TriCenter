@@ -1,6 +1,7 @@
 package com.tricenter.controller;
 
 import com.tricenter.common.result.Result;
+import com.tricenter.annotation.OpLog;
 import com.tricenter.dto.request.AdminUserCreateRequest;
 import com.tricenter.dto.request.AdminUserUpdateRequest;
 import com.tricenter.dto.request.ResetPasswordRequest;
@@ -8,6 +9,7 @@ import com.tricenter.dto.response.AdminUserResponse;
 import com.tricenter.dto.response.CityInfoResponse;
 import com.tricenter.security.CityContext;
 import com.tricenter.service.AdminUserService;
+import com.tricenter.security.RefreshSessionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -32,6 +34,7 @@ public class AdminUserController {
 
     private final AdminUserService adminUserService;
     private final CityContext cityContext;
+    private final RefreshSessionService refreshSessionService;
 
     @Operation(summary = "用户列表")
     @GetMapping
@@ -47,6 +50,7 @@ public class AdminUserController {
 
     @Operation(summary = "创建用户")
     @PostMapping
+    @OpLog(operation = "CREATE", targetType = "USER")
     public Result<AdminUserResponse> createUser(
             @Valid @RequestBody AdminUserCreateRequest request) {
         return Result.success(adminUserService.createUser(request));
@@ -54,6 +58,7 @@ public class AdminUserController {
 
     @Operation(summary = "修改用户和城市权限")
     @PutMapping("/{id}")
+    @OpLog(operation = "UPDATE", targetType = "USER")
     public Result<AdminUserResponse> updateUser(
             @PathVariable Integer id,
             @Valid @RequestBody AdminUserUpdateRequest request) {
@@ -63,10 +68,12 @@ public class AdminUserController {
 
     @Operation(summary = "重置用户密码")
     @PostMapping("/{id}/reset-password")
+    @OpLog(operation = "RESET_PASSWORD", targetType = "USER")
     public Result<Void> resetPassword(
             @PathVariable Integer id,
             @Valid @RequestBody ResetPasswordRequest request) {
         adminUserService.resetPassword(id, request.getNewPassword());
+        refreshSessionService.revokeAll(id);
         return Result.success();
     }
 }

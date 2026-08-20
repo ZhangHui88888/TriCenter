@@ -2,6 +2,7 @@ package com.tricenter.controller;
 
 import com.tricenter.common.result.PageResult;
 import com.tricenter.common.result.Result;
+import com.tricenter.annotation.OpLog;
 import com.tricenter.dto.request.FollowUpCreateRequest;
 import com.tricenter.dto.request.FollowUpQueryRequest;
 import com.tricenter.dto.request.FollowUpUpdateRequest;
@@ -47,6 +48,7 @@ public class FollowUpController {
 
     @Operation(summary = "新增跟进记录", description = "新增跟进记录，可选同时变更企业阶段")
     @PostMapping("/follow-ups")
+    @OpLog(operation = "CREATE", targetType = "FOLLOW_UP")
     public Result<FollowUpResponse> createFollowUp(
             @Valid @RequestBody FollowUpCreateRequest request,
             @AuthenticationPrincipal LoginUser loginUser) {
@@ -56,6 +58,7 @@ public class FollowUpController {
 
     @Operation(summary = "更新跟进记录", description = "更新跟进记录信息")
     @PutMapping("/follow-ups/{id}")
+    @OpLog(operation = "UPDATE", targetType = "FOLLOW_UP")
     public Result<FollowUpResponse> updateFollowUp(
             @Parameter(description = "跟进记录ID") @PathVariable Integer id,
             @Valid @RequestBody FollowUpUpdateRequest request) {
@@ -65,6 +68,7 @@ public class FollowUpController {
 
     @Operation(summary = "删除跟进记录", description = "删除跟进记录")
     @DeleteMapping("/follow-ups/{id}")
+    @OpLog(operation = "DELETE", targetType = "FOLLOW_UP")
     public Result<Void> deleteFollowUp(
             @Parameter(description = "跟进记录ID") @PathVariable Integer id) {
         followUpService.deleteFollowUp(id);

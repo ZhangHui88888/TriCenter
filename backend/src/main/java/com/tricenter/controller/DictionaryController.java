@@ -1,6 +1,7 @@
 package com.tricenter.controller;
 
 import com.tricenter.common.result.Result;
+import com.tricenter.annotation.OpLog;
 import com.tricenter.dto.request.DictionaryRequest;
 import com.tricenter.dto.request.DictionaryUpdateRequest;
 import com.tricenter.dto.response.CategoryStatsResponse;
@@ -36,6 +37,7 @@ public class DictionaryController {
 
     @Operation(summary = "新增字典选项")
     @PostMapping("/{category}")
+    @OpLog(operation = "CREATE", targetType = "DICTIONARY")
     @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<OptionResponse> addDictionaryOption(
             @Parameter(description = "分类") @PathVariable String category,
@@ -46,6 +48,7 @@ public class DictionaryController {
 
     @Operation(summary = "更新字典选项")
     @PutMapping("/{category}/{id}")
+    @OpLog(operation = "UPDATE", targetType = "DICTIONARY")
     @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<OptionResponse> updateDictionaryOption(
             @Parameter(description = "分类") @PathVariable String category,
@@ -57,6 +60,7 @@ public class DictionaryController {
 
     @Operation(summary = "删除字典选项")
     @DeleteMapping("/{category}/{id}")
+    @OpLog(operation = "DELETE", targetType = "DICTIONARY")
     @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<Void> deleteDictionaryOption(
             @Parameter(description = "分类") @PathVariable String category,

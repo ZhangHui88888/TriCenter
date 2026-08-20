@@ -13,12 +13,14 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.Cookie;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -31,6 +33,9 @@ import java.nio.charset.StandardCharsets;
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    @Value("${tricenter.auth.accept-bearer:false}")
+    private boolean acceptBearer = true;
 
     private final JwtUtil jwtUtil;
     private final UserMapper userMapper;
@@ -59,6 +64,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
                             Result.unauthorized(
                                     ErrorKeys.ACCOUNT_DISABLED, "账号已禁用或不存在"));
+                    return;
+                }
+                int persistedTokenVersion = user.getTokenVersion() == null ? 0 : user.getTokenVersion();
+                if (jwtUtil.getTokenVersion(token) != persistedTokenVersion) {
+                    writeError(response, HttpServletResponse.SC_UNAUTHORIZED,
+                            Result.unauthorized(
+                                    ErrorKeys.TOKEN_EXPIRED, "登录会话已撤销，请重新登录"));
                     return;
                 }
                 if (currentCityId != null) {
@@ -99,6 +111,16 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     }
 
     private String extractToken(HttpServletRequest request) {
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if ("TRICENTER_ACCESS".equals(cookie.getName())
+                        && StringUtils.hasText(cookie.getValue())) {
+                    return cookie.getValue();
+                }
+            }
+        }
+        if (!acceptBearer) return null;
         String bearerToken = request.getHeader("Authorization");
         if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);

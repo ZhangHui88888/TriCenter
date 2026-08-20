@@ -1,6 +1,7 @@
 package com.tricenter.controller;
 
 import com.tricenter.common.result.Result;
+import com.tricenter.annotation.OpLog;
 import com.tricenter.dto.request.PatentRequest;
 import com.tricenter.dto.request.ProductCreateRequest;
 import com.tricenter.dto.request.ProductUpdateRequest;
@@ -39,6 +40,7 @@ public class ProductController {
 
     @Operation(summary = "添加企业产品", description = "为企业添加新产品")
     @PostMapping("/products")
+    @OpLog(operation = "CREATE", targetType = "PRODUCT")
     public Result<ProductResponse> createProduct(
             @Parameter(description = "企业ID") @PathVariable Integer enterpriseId,
             @Valid @RequestBody ProductCreateRequest request) {
@@ -48,6 +50,7 @@ public class ProductController {
 
     @Operation(summary = "更新企业产品", description = "更新产品信息")
     @PutMapping("/products/{productId}")
+    @OpLog(operation = "UPDATE", targetType = "PRODUCT")
     public Result<ProductResponse> updateProduct(
             @Parameter(description = "企业ID") @PathVariable Integer enterpriseId,
             @Parameter(description = "产品ID") @PathVariable Integer productId,
@@ -58,6 +61,7 @@ public class ProductController {
 
     @Operation(summary = "删除企业产品", description = "删除产品")
     @DeleteMapping("/products/{productId}")
+    @OpLog(operation = "DELETE", targetType = "PRODUCT")
     public Result<Void> deleteProduct(
             @Parameter(description = "企业ID") @PathVariable Integer enterpriseId,
             @Parameter(description = "产品ID") @PathVariable Integer productId) {
@@ -77,6 +81,7 @@ public class ProductController {
 
     @Operation(summary = "添加企业专利", description = "为企业添加新专利")
     @PostMapping("/patents")
+    @OpLog(operation = "CREATE", targetType = "PATENT")
     public Result<PatentResponse> createPatent(
             @Parameter(description = "企业ID") @PathVariable Integer enterpriseId,
             @Valid @RequestBody PatentRequest request) {
@@ -86,6 +91,7 @@ public class ProductController {
 
     @Operation(summary = "更新企业专利", description = "更新专利信息")
     @PutMapping("/patents/{patentId}")
+    @OpLog(operation = "UPDATE", targetType = "PATENT")
     public Result<PatentResponse> updatePatent(
             @Parameter(description = "企业ID") @PathVariable Integer enterpriseId,
             @Parameter(description = "专利ID") @PathVariable Integer patentId,
@@ -96,6 +102,7 @@ public class ProductController {
 
     @Operation(summary = "删除企业专利", description = "删除专利")
     @DeleteMapping("/patents/{patentId}")
+    @OpLog(operation = "DELETE", targetType = "PATENT")
     public Result<Void> deletePatent(
             @Parameter(description = "企业ID") @PathVariable Integer enterpriseId,
             @Parameter(description = "专利ID") @PathVariable Integer patentId) {

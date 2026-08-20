@@ -59,7 +59,7 @@ class AuthServiceCitySelectionTest {
         when(userMapper.selectOne(any())).thenReturn(user);
         when(passwordEncoder.matches("password", user.getPassword())).thenReturn(true);
         when(cityAccessService.getAvailableCities(user.getId())).thenReturn(List.of(changzhou));
-        when(jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole(), 1, false))
+        when(jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole(), 1, false, 0))
                 .thenReturn("active-token");
 
         LoginResponse response = authService.login(request);
@@ -79,7 +79,7 @@ class AuthServiceCitySelectionTest {
         when(userMapper.selectOne(any())).thenReturn(user);
         when(passwordEncoder.matches("password", user.getPassword())).thenReturn(true);
         when(cityAccessService.getAvailableCities(user.getId())).thenReturn(List.of(changzhou, suzhou));
-        when(jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole(), null, true))
+        when(jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole(), null, true, 0))
                 .thenReturn("pending-token");
 
         LoginResponse response = authService.login(loginRequest());

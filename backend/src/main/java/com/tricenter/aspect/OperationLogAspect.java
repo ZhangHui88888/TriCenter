@@ -2,17 +2,20 @@ package com.tricenter.aspect;
 
 import com.tricenter.annotation.OpLog;
 import com.tricenter.security.LoginUser;
-import com.tricenter.service.OperationLogService;
+import com.tricenter.service.AuditOutboxService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.JoinPoint;
-import org.aspectj.lang.annotation.AfterReturning;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -28,42 +31,59 @@ import java.lang.reflect.Method;
 @RequiredArgsConstructor
 public class OperationLogAspect {
 
-    private final OperationLogService operationLogService;
+    private final AuditOutboxService auditOutboxService;
+    private final PlatformTransactionManager transactionManager;
 
-    @AfterReturning(pointcut = "@annotation(com.tricenter.annotation.OpLog)", returning = "result")
-    public void afterReturning(JoinPoint joinPoint, Object result) {
+    @Around("@annotation(com.tricenter.annotation.OpLog)")
+    public Object around(ProceedingJoinPoint joinPoint) throws Throwable {
         try {
-            MethodSignature signature = (MethodSignature) joinPoint.getSignature();
-            Method method = signature.getMethod();
-            OpLog opLog = method.getAnnotation(OpLog.class);
+            TransactionTemplate transaction = new TransactionTemplate(transactionManager);
+            return transaction.execute(status -> {
+                try {
+                    Object result = joinPoint.proceed();
+                    enqueue(joinPoint, result);
+                    return result;
+                } catch (Throwable throwable) {
+                    status.setRollbackOnly();
+                    throw new ProceedingFailure(throwable);
+                }
+            });
+        } catch (ProceedingFailure failure) {
+            throw failure.getCause();
+        }
+    }
 
-            // 获取当前用户
-            Integer userId = null;
-            Integer cityId = null;
-            String username = null;
-            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-            if (auth != null && auth.getPrincipal() instanceof LoginUser loginUser) {
-                userId = loginUser.getId();
-                cityId = loginUser.getCurrentCityId();
-                username = loginUser.getUsername();
-            }
+    private void enqueue(JoinPoint joinPoint, Object result) {
+        MethodSignature signature = (MethodSignature) joinPoint.getSignature();
+        Method method = signature.getMethod();
+        OpLog opLog = method.getAnnotation(OpLog.class);
 
-            // 获取 IP 地址
-            String ipAddress = getClientIp();
+        Integer userId = null;
+        Integer cityId = null;
+        String username = null;
+        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth != null && auth.getPrincipal() instanceof LoginUser loginUser) {
+            userId = loginUser.getId();
+            cityId = loginUser.getCurrentCityId();
+            username = loginUser.getUsername();
+        }
 
-            // 从方法参数中提取 targetId 和 targetName
-            String targetId = extractTargetId(joinPoint);
-            String targetName = extractTargetName(joinPoint, result);
+        String ipAddress = getClientIp();
 
-            // 构建详情
-            String detail = opLog.detail().isEmpty()
-                    ? buildDefaultDetail(opLog.operation(), opLog.targetType(), targetName)
-                    : opLog.detail();
+        String targetId = extractTargetId(joinPoint);
+        String targetName = extractTargetName(joinPoint, result);
 
-            operationLogService.log(userId, cityId, username, opLog.operation(), opLog.targetType(),
-                    targetId, targetName, detail, ipAddress);
-        } catch (Exception e) {
-            log.error("操作日志切面异常", e);
+        String detail = opLog.detail().isEmpty()
+                ? buildDefaultDetail(opLog.operation(), opLog.targetType(), targetName)
+                : opLog.detail();
+
+        auditOutboxService.enqueue(userId, cityId, username, opLog.operation(), opLog.targetType(),
+                targetId, targetName, detail, ipAddress);
+    }
+
+    private static final class ProceedingFailure extends RuntimeException {
+        private ProceedingFailure(Throwable cause) {
+            super(cause);
         }
     }
 

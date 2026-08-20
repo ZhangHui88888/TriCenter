@@ -204,6 +204,9 @@ export const authApi = {
   // 登出
   logout: () => request.post('/auth/logout'),
 
+  // 轮换 HttpOnly refresh cookie
+  refresh: () => request.post('/auth/refresh'),
+
   // 获取当前用户信息
   getCurrentUser: () => request.get('/auth/me'),
 
@@ -302,6 +305,9 @@ export const marketReportApi = {
 
   save: (enterpriseId: number, version: 'basic' | 'deep', data: Record<string, any>) =>
     request.put(`/market-reports/${enterpriseId}/${version}`, data),
+
+  generateAi: (data: { enterpriseId: number; version: 'basic' | 'deep'; providerApiKey: string }) =>
+    request.post<Record<string, unknown>>('/market-reports/ai/generate', data, { timeout: 130000 }),
 };
 
 // 基础数据/选项 API

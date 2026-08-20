@@ -28,6 +28,8 @@ jwt:
 # 系统间API Key认证（Booking-miniapp调用使用）
 tricenter:
   api-key: booking-to-tricenter-secret-key
+  auth:
+    accept-bearer: true
 
 # 日志配置
 logging:

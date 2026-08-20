@@ -3,7 +3,6 @@ import { persist } from 'zustand/middleware';
 import type { CityInfo, LoginResponseData, UserInfo } from '@/types/auth';
 
 interface AuthState {
-  token: string | null;
   user: UserInfo | null;
   isAuthenticated: boolean;
   availableCities: CityInfo[];
@@ -18,7 +17,6 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()(
   persist(
     (set, get) => ({
-      token: null,
       user: null,
       isAuthenticated: false,
       availableCities: [],
@@ -26,9 +24,8 @@ export const useAuthStore = create<AuthState>()(
       requiresCitySelection: false,
       
       setAuth: (session) => {
-        localStorage.setItem('token', session.token);
+        localStorage.removeItem('token');
         set({
-          token: session.token,
           user: session.user,
           availableCities: session.availableCities || [],
           currentCity: session.currentCity || null,
@@ -40,7 +37,6 @@ export const useAuthStore = create<AuthState>()(
       clearAuth: () => {
         localStorage.removeItem('token');
         set({
-          token: null,
           user: null,
           isAuthenticated: false,
           availableCities: [],
@@ -61,12 +57,12 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      version: 2,
+      version: 3,
       migrate: (persistedState, version) => {
-        if (version < 2) {
+        localStorage.removeItem('token');
+        if (version < 3) {
           return {
             ...(persistedState as Partial<AuthState>),
-            token: null,
             user: null,
             isAuthenticated: false,
             availableCities: [],
@@ -77,7 +73,6 @@ export const useAuthStore = create<AuthState>()(
         return persistedState as AuthState;
       },
       partialize: (state) => ({ 
-        token: state.token, 
         user: state.user,
         isAuthenticated: state.isAuthenticated,
         availableCities: state.availableCities,

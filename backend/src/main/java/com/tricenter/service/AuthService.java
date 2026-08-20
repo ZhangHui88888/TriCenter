@@ -16,6 +16,8 @@ public interface AuthService {
     LoginResponse login(LoginRequest request);
 
     LoginResponse selectCity(Integer userId, Integer cityId);
+
+    LoginResponse refresh(Integer userId, Integer currentCityId, boolean citySelectionPending);
     
     /**
      * 用户登出

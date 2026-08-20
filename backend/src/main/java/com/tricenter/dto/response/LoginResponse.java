@@ -2,6 +2,7 @@ package com.tricenter.dto.response;
 
 import lombok.Builder;
 import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 import java.util.List;
 
@@ -12,6 +13,7 @@ import java.util.List;
 @Builder
 public class LoginResponse {
     
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String token;
     private boolean requiresCitySelection;
     private List<CityInfoResponse> availableCities;

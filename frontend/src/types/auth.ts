@@ -15,7 +15,8 @@ export interface UserInfo {
 }
 
 export interface LoginResponseData {
-  token: string;
+  /** 兼容迁移期间后端仍可能返回；前端禁止持久化或用于 Authorization。 */
+  token?: string;
   requiresCitySelection: boolean;
   availableCities: CityInfo[];
   currentCity?: CityInfo | null;

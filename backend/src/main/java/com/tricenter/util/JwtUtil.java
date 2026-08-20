@@ -22,7 +22,7 @@ public class JwtUtil {
     @Value("${jwt.secret}")
     private String secret;
 
-    @Value("${jwt.expiration}")
+    @Value("${jwt.access-expiration:1800000}")
     private Long expiration;
 
     private SecretKey getSigningKey() {
@@ -35,11 +35,18 @@ public class JwtUtil {
      */
     public String generateToken(Integer userId, String username, String role,
                                 Integer currentCityId, boolean citySelectionPending) {
+        return generateToken(userId, username, role, currentCityId, citySelectionPending, 0);
+    }
+
+    public String generateToken(Integer userId, String username, String role,
+                                Integer currentCityId, boolean citySelectionPending,
+                                Integer tokenVersion) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("userId", userId);
         claims.put("username", username);
         claims.put("role", role);
         claims.put("citySelectionPending", citySelectionPending);
+        claims.put("tokenVersion", tokenVersion == null ? 0 : tokenVersion);
         if (currentCityId != null) {
             claims.put("currentCityId", currentCityId);
         }
@@ -116,6 +123,11 @@ public class JwtUtil {
     public boolean isCitySelectionPending(String token) {
         Boolean value = parseToken(token).get("citySelectionPending", Boolean.class);
         return Boolean.TRUE.equals(value);
+    }
+
+    public int getTokenVersion(String token) {
+        Number value = parseToken(token).get("tokenVersion", Number.class);
+        return value == null ? 0 : value.intValue();
     }
 
     /**

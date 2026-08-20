@@ -2,6 +2,7 @@ package com.tricenter.controller;
 
 import com.tricenter.common.result.PageResult;
 import com.tricenter.common.result.Result;
+import com.tricenter.annotation.OpLog;
 import com.tricenter.dto.request.ProviderCreateRequest;
 import com.tricenter.dto.request.ProviderQueryRequest;
 import com.tricenter.dto.request.ProviderUpdateRequest;
@@ -46,6 +47,7 @@ public class ProviderController {
 
     @Operation(summary = "新增服务商", description = "创建新服务商记录")
     @PostMapping
+    @OpLog(operation = "CREATE", targetType = "PROVIDER")
     @PreAuthorize("hasAuthority('provider:manage')")
     public Result<Provider> createProvider(@Valid @RequestBody ProviderCreateRequest request) {
         Provider provider = providerService.createProvider(request);
@@ -54,6 +56,7 @@ public class ProviderController {
 
     @Operation(summary = "编辑服务商", description = "更新服务商信息")
     @PutMapping("/{id}")
+    @OpLog(operation = "UPDATE", targetType = "PROVIDER")
     @PreAuthorize("hasAuthority('provider:manage')")
     public Result<Provider> updateProvider(
             @Parameter(description = "服务商ID") @PathVariable Integer id,
@@ -64,6 +67,7 @@ public class ProviderController {
 
     @Operation(summary = "删除服务商", description = "软删除服务商记录")
     @DeleteMapping("/{id}")
+    @OpLog(operation = "DELETE", targetType = "PROVIDER")
     @PreAuthorize("hasAuthority('provider:manage')")
     public Result<Void> deleteProvider(
             @Parameter(description = "服务商ID") @PathVariable Integer id) {

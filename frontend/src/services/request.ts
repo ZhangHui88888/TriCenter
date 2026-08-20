@@ -14,6 +14,7 @@ type RequestConfigWithMeta = InternalAxiosRequestConfig & {
   cityWriteTracked?: boolean;
   /** 为 true 时不弹全局 message，由调用方自行展示（避免与页面内提示重复叠在一起） */
   skipGlobalErrorToast?: boolean;
+  authRefreshRetried?: boolean;
 };
 
 const request: AxiosInstance = axios.create({
@@ -22,6 +23,9 @@ const request: AxiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
 });
 
 let requestSequence = 0;
@@ -49,11 +53,6 @@ request.interceptors.request.use(
     if (isWriteMethod(nextConfig.method)) {
       nextConfig.cityWriteTracked = true;
       beginWriteRequest();
-    }
-    const token = localStorage.getItem('token');
-    const isLoginRequest = nextConfig.url?.endsWith('/auth/login') ?? false;
-    if (token && !isLoginRequest && nextConfig.headers) {
-      nextConfig.headers.Authorization = `Bearer ${token}`;
     }
     console.info('[HTTP][start]', {
       id: nextConfig.metadata.requestId,
@@ -137,7 +136,7 @@ request.interceptors.response.use(
     }
     return data;
   },
-  (error) => {
+  async (error) => {
     const config = error.config as RequestConfigWithMeta | undefined;
     if (config?.cityWriteTracked) {
       config.cityWriteTracked = false;
@@ -154,6 +153,21 @@ request.interceptors.response.use(
     const skipToast = (config as RequestConfigWithMeta | undefined)?.skipGlobalErrorToast;
     if (error.response) {
       const { status } = error.response;
+      const isAuthBootstrap = config?.url?.includes('/auth/login') || config?.url?.includes('/auth/refresh');
+      if (status === 401 && config && !config.authRefreshRetried && !isAuthBootstrap) {
+        config.authRefreshRetried = true;
+        try {
+          await axios.post('/auth/refresh', {}, {
+            baseURL: request.defaults.baseURL,
+            withCredentials: true,
+            xsrfCookieName: 'XSRF-TOKEN',
+            xsrfHeaderName: 'X-XSRF-TOKEN',
+          });
+          return request(config);
+        } catch {
+          // Continue through the existing auth error policy.
+        }
+      }
       const errorKey = error.response.data?.errorKey as string | undefined;
       const authAction = getAuthErrorAction(status, errorKey, window.location.pathname);
       if (authAction.type === 'redirect') {

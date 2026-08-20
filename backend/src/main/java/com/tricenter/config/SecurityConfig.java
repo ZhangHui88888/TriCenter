@@ -3,6 +3,7 @@ package com.tricenter.config;
 import com.tricenter.security.ApiKeyAuthenticationFilter;
 import com.tricenter.security.JwtAuthenticationFilter;
 import com.tricenter.security.CitySelectionFilter;
+import com.tricenter.security.CsrfCookieFilter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -17,6 +18,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -36,17 +38,23 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
     private final CitySelectionFilter citySelectionFilter;
+    private final CsrfCookieFilter csrfCookieFilter;
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(AbstractHttpConfigurer::disable)
+            .csrf(csrf -> csrf
+                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .ignoringRequestMatchers("/api/auth/login", "/api/auth/refresh")
+                .ignoringRequestMatchers(request ->
+                        org.springframework.util.StringUtils.hasText(
+                                request.getHeader("X-API-Key"))))
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(session -> 
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // 公开接口
-                .requestMatchers("/api/auth/login", "/api/system/identity").permitAll()
+                .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/system/identity").permitAll()
                 // Swagger文档
                 .requestMatchers("/doc.html", "/swagger-ui/**", "/v3/api-docs/**", 
                     "/swagger-resources/**", "/webjars/**").permitAll()
@@ -54,7 +62,8 @@ public class SecurityConfig {
                 .anyRequest().authenticated())
             .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-            .addFilterAfter(citySelectionFilter, JwtAuthenticationFilter.class);
+            .addFilterAfter(citySelectionFilter, JwtAuthenticationFilter.class)
+            .addFilterAfter(csrfCookieFilter, CitySelectionFilter.class);
         
         return http.build();
     }
