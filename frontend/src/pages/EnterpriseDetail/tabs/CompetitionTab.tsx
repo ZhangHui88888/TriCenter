@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Card, Row, Col, Space, Button, Switch, Input, Typography } from 'antd';
 import { EditOutlined, AlertOutlined, WarningOutlined } from '@ant-design/icons';
 import {
@@ -16,7 +15,7 @@ interface CompetitionTabProps {
   setCompetitionPosition: (v: string) => void;
   competitionDesc: string;
   setCompetitionDesc: (v: string) => void;
-  saveEnterpriseFields: (fields: Record<string, any>, msg: string) => Promise<void>;
+  saveEnterpriseFields: (fields: Record<string, any>, msg: string) => Promise<unknown>;
   onEditRisk: () => void;
 }
 
@@ -86,14 +85,15 @@ export default function CompetitionTab({
               const isSelected = item.value === competitionPosition;
               return (
                 <Col span={8} key={idx}>
-                  <div
+                  <Button
+                    block
                     style={{
                       padding: '16px',
                       background: isSelected ? 'rgba(102,126,234,0.1)' : '#fafafa',
                       border: isSelected ? '2px solid #667eea' : '1px solid #f0f0f0',
                       borderRadius: 10,
-                      cursor: 'pointer',
-                      transition: 'all 0.3s'
+                      transition: 'all 0.3s',
+                      height: 'auto'
                     }}
                     onClick={async () => {
                       setCompetitionPosition(item.value);
@@ -103,7 +103,7 @@ export default function CompetitionTab({
                     <Text strong={isSelected} type={isSelected ? undefined : 'secondary'} style={{ color: isSelected ? '#667eea' : undefined }}>
                       {item.label} {isSelected && '✓'}
                     </Text>
-                  </div>
+                  </Button>
                 </Col>
               );
             })}

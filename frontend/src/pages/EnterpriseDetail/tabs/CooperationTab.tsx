@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState, useMemo } from 'react';
 import { Card, Select, Tag, Button, Slider, Switch, Typography, Empty, message, Tooltip } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
@@ -18,7 +17,7 @@ interface CooperationTabProps {
   serviceRecords: any[];
   reloadServiceRecords: () => void;
   mergeServiceRecordInState?: (updated: any) => void;
-  saveEnterpriseFields: (fields: Record<string, any>, msg: string) => Promise<void>;
+  saveEnterpriseFields: (fields: Record<string, any>, msg: string) => Promise<unknown>;
   navigateToServiceRecords: () => void;
 }
 

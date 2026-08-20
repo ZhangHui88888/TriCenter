@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Card, Row, Col, Space, Tag, Button, Switch, Typography } from 'antd';
 import { EditOutlined, PlusOutlined, CloseOutlined } from '@ant-design/icons';
 import {
@@ -23,7 +22,7 @@ interface TradeInfoTabProps {
   setGrowthReasons: React.Dispatch<React.SetStateAction<string[]>>;
   declineReasons: string[];
   setDeclineReasons: React.Dispatch<React.SetStateAction<string[]>>;
-  persistTradePerformanceJson: (market: any, mode: any, category: any) => Promise<void>;
+  persistTradePerformanceJson: (market: any, mode: any, category: any) => Promise<unknown>;
   setTradeChangeType: (v: 'market' | 'mode' | 'category') => void;
   setTradeChangeDirection: (v: 'up' | 'down') => void;
   setEditingTradeChange: (v: any) => void;
@@ -43,9 +42,7 @@ export default function TradeInfoTab({
   marketChanges,
   setMarketChanges,
   modeChanges,
-  setModeChanges,
   categoryChanges,
-  setCategoryChanges,
   growthReasons,
   setGrowthReasons,
   declineReasons,
@@ -110,9 +107,9 @@ export default function TradeInfoTab({
               {upData.map((item, idx) => (
                 <Tag key={idx} color="green" closable style={{ borderRadius: 4, fontWeight: 500 }}
                   onClose={() => onRemoveUp(idx)}>
-                  <span style={{ cursor: 'pointer' }} onClick={() => openTradeChange(type, 'up', item)}>
+                  <Button type="link" size="small" style={{ padding: 0, height: 'auto', color: 'inherit' }} onClick={() => openTradeChange(type, 'up', item)}>
                     {item.name} {item.rate}
-                  </span>
+                  </Button>
                 </Tag>
               ))}
             </Space>
@@ -132,9 +129,9 @@ export default function TradeInfoTab({
               {downData.map((item, idx) => (
                 <Tag key={idx} color="red" closable style={{ borderRadius: 4, fontWeight: 500 }}
                   onClose={() => onRemoveDown(idx)}>
-                  <span style={{ cursor: 'pointer' }} onClick={() => openTradeChange(type, 'down', item)}>
+                  <Button type="link" size="small" style={{ padding: 0, height: 'auto', color: 'inherit' }} onClick={() => openTradeChange(type, 'down', item)}>
                     {item.name} {item.rate}
-                  </span>
+                  </Button>
                 </Tag>
               ))}
             </Space>
@@ -312,9 +309,9 @@ export default function TradeInfoTab({
                   <Space direction="vertical" size={8} style={{ width: '100%' }}>
                     {growthReasons.map((reason, idx) => (
                       <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.8)', borderRadius: 6 }}>
-                        <span style={{ fontSize: 13, color: '#333', cursor: 'pointer' }}
-                          onClick={() => openReasonModal('growth', { index: idx, value: reason })}>{reason}</span>
-                        <CloseOutlined style={{ fontSize: 10, color: '#999', cursor: 'pointer' }}
+                        <Button type="link" size="small" style={{ fontSize: 13, color: '#333', padding: 0 }}
+                          onClick={() => openReasonModal('growth', { index: idx, value: reason })}>{reason}</Button>
+                        <Button type="text" size="small" aria-label={`删除增长原因：${reason}`} icon={<CloseOutlined />}
                           onClick={() => setGrowthReasons(prev => prev.filter((_, i) => i !== idx))} />
                       </div>
                     ))}
@@ -334,9 +331,9 @@ export default function TradeInfoTab({
                   <Space direction="vertical" size={8} style={{ width: '100%' }}>
                     {declineReasons.map((reason, idx) => (
                       <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(255,255,255,0.8)', borderRadius: 6 }}>
-                        <span style={{ fontSize: 13, color: '#333', cursor: 'pointer' }}
-                          onClick={() => openReasonModal('decline', { index: idx, value: reason })}>{reason}</span>
-                        <CloseOutlined style={{ fontSize: 10, color: '#999', cursor: 'pointer' }}
+                        <Button type="link" size="small" style={{ fontSize: 13, color: '#333', padding: 0 }}
+                          onClick={() => openReasonModal('decline', { index: idx, value: reason })}>{reason}</Button>
+                        <Button type="text" size="small" aria-label={`删除下降原因：${reason}`} icon={<CloseOutlined />}
                           onClick={() => setDeclineReasons(prev => prev.filter((_, i) => i !== idx))} />
                       </div>
                     ))}

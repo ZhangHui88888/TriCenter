@@ -46,7 +46,7 @@ import {
   TRANSFORMATION_WILLINGNESS,
   CUSTOMS_DECLARATION_MODE_OPTIONS,
 } from '@/utils/constants';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/CoreChart';
 import { enterpriseApi, optionsApi, surveyExcelApi, dashboardApi } from '@/services/api';
 import { toXlsxBlobFromResponse } from '@/utils/excelDownloadResponse';
 import { getCountryOptions } from '@/data/countries';

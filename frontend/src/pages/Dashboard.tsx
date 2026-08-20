@@ -12,7 +12,7 @@ import {
   BarChartOutlined,
   FileTextOutlined,
 } from '@ant-design/icons';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/CoreChart';
 import { dashboardApi } from '@/services/api';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -393,10 +393,11 @@ function Dashboard() {
                 { label: '添加跟进', icon: <FileTextOutlined />, color: C.teal, bg: '#DCFAF8', path: '/follow-up', permission: 'followup:manage' },
                 { label: '数据分析', icon: <BarChartOutlined />, color: C.purple, bg: '#F0EBFF', path: '/data-analysis' },
               ].filter((a) => !a.permission || hasPermission(a.permission)).map((a) => (
-                <div
+                <Button
                   key={a.label}
+                  type="text"
                   onClick={() => navigate(a.path)}
-                  style={{ textAlign: 'center', cursor: 'pointer' }}
+                  style={{ textAlign: 'center', height: 'auto', padding: 4 }}
                 >
                   <div style={{
                     width: 56, height: 56, borderRadius: '50%',
@@ -407,7 +408,7 @@ function Dashboard() {
                     {a.icon}
                   </div>
                   <div style={{ fontSize: 12, color: C.textDark, fontWeight: 500 }}>{a.label}</div>
-                </div>
+                </Button>
               ))}
             </div>
 

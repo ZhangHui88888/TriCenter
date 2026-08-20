@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { CSSProperties, MouseEvent } from 'react';
 import { useRef, useState } from 'react';
 import { App, Button, Dropdown, Typography } from 'antd';
@@ -95,7 +94,7 @@ export default function ServiceRecordCardAttachmentActions({
   const [inlineHint, setInlineHint] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const attachmentMetas = normalizeAttachmentList(r.attachments);
 
-  const entId = enterpriseId != null && enterpriseId !== '' ? Number(enterpriseId) : Number.NaN;
+  const entId = enterpriseId != null ? Number(enterpriseId) : Number.NaN;
   const recordId = r?.id ?? r?.serviceId ?? r?.service_id;
   const canUpload = Number.isFinite(entId) && entId > 0 && recordId != null && recordId !== '';
   let uploadBlockTitle: string | undefined;

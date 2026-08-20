@@ -10,7 +10,7 @@ const { Text } = Typography;
 interface RequirementDimensionSelectorProps {
   dimensionSelections: Record<string, string[]>;
   setDimensionSelections: (v: Record<string, string[]>) => void;
-  saveEnterpriseFields: (fields: Record<string, any>, msg: string) => Promise<void>;
+  saveEnterpriseFields: (fields: Record<string, any>, msg: string) => Promise<unknown>;
 }
 
 export default function RequirementDimensionSelector({

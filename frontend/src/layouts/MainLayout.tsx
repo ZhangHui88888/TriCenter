@@ -201,9 +201,13 @@ function MainLayout() {
           boxShadow: 'none',
         }}>
           <Space size="large" align="center">
-            <div onClick={() => setCollapsed(!collapsed)} style={{ cursor: 'pointer', fontSize: 22, color: '#333' }}>
-              {collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            </div>
+            <Button
+              type="text"
+              aria-label={collapsed ? '展开侧边导航' : '收起侧边导航'}
+              icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+              onClick={() => setCollapsed(!collapsed)}
+              style={{ fontSize: 22, color: '#333' }}
+            />
             <span style={{ fontSize: 28, fontWeight: 600, color: '#343C6A' }}>
               {currentTitle && 'label' in currentTitle ? currentTitle.label : '概览看板'}
             </span>

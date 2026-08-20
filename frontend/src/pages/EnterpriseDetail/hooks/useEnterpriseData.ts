@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Form, message } from 'antd';
@@ -7,6 +6,7 @@ import type { RequirementConfigData } from '@/services/api';
 import { ENTERPRISE_DETAIL_TAB_KEYS } from '../constants';
 import { mapCategoriesToCascader, logEnterpriseDetail } from '../utils';
 import { ENTERPRISE_GUIDE_TAB_EVENT } from '@/components/appGuideConfig';
+import type { FollowUpRecord } from '@/types';
 
 export function useEnterpriseData(id: string | undefined) {
   const [searchParams] = useSearchParams();
@@ -90,9 +90,10 @@ export function useEnterpriseData(id: string | undefined) {
   const [competitionForm] = Form.useForm();
   const [riskForm] = Form.useForm();
 
-  const [enterprise, setEnterprise] = useState<any>(null);
+  // The API adapter still normalizes legacy fields while individual tabs migrate to domain DTOs.
+  const [enterprise, setEnterprise] = useState<Record<string, any> | null>(null);
   const [loading, setLoading] = useState(true);
-  const [enterpriseRecords, setEnterpriseRecords] = useState<any[]>([]);
+  const [enterpriseRecords, setEnterpriseRecords] = useState<FollowUpRecord[]>([]);
   const [categoryTree, setCategoryTree] = useState<any[]>([]);
 
   const productCascaderOptions = useMemo(
@@ -163,13 +164,13 @@ export function useEnterpriseData(id: string | undefined) {
     return () => globalThis.removeEventListener(ENTERPRISE_GUIDE_TAB_EVENT, onGuideTab);
   }, []);
 
-  const loadEnterpriseFollowUps = useCallback(async (enterpriseId) => {
+  const loadEnterpriseFollowUps = useCallback(async (enterpriseId: number) => {
     if (!enterpriseId) return;
     const startedAt = performance.now();
     logEnterpriseDetail('start follow-up load', { enterpriseId });
     try {
       const res = await followUpApi.getByEnterprise(enterpriseId);
-      const list = (res.data || []).map((item) => ({
+      const list = (res.data || []).map((item: Record<string, any>) => ({
         id: item.id,
         enterprise_id: item.enterpriseId,
         enterprise_name: item.enterpriseName,

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState, useMemo } from 'react';
 import { Input, Typography, Button, Empty } from 'antd';
 import { SearchOutlined, PlusOutlined } from '@ant-design/icons';

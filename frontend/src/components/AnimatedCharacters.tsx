@@ -6,6 +6,9 @@ interface PupilProps {
   pupilColor?: string;
   forceLookX?: number;
   forceLookY?: number;
+  pointerX?: number;
+  pointerY?: number;
+  reducedMotion?: boolean;
 }
 
 export const Pupil = ({
@@ -14,30 +17,23 @@ export const Pupil = ({
   pupilColor = 'black',
   forceLookX,
   forceLookY,
+  pointerX = 0,
+  pointerY = 0,
+  reducedMotion = false,
 }: PupilProps) => {
-  const [mouseX, setMouseX] = useState(0);
-  const [mouseY, setMouseY] = useState(0);
   const pupilRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMouseX(e.clientX);
-      setMouseY(e.clientY);
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
 
   const calculatePupilPosition = () => {
     if (!pupilRef.current) return { x: 0, y: 0 };
+    if (reducedMotion) return { x: 0, y: 0 };
     if (forceLookX !== undefined && forceLookY !== undefined) {
       return { x: forceLookX, y: forceLookY };
     }
     const pupil = pupilRef.current.getBoundingClientRect();
     const pupilCenterX = pupil.left + pupil.width / 2;
     const pupilCenterY = pupil.top + pupil.height / 2;
-    const deltaX = mouseX - pupilCenterX;
-    const deltaY = mouseY - pupilCenterY;
+    const deltaX = pointerX - pupilCenterX;
+    const deltaY = pointerY - pupilCenterY;
     const distance = Math.min(Math.sqrt(deltaX ** 2 + deltaY ** 2), maxDistance);
     const angle = Math.atan2(deltaY, deltaX);
     return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
@@ -69,6 +65,9 @@ interface EyeBallProps {
   isBlinking?: boolean;
   forceLookX?: number;
   forceLookY?: number;
+  pointerX?: number;
+  pointerY?: number;
+  reducedMotion?: boolean;
 }
 
 export const EyeBall = ({
@@ -80,30 +79,23 @@ export const EyeBall = ({
   isBlinking = false,
   forceLookX,
   forceLookY,
+  pointerX = 0,
+  pointerY = 0,
+  reducedMotion = false,
 }: EyeBallProps) => {
-  const [mouseX, setMouseX] = useState(0);
-  const [mouseY, setMouseY] = useState(0);
   const eyeRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMouseX(e.clientX);
-      setMouseY(e.clientY);
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
-  }, []);
 
   const calculatePupilPosition = () => {
     if (!eyeRef.current) return { x: 0, y: 0 };
+    if (reducedMotion) return { x: 0, y: 0 };
     if (forceLookX !== undefined && forceLookY !== undefined) {
       return { x: forceLookX, y: forceLookY };
     }
     const eye = eyeRef.current.getBoundingClientRect();
     const eyeCenterX = eye.left + eye.width / 2;
     const eyeCenterY = eye.top + eye.height / 2;
-    const deltaX = mouseX - eyeCenterX;
-    const deltaY = mouseY - eyeCenterY;
+    const deltaX = pointerX - eyeCenterX;
+    const deltaY = pointerY - eyeCenterY;
     const distance = Math.min(Math.sqrt(deltaX ** 2 + deltaY ** 2), maxDistance);
     const angle = Math.atan2(deltaY, deltaX);
     return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
@@ -167,6 +159,7 @@ export function AnimatedCharacters({
   const [typingPulse, setTypingPulse] = useState(false);
   const [isErrorReacting, setIsErrorReacting] = useState(false);
   const [errorOffset, setErrorOffset] = useState(0);
+  const [reducedMotion, setReducedMotion] = useState(false);
 
   const purpleRef = useRef<HTMLDivElement>(null);
   const blackRef = useRef<HTMLDivElement>(null);
@@ -174,16 +167,41 @@ export function AnimatedCharacters({
   const orangeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const handleMouseMove = (e: MouseEvent) => {
-      setMouseX(e.clientX);
-      setMouseY(e.clientY);
-    };
-    window.addEventListener('mousemove', handleMouseMove);
-    return () => window.removeEventListener('mousemove', handleMouseMove);
+    const media = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const sync = () => setReducedMotion(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
   }, []);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    let frameId: number | null = null;
+    let nextX = 0;
+    let nextY = 0;
+    const handlePointerMove = (event: PointerEvent) => {
+      nextX = event.clientX;
+      nextY = event.clientY;
+      if (frameId !== null) return;
+      frameId = requestAnimationFrame(() => {
+        setMouseX(nextX);
+        setMouseY(nextY);
+        frameId = null;
+      });
+    };
+    window.addEventListener('pointermove', handlePointerMove, { passive: true });
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      if (frameId !== null) cancelAnimationFrame(frameId);
+    };
+  }, [reducedMotion]);
 
   // 入场动画 — 双帧 rAF 确保浏览器先渲染初始状态
   useEffect(() => {
+    if (reducedMotion) {
+      setHasEntered(true);
+      return;
+    }
     let raf1: number;
     let raf2: number;
     raf1 = requestAnimationFrame(() => {
@@ -192,60 +210,68 @@ export function AnimatedCharacters({
       });
     });
     return () => { cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
-  }, []);
+  }, [reducedMotion]);
 
   // 登录失败 — 抖动 + 表情反应
   useEffect(() => {
-    if (errorTrigger <= 0) return;
+    if (errorTrigger <= 0 || reducedMotion) return;
     setIsErrorReacting(true);
     setIsLookingAtEachOther(false);
     setTypingPulse(false);
 
     // 抖动
     const steps = [-12, 10, -8, 6, -4, 0];
-    steps.forEach((value, index) => {
-      window.setTimeout(() => setErrorOffset(value), index * 70);
-    });
+    const timers = steps.map((value, index) =>
+      window.setTimeout(() => setErrorOffset(value), index * 70));
 
     // 抖动结束后保持表情 1.2 秒再恢复
     const resetTimer = window.setTimeout(() => {
       setErrorOffset(0);
       setIsErrorReacting(false);
     }, steps.length * 70 + 1200);
-    return () => window.clearTimeout(resetTimer);
-  }, [errorTrigger]);
+    return () => {
+      timers.forEach((timer) => window.clearTimeout(timer));
+      window.clearTimeout(resetTimer);
+    };
+  }, [errorTrigger, reducedMotion]);
 
   // 紫色眨眼
   useEffect(() => {
+    if (reducedMotion) return;
     const rand = () => Math.random() * 4000 + 3000;
+    let timer: number;
+    let cancelled = false;
     const schedule = () => {
-      const t = setTimeout(() => {
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
         setIsPurpleBlinking(true);
-        setTimeout(() => { setIsPurpleBlinking(false); schedule(); }, 150);
+        timer = window.setTimeout(() => { setIsPurpleBlinking(false); schedule(); }, 150);
       }, rand());
-      return t;
     };
-    const t = schedule();
-    return () => clearTimeout(t);
-  }, []);
+    schedule();
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [reducedMotion]);
 
   // 黑色眨眼
   useEffect(() => {
+    if (reducedMotion) return;
     const rand = () => Math.random() * 4000 + 3000;
+    let timer: number;
+    let cancelled = false;
     const schedule = () => {
-      const t = setTimeout(() => {
+      timer = window.setTimeout(() => {
+        if (cancelled) return;
         setIsBlackBlinking(true);
-        setTimeout(() => { setIsBlackBlinking(false); schedule(); }, 150);
+        timer = window.setTimeout(() => { setIsBlackBlinking(false); schedule(); }, 150);
       }, rand());
-      return t;
     };
-    const t = schedule();
-    return () => clearTimeout(t);
-  }, []);
+    schedule();
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [reducedMotion]);
 
   // 输入时互看
   useEffect(() => {
-    if (isTyping) {
+    if (isTyping && !reducedMotion) {
       setIsLookingAtEachOther(true);
       setTypingPulse(true);
       const timer = window.setTimeout(() => {
@@ -256,19 +282,23 @@ export function AnimatedCharacters({
     }
     setIsLookingAtEachOther(false);
     setTypingPulse(false);
-  }, [isTyping, typingTrigger]);
+  }, [isTyping, typingTrigger, reducedMotion]);
 
   // 紫色偷看密码
   useEffect(() => {
-    if (passwordLength > 0 && showPassword) {
-      const t = setTimeout(() => {
+    if (passwordLength > 0 && showPassword && !reducedMotion) {
+      let resetTimer: number;
+      const t = window.setTimeout(() => {
         setIsPurplePeeking(true);
-        setTimeout(() => setIsPurplePeeking(false), 800);
+        resetTimer = window.setTimeout(() => setIsPurplePeeking(false), 800);
       }, Math.random() * 3000 + 2000);
-      return () => clearTimeout(t);
+      return () => {
+        window.clearTimeout(t);
+        window.clearTimeout(resetTimer);
+      };
     }
     setIsPurplePeeking(false);
-  }, [passwordLength, showPassword, isPurplePeeking]);
+  }, [passwordLength, showPassword, reducedMotion]);
 
   const calculatePosition = (ref: React.RefObject<HTMLDivElement | null>) => {
     if (!ref.current) return { faceX: 0, faceY: 0, bodySkew: 0 };
@@ -291,7 +321,9 @@ export function AnimatedCharacters({
 
   const isHidingPassword = passwordLength > 0 && !showPassword;
   const peeking = passwordLength > 0 && showPassword;
-  const entryT = 'transform 0.9s cubic-bezier(0.22,1,0.36,1), opacity 0.9s cubic-bezier(0.22,1,0.36,1), height 0.7s ease-in-out';
+  const entryT = reducedMotion
+    ? 'none'
+    : 'transform 0.9s cubic-bezier(0.22,1,0.36,1), opacity 0.9s cubic-bezier(0.22,1,0.36,1), height 0.7s ease-in-out';
   const groupTransform = isErrorReacting ? `translateX(${errorOffset}px)` : 'translateX(0)';
 
   return (
@@ -321,9 +353,11 @@ export function AnimatedCharacters({
           transition: 'all 0.7s ease-in-out',
         }}>
           <EyeBall size={18} pupilSize={7} maxDistance={5} eyeColor="white" pupilColor="#2D2D2D" isBlinking={isPurpleBlinking}
+            pointerX={mouseX} pointerY={mouseY} reducedMotion={reducedMotion}
             forceLookX={isErrorReacting ? 0 : peeking ? (isPurplePeeking ? 4 : -4) : isLookingAtEachOther ? 3 : undefined}
             forceLookY={isErrorReacting ? 6 : peeking ? (isPurplePeeking ? 5 : -4) : isLookingAtEachOther ? 4 : undefined} />
           <EyeBall size={18} pupilSize={7} maxDistance={5} eyeColor="white" pupilColor="#2D2D2D" isBlinking={isPurpleBlinking}
+            pointerX={mouseX} pointerY={mouseY} reducedMotion={reducedMotion}
             forceLookX={isErrorReacting ? 0 : peeking ? (isPurplePeeking ? 4 : -4) : isLookingAtEachOther ? 3 : undefined}
             forceLookY={isErrorReacting ? 6 : peeking ? (isPurplePeeking ? 5 : -4) : isLookingAtEachOther ? 4 : undefined} />
         </div>
@@ -364,9 +398,11 @@ export function AnimatedCharacters({
           transition: 'all 0.7s ease-in-out',
         }}>
           <EyeBall size={16} pupilSize={6} maxDistance={4} eyeColor="white" pupilColor="#2D2D2D" isBlinking={isBlackBlinking}
+            pointerX={mouseX} pointerY={mouseY} reducedMotion={reducedMotion}
             forceLookX={isErrorReacting ? 0 : peeking ? -4 : isLookingAtEachOther ? 0 : undefined}
             forceLookY={isErrorReacting ? 5 : peeking ? -4 : isLookingAtEachOther ? -4 : undefined} />
           <EyeBall size={16} pupilSize={6} maxDistance={4} eyeColor="white" pupilColor="#2D2D2D" isBlinking={isBlackBlinking}
+            pointerX={mouseX} pointerY={mouseY} reducedMotion={reducedMotion}
             forceLookX={isErrorReacting ? 0 : peeking ? -4 : isLookingAtEachOther ? 0 : undefined}
             forceLookY={isErrorReacting ? 5 : peeking ? -4 : isLookingAtEachOther ? -4 : undefined} />
         </div>
@@ -390,8 +426,8 @@ export function AnimatedCharacters({
           top: peeking ? '85px' : `${90 + (orangePos.faceY || 0)}px`,
           transition: 'all 0.2s ease-out',
         }}>
-          <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" forceLookX={peeking ? -5 : undefined} forceLookY={peeking ? -4 : undefined} />
-          <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" forceLookX={peeking ? -5 : undefined} forceLookY={peeking ? -4 : undefined} />
+          <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" pointerX={mouseX} pointerY={mouseY} reducedMotion={reducedMotion} forceLookX={peeking ? -5 : undefined} forceLookY={peeking ? -4 : undefined} />
+          <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" pointerX={mouseX} pointerY={mouseY} reducedMotion={reducedMotion} forceLookX={peeking ? -5 : undefined} forceLookY={peeking ? -4 : undefined} />
         </div>
         {/* 嘴巴 */}
         <div style={{
@@ -427,8 +463,8 @@ export function AnimatedCharacters({
           top: peeking ? '35px' : `${40 + (yellowPos.faceY || 0)}px`,
           transition: 'all 0.2s ease-out',
         }}>
-          <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" forceLookX={peeking ? -5 : undefined} forceLookY={peeking ? -4 : undefined} />
-          <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" forceLookX={peeking ? -5 : undefined} forceLookY={peeking ? -4 : undefined} />
+          <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" pointerX={mouseX} pointerY={mouseY} reducedMotion={reducedMotion} forceLookX={peeking ? -5 : undefined} forceLookY={peeking ? -4 : undefined} />
+          <Pupil size={12} maxDistance={5} pupilColor="#2D2D2D" pointerX={mouseX} pointerY={mouseY} reducedMotion={reducedMotion} forceLookX={peeking ? -5 : undefined} forceLookY={peeking ? -4 : undefined} />
         </div>
         {/* 嘴巴 */}
         <div style={{

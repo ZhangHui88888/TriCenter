@@ -4,7 +4,7 @@ import NeonLoader from '@/components/NeonLoader';
 import { ReloadOutlined, FilterOutlined, SearchOutlined, ClearOutlined } from '@ant-design/icons';
 import EnterpriseSearch from '@/components/EnterpriseSearch';
 import WorldMap, { worldMapDataKey } from '@/components/WorldMap';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '@/components/CoreChart';
 import { optionsApi, dashboardApi } from '@/services/api';
 import { requirements } from '@/data/requirementsData';
 import dayjs, { type Dayjs } from 'dayjs';

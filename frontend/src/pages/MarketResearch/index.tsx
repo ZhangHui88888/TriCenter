@@ -107,6 +107,7 @@ function MarketResearch() {
   const navigate = useNavigate();
   const reportRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const searchAbortRef = useRef<AbortController | null>(null);
   const [exporting, setExporting] = useState(false);
   const [enterpriseList, setEnterpriseList] = useState<Array<{ id: number; enterprise_name: string; industry: string }>>([]);
   const [selectedEnterpriseId, setSelectedEnterpriseId] = useState<number | undefined>();
@@ -140,8 +141,14 @@ function MarketResearch() {
   });
 
   const fetchEnterpriseList = useCallback(async (keyword?: string) => {
+    searchAbortRef.current?.abort();
+    const controller = new AbortController();
+    searchAbortRef.current = controller;
     try {
-      const res: any = await enterpriseApi.getList({ keyword: keyword || undefined, page: 1, pageSize: 50 });
+      const res: any = await enterpriseApi.getList(
+        { keyword: keyword || undefined, page: 1, pageSize: 50 },
+        { signal: controller.signal },
+      );
       const raw = res.data?.records || res.data?.list || (Array.isArray(res.data) ? res.data : []);
       const list = raw.map((e: any) => ({
         id: e.id,
@@ -150,7 +157,13 @@ function MarketResearch() {
       }));
       setEnterpriseList(list);
     } catch (err) {
-      console.error('加载企业列表失败:', err);
+      if (!controller.signal.aborted) {
+        console.error('加载企业列表失败:', err);
+      }
+    } finally {
+      if (searchAbortRef.current === controller) {
+        searchAbortRef.current = null;
+      }
     }
   }, []);
 
@@ -158,7 +171,10 @@ function MarketResearch() {
     fetchEnterpriseList();
   }, [fetchEnterpriseList]);
 
-  useEffect(() => () => setDeepSeekApiKey(''), []);
+  useEffect(() => () => {
+    searchAbortRef.current?.abort();
+    setDeepSeekApiKey('');
+  }, []);
 
   const handleSelectEnterprise = (id: number) => {
     setSelectedEnterpriseId(id);
@@ -432,6 +448,10 @@ function MarketResearch() {
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
     searchTimerRef.current = setTimeout(() => fetchEnterpriseList(value), 300);
   };
+
+  useEffect(() => () => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+  }, []);
 
   const handleSaveApiKey = () => {
     if (!apiKeyInput.trim()) {

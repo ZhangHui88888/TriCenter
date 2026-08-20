@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { CSSProperties } from 'react';
 import { useState, useCallback } from 'react';
 import { Row, Col, Space, Button, Rate, Typography, Popconfirm, message } from 'antd';

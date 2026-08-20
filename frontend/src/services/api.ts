@@ -1,7 +1,17 @@
 import { AxiosHeaders, AxiosRequestConfig } from 'axios';
 import request from './request';
-import type { Enterprise, FollowUpRecord, ProviderDetail, ProviderListItem, ProviderUpdatePayload } from '@/types';
+import type { Enterprise, ProviderDetail, ProviderListItem, ProviderUpdatePayload } from '@/types';
 import type { AdminUserFormValues } from '@/types/auth';
+
+interface FollowUpWritePayload {
+  enterpriseId: number;
+  followType: string;
+  followDate: string;
+  content: string;
+  status?: string;
+  nextPlan?: string;
+  stageAfter?: string;
+}
 
 /**
  * FormData 上传：实例默认 Content-Type: application/json 会破坏 multipart；
@@ -45,7 +55,7 @@ export const enterpriseApi = {
     targetMarkets?: string;
     createdDateStart?: string;
     createdDateEnd?: string;
-  }) => request.get('/enterprises', { params }),
+  }, config: AxiosRequestConfig = {}) => request.get('/enterprises', { ...config, params }),
 
   /** 与列表相同筛选条件下的概览统计（全量匹配企业，不受分页影响） */
   getOverviewStats: (params?: Record<string, unknown>) =>
@@ -58,7 +68,7 @@ export const enterpriseApi = {
   create: (data: Partial<Enterprise>) => request.post('/enterprises', data),
 
   // 更新企业
-  update: (id: number, data: Partial<Enterprise>) => request.put(`/enterprises/${id}`, data),
+  update: (id: number, data: Partial<Enterprise> | Record<string, unknown>) => request.put(`/enterprises/${id}`, data),
 
   // 删除企业
   delete: (id: number) => request.delete(`/enterprises/${id}`),
@@ -154,10 +164,10 @@ export const followUpApi = {
   getByEnterprise: (enterpriseId: number) => request.get(`/enterprises/${enterpriseId}/follow-ups`),
 
   // 创建跟进记录
-  create: (data: Partial<FollowUpRecord>) => request.post('/follow-ups', data),
+  create: (data: FollowUpWritePayload) => request.post('/follow-ups', data),
 
   // 更新跟进记录
-  update: (id: number, data: Partial<FollowUpRecord>) => request.put(`/follow-ups/${id}`, data),
+  update: (id: number, data: Partial<FollowUpWritePayload>) => request.put(`/follow-ups/${id}`, data),
 
   // 删除跟进记录
   delete: (id: number) => request.delete(`/follow-ups/${id}`),

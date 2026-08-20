@@ -14,10 +14,9 @@ export default defineConfig({
     chunkSizeWarningLimit: 1200,
     rollupOptions: {
       output: {
-        // 仅拆独立大图依赖，避免与默认 vendor 形成循环 chunk；其余由 Rollup 自动分包
+        // 仅将导出库归入异步共享块；图表由懒加载页面自然形成异步依赖。
         manualChunks(id) {
           if (!id.includes('node_modules')) return
-          if (id.includes('echarts')) return 'echarts'
           if (id.includes('exceljs') || id.includes('html2pdf')) return 'export-libs'
         },
       },

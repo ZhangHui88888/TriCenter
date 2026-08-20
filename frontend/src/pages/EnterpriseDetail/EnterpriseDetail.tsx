@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, Tabs, Button, Spin, Typography } from 'antd';

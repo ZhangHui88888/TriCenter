@@ -29,7 +29,6 @@ import com.tricenter.service.CityAccessService;
 import com.tricenter.security.CityContext;
 import com.tricenter.service.DashboardCacheInvalidator;
 
-import java.io.ByteArrayOutputStream;
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
@@ -69,6 +68,12 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
     @Override
     public void exportBatchSurveyExcel(List<Integer> enterpriseIds, HttpServletResponse response) {
+        if (enterpriseIds == null || enterpriseIds.isEmpty()) {
+            throw BusinessException.badRequest("请选择要导出的企业");
+        }
+        if (enterpriseIds.size() > 1000) {
+            throw BusinessException.badRequest("批量导出最多支持 1000 个企业");
+        }
         List<Enterprise> enterprises = enterpriseMapper.selectList(
                 new LambdaQueryWrapper<Enterprise>()
                         .in(Enterprise::getId, enterpriseIds)
@@ -87,11 +92,18 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     }
 
     private void exportToResponse(List<Enterprise> enterprises, String fileNamePrefix, HttpServletResponse response) {
-        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+        if (enterprises.size() > 1000) {
+            throw BusinessException.badRequest("批量导出最多支持 1000 个企业");
+        }
+        try {
+            String fileName = URLEncoder.encode(fileNamePrefix, "UTF-8").replaceAll("\\+", "%20");
+            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            response.setCharacterEncoding("utf-8");
+            response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
             // 从数据库加载所有选项，用于填写提示
             Map<String, List<String>> optionLabels = loadAllOptionLabels();
 
-            ExcelWriter writer = EasyExcel.write(outputStream)
+            ExcelWriter writer = EasyExcel.write(response.getOutputStream())
                     .registerWriteHandler(new SurveyExcelStyleHandler())
                     .build();
 
@@ -532,17 +544,9 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             writer.write(reqData, sheet7);
 
             writer.finish();
-
-            byte[] bytes = outputStream.toByteArray();
-            String fileName = URLEncoder.encode(fileNamePrefix, "UTF-8").replaceAll("\\+", "%20");
-            response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-            response.setCharacterEncoding("utf-8");
-            response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
-            response.setContentLength(bytes.length);
-            response.getOutputStream().write(bytes);
             response.getOutputStream().flush();
-            log.info("调研Excel导出成功: fileNamePrefix={}, enterpriseCount={}, bytes={}",
-                    fileNamePrefix, enterprises.size(), bytes.length);
+            log.info("调研Excel流式导出成功: fileNamePrefix={}, enterpriseCount={}",
+                    fileNamePrefix, enterprises.size());
         } catch (Exception e) {
             log.error("导出调研Excel失败", e);
             throw new BusinessException("导出失败: " + e.getMessage());

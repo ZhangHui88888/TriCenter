@@ -27,6 +27,10 @@ function Login() {
   const setAuth = useAuthStore((state) => state.setAuth);
 
   useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setPageEntered(true);
+      return;
+    }
     let raf1: number;
     let raf2: number;
     raf1 = requestAnimationFrame(() => {
@@ -191,9 +195,14 @@ function Login() {
                   onBlur={() => setIsTyping(false)}
                   onChange={(e) => { setPasswordLength(e.target.value.length); setTypingTrigger((v) => v + 1); }}
                   suffix={
-                    <span onClick={() => setShowPassword(!showPassword)} style={{ cursor: 'pointer', color: '#9b9b9b', display: 'flex', alignItems: 'center' }}>
-                      {showPassword ? <EyeOutlined /> : <EyeInvisibleOutlined />}
-                    </span>
+                    <Button
+                      type="text"
+                      size="small"
+                      aria-label={showPassword ? '隐藏密码' : '显示密码'}
+                      icon={showPassword ? <EyeOutlined /> : <EyeInvisibleOutlined />}
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{ color: '#73737d' }}
+                    />
                   }
                   style={{ height: 46, border: 'none', borderBottom: '1px solid #d8d8dd', borderRadius: 0, boxShadow: 'none', paddingLeft: 0 }}
                 />

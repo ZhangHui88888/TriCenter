@@ -1,4 +1,3 @@
-// @ts-nocheck
 import type { CSSProperties } from 'react';
 import { useEffect, useState } from 'react';
 import { Button, message } from 'antd';

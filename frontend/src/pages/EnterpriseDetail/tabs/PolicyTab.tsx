@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Card, Row, Col, Space, Tag, Button, Typography } from 'antd';
 import { EditOutlined } from '@ant-design/icons';
 import { enterpriseDetailCardTitle } from '@/components/enterpriseDetail/EnterpriseDetailSectionHint';

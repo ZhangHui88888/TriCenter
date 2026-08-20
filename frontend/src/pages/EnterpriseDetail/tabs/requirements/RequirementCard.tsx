@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Button, Typography } from 'antd';
 import { CloseOutlined, PlusOutlined } from '@ant-design/icons';
 import { SOURCE_STYLES } from './constants';

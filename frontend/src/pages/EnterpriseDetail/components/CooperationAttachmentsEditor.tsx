@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useEffect, useState } from 'react';
 import { Upload, Typography, message } from 'antd';
 import type { UploadFile } from 'antd';
@@ -45,7 +44,7 @@ export function normalizeAttachmentList(raw: unknown): AttachmentMeta[] {
         uploadedAt: typeof at === 'string' ? at : undefined,
       } as AttachmentMeta;
     })
-    .filter(Boolean);
+    .filter((item): item is AttachmentMeta => item !== null);
 }
 
 function toUploadFiles(metas: AttachmentMeta[]): UploadFile[] {

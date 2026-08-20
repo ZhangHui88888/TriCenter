@@ -1,12 +1,9 @@
-// @ts-nocheck
 import { useMemo, useState } from 'react';
-import { Card, Button, Spin, Modal, Form, Input, Select, Typography } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Card, Spin, Modal, Form, Input } from 'antd';
 import {
   enterpriseDetailCardTitle,
 } from '@/components/enterpriseDetail/EnterpriseDetailSectionHint';
 import type { RequirementConfigData } from '@/services/api';
-import { PHASES } from './constants';
 import RequirementDimensionSelector from './RequirementDimensionSelector';
 import RequirementCustomSection from './RequirementCustomSection';
 import RequirementOverviewStats from './RequirementOverviewStats';
@@ -14,8 +11,6 @@ import RequirementPhaseList from './RequirementPhaseList';
 import { buildRequirementViewData, getRequirementStatItems, toggleRequirementStatFilter } from './utils';
 import type { EnterpriseCustomRequirement, RequirementDisplayMode, RequirementStatFilterKey } from './types';
 import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
-
-const { Text } = Typography;
 
 interface RequirementsTabProps {
   reqConfig: RequirementConfigData | null;
@@ -30,7 +25,7 @@ interface RequirementsTabProps {
   isCustomRequirementModalOpen: boolean;
   setIsCustomRequirementModalOpen: (v: boolean) => void;
   customRequirementForm: any;
-  saveEnterpriseFields: (fields: Record<string, any>, msg: string) => Promise<void>;
+  saveEnterpriseFields: (fields: Record<string, any>, msg: string) => Promise<unknown>;
 }
 
 export default function RequirementsTab({

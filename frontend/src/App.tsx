@@ -6,6 +6,7 @@ import MainLayout from './layouts/MainLayout'
 import AuthGuard from './components/AuthGuard'
 import PermissionGuard from './components/PermissionGuard'
 import AuthSyncListener from './components/AuthSyncListener'
+import RouteErrorBoundary from './components/RouteErrorBoundary'
 
 const Login = lazy(() => import('./pages/Login'))
 const CitySelection = lazy(() => import('./pages/CitySelection'))
@@ -20,6 +21,7 @@ const ServiceRecords = lazy(() => import('./pages/ServiceRecords'))
 const DataAnalysis = lazy(() => import('./pages/DataAnalysis'))
 const ProviderList = lazy(() => import('./pages/provider/ProviderListPage'))
 const UserManagement = lazy(() => import('./pages/UserManagement'))
+const NotFound = lazy(() => import('./pages/NotFound'))
 import { useThemeStore } from './stores/themeStore'
 import { lightTheme, darkTheme } from './theme/themeConfig'
 
@@ -38,6 +40,7 @@ function App() {
           }}
         >
           <AuthSyncListener />
+          <RouteErrorBoundary>
           <Suspense
             fallback={
               <div className="flex min-h-[40vh] items-center justify-center">
@@ -78,8 +81,10 @@ function App() {
                   element={<PermissionGuard permission="user:manage"><UserManagement /></PermissionGuard>}
                 />
               </Route>
+              <Route path="*" element={<NotFound />} />
             </Routes>
           </Suspense>
+          </RouteErrorBoundary>
         </BrowserRouter>
         </div>
       </AntdApp>

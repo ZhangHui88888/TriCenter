@@ -26,6 +26,9 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -51,9 +54,29 @@ public class ProductServiceImpl implements ProductService {
                 .eq(EnterpriseProduct::getEnterpriseId, enterpriseId)
                 .orderByDesc(EnterpriseProduct::getCreatedAt)
         );
-        
+
+        Set<Integer> categoryIds = products.stream()
+                .map(EnterpriseProduct::getCategoryId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        Map<Integer, Category> categories = categoryIds.isEmpty()
+                ? Map.of()
+                : categoryMapper.selectBatchIds(categoryIds).stream()
+                        .collect(Collectors.toMap(Category::getId, Function.identity()));
+        Set<Integer> optionIds = new HashSet<>();
+        products.forEach(product -> {
+            addAll(optionIds, product.getCertificationIds());
+            addAll(optionIds, product.getTargetRegionIds());
+            addAll(optionIds, product.getLogisticsPartnerIds());
+            if (product.getAutomationLevelId() != null) optionIds.add(product.getAutomationLevelId());
+        });
+        Map<Integer, SystemOption> options = optionIds.isEmpty()
+                ? Map.of()
+                : systemOptionMapper.selectBatchIds(optionIds).stream()
+                        .collect(Collectors.toMap(SystemOption::getId, Function.identity()));
+
         return products.stream()
-            .map(this::convertToProductResponse)
+            .map(product -> convertToProductResponse(product, categories, options))
             .collect(Collectors.toList());
     }
 
@@ -202,12 +225,32 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private ProductResponse convertToProductResponse(EnterpriseProduct product) {
+        Map<Integer, Category> categories = product.getCategoryId() == null
+                ? Map.of()
+                : categoryMapper.selectBatchIds(List.of(product.getCategoryId())).stream()
+                        .collect(Collectors.toMap(Category::getId, Function.identity()));
+        Set<Integer> optionIds = new HashSet<>();
+        addAll(optionIds, product.getCertificationIds());
+        addAll(optionIds, product.getTargetRegionIds());
+        addAll(optionIds, product.getLogisticsPartnerIds());
+        if (product.getAutomationLevelId() != null) optionIds.add(product.getAutomationLevelId());
+        Map<Integer, SystemOption> options = optionIds.isEmpty()
+                ? Map.of()
+                : systemOptionMapper.selectBatchIds(optionIds).stream()
+                        .collect(Collectors.toMap(SystemOption::getId, Function.identity()));
+        return convertToProductResponse(product, categories, options);
+    }
+
+    private ProductResponse convertToProductResponse(
+            EnterpriseProduct product,
+            Map<Integer, Category> categories,
+            Map<Integer, SystemOption> options) {
         ProductResponse response = new ProductResponse();
         BeanUtils.copyProperties(product, response);
         
         // 获取品类名称
         if (product.getCategoryId() != null) {
-            Category category = categoryMapper.selectById(product.getCategoryId());
+            Category category = categories.get(product.getCategoryId());
             if (category != null) {
                 response.setCategoryName(category.getName());
             }
@@ -215,17 +258,17 @@ public class ProductServiceImpl implements ProductService {
         
         // 获取认证名称列表
         if (product.getCertificationIds() != null && !product.getCertificationIds().isEmpty()) {
-            response.setCertificationNames(getOptionLabels("certification", product.getCertificationIds()));
+            response.setCertificationNames(getOptionLabels(product.getCertificationIds(), options));
         }
         
         // 获取销售区域名称列表
         if (product.getTargetRegionIds() != null && !product.getTargetRegionIds().isEmpty()) {
-            response.setTargetRegionNames(getOptionLabels("region", product.getTargetRegionIds()));
+            response.setTargetRegionNames(getOptionLabels(product.getTargetRegionIds(), options));
         }
         
         // 获取自动化程度名称
         if (product.getAutomationLevelId() != null) {
-            SystemOption option = systemOptionMapper.selectById(product.getAutomationLevelId());
+            SystemOption option = options.get(product.getAutomationLevelId());
             if (option != null) {
                 response.setAutomationLevelName(option.getLabel());
             }
@@ -233,30 +276,27 @@ public class ProductServiceImpl implements ProductService {
         
         // 获取物流合作方名称列表
         if (product.getLogisticsPartnerIds() != null && !product.getLogisticsPartnerIds().isEmpty()) {
-            response.setLogisticsPartnerNames(getOptionLabels("logistics", product.getLogisticsPartnerIds()));
+            response.setLogisticsPartnerNames(getOptionLabels(product.getLogisticsPartnerIds(), options));
         }
         
         return response;
     }
 
-    private List<String> getOptionLabels(String category, List<Integer> ids) {
+    private List<String> getOptionLabels(List<Integer> ids, Map<Integer, SystemOption> options) {
         if (ids == null || ids.isEmpty()) {
             return new ArrayList<>();
         }
         
-        List<SystemOption> options = systemOptionMapper.selectList(
-            new LambdaQueryWrapper<SystemOption>()
-                .eq(SystemOption::getCategory, category)
-                .in(SystemOption::getId, ids)
-        );
-        
-        Map<Integer, String> optionMap = options.stream()
-            .collect(Collectors.toMap(SystemOption::getId, SystemOption::getLabel));
-        
         return ids.stream()
-            .map(id -> optionMap.getOrDefault(id, ""))
+            .map(options::get)
+            .filter(java.util.Objects::nonNull)
+            .map(SystemOption::getLabel)
             .filter(label -> !label.isEmpty())
             .collect(Collectors.toList());
+    }
+
+    private void addAll(Set<Integer> target, List<Integer> values) {
+        if (values != null) target.addAll(values);
     }
 
     private PatentResponse convertToPatentResponse(EnterprisePatent patent) {

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, DatePicker, Row, Col, Rate, Collapse, message } from 'antd';
 import { CustomerServiceOutlined, StarOutlined } from '@ant-design/icons';

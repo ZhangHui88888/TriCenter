@@ -34,12 +34,13 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.time.LocalDate;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -1262,6 +1263,14 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         productWrapper.eq(EnterpriseProduct::getEnterpriseId, enterprise.getId());
         List<EnterpriseProduct> productRows = productMapper.selectList(productWrapper);
         if (productRows != null && !productRows.isEmpty()) {
+            Set<Integer> categoryIds = productRows.stream()
+                    .map(EnterpriseProduct::getCategoryId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Map<Integer, Category> productCategories = categoryIds.isEmpty()
+                    ? Map.of()
+                    : categoryMapper.selectBatchIds(categoryIds).stream()
+                            .collect(Collectors.toMap(Category::getId, Function.identity()));
             response.setProducts(productRows.stream().map(p -> {
                 EnterpriseDetailResponse.ProductInfo info = new EnterpriseDetailResponse.ProductInfo();
                 info.setId(p.getId());
@@ -1279,7 +1288,7 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 info.setLogisticsPartnerIds(p.getLogisticsPartnerIds());
                 
                 if (p.getCategoryId() != null) {
-                    Category category = categoryMapper.selectById(p.getCategoryId());
+                    Category category = productCategories.get(p.getCategoryId());
                     if (category != null) {
                         info.setCategoryName(category.getName());
                     }
@@ -1486,7 +1495,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
                 response.setCharacterEncoding("utf-8");
                 String fileName = URLEncoder.encode("企业列表", "UTF-8").replaceAll("\\+", "%20");
                 response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
-                try (XSSFWorkbook wb = new XSSFWorkbook()) {
+                try (SXSSFWorkbook wb = new SXSSFWorkbook(100)) {
+                    wb.setCompressTempFiles(true);
                     EnterpriseExportListSheetPoi.writeSheet(wb, Collections.emptyList());
                     EnterpriseExportRequirementMatrixSheet.append(
                             wb,
@@ -1506,7 +1516,11 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         }
         LambdaQueryWrapper<Enterprise> wrapper = buildFilterWrapper(request, matchedIds);
         wrapper.orderByDesc(Enterprise::getCreatedAt);
+        wrapper.last("LIMIT 1001");
         List<Enterprise> enterprises = enterpriseMapper.selectList(wrapper);
+        if (enterprises.size() > 1000) {
+            throw BusinessException.badRequest("企业导出最多支持 1000 条，请缩小筛选范围");
+        }
 
         // 批量查主联系人
         List<Integer> eIds = enterprises.stream().map(Enterprise::getId).collect(Collectors.toList());
@@ -1566,7 +1580,8 @@ public class EnterpriseServiceImpl implements EnterpriseService {
             String fileName = URLEncoder.encode("企业列表", "UTF-8").replaceAll("\\+", "%20");
             response.setHeader("Content-disposition", "attachment;filename*=utf-8''" + fileName + ".xlsx");
 
-            try (XSSFWorkbook wb = new XSSFWorkbook()) {
+            try (SXSSFWorkbook wb = new SXSSFWorkbook(100)) {
+                wb.setCompressTempFiles(true);
                 EnterpriseExportListSheetPoi.writeSheet(wb, excelDataList);
                 EnterpriseExportRequirementMatrixSheet.append(
                         wb,

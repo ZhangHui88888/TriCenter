@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Card, Table, Button, Typography } from 'antd';
 import { PlusOutlined, FileTextOutlined } from '@ant-design/icons';
 import {

@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Button, Space } from 'antd';
 import {
   EditOutlined,

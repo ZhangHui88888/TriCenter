@@ -1,4 +1,3 @@
-// @ts-nocheck
 import StageChangeModal from '../modals/StageChangeModal';
 import FollowUpModal from '../modals/FollowUpModal';
 import PatentModal from '../modals/PatentModal';
@@ -34,6 +33,7 @@ interface Props { d: D; actions: A; }
 
 export default function EnterpriseModals({ d, actions }: Props) {
   const ent = d.enterprise;
+  if (!ent) return null;
   return (
     <>
       <StageChangeModal
@@ -133,7 +133,7 @@ export default function EnterpriseModals({ d, actions }: Props) {
         onSuccess={(data) => {
           d.setEnterprise((prev) => {
             if (!prev) return prev;
-            const next = { ...prev, ...data };
+            const next: Record<string, any> = { ...prev, ...data };
             next.target_region_ids = data.targetRegionIds;
             next.target_country_ids = data.targetCountryIds;
             next.has_import_export_license = data.hasImportExportLicense === 1;

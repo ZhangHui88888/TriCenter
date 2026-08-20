@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import * as echarts from 'echarts';
+import { echarts } from '@/charts/echarts';
 
 const REGION_COORDS: Record<string, [number, number]> = {
   '北美': [-100, 40],

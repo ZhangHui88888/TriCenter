@@ -1,5 +1,3 @@
-// @ts-nocheck
-import { useCallback } from 'react';
 import { Modal, message } from 'antd';
 import dayjs from 'dayjs';
 import { enterpriseApi, followUpApi, productApi, patentApi, surveyExcelApi } from '@/services/api';
@@ -9,10 +7,11 @@ import type { useEnterpriseData } from './useEnterpriseData';
 type DataState = ReturnType<typeof useEnterpriseData>;
 
 export function useEnterpriseActions(d: DataState) {
+  const enterprise = d.enterprise as Record<string, any>;
   // 通用字段保存辅助函数
   const saveEnterpriseFields = async (fields: Record<string, any>, successMsg: string) => {
     try {
-      await enterpriseApi.update(d.enterprise.id, fields);
+      await enterpriseApi.update(enterprise.id, fields);
       d.setEnterprise((prev) => {
         if (!prev) return prev;
         const next = { ...prev, ...fields };
@@ -190,7 +189,7 @@ export function useEnterpriseActions(d: DataState) {
         message.success('跟进记录更新成功');
       } else {
         await followUpApi.create({
-          enterpriseId: d.enterprise.id,
+          enterpriseId: enterprise.id,
           followType: values.follow_up_type,
           followDate: values.follow_up_date?.format('YYYY-MM-DD'),
           content: values.content,
@@ -200,7 +199,7 @@ export function useEnterpriseActions(d: DataState) {
         });
         message.success('跟进记录添加成功');
         if (values.stage_after) {
-          const detail = await enterpriseApi.getDetail(d.enterprise.id);
+          const detail = await enterpriseApi.getDetail(enterprise.id);
           if (detail.data?.stage) {
             d.setEnterprise((prev) =>
               prev
@@ -218,8 +217,8 @@ export function useEnterpriseActions(d: DataState) {
       d.setIsFollowUpModalOpen(false);
       d.setEditingFollowUp(null);
       d.followUpForm.resetFields();
-      await d.loadEnterpriseFollowUps(d.enterprise.id);
-    } catch (e) {
+      await d.loadEnterpriseFollowUps(enterprise.id);
+    } catch (e: any) {
       if (e?.errorFields) return;
       message.error(e?.message || '操作失败');
     }
@@ -249,8 +248,8 @@ export function useEnterpriseActions(d: DataState) {
         try {
           await followUpApi.delete(record.id);
           message.success('跟进记录删除成功');
-          await d.loadEnterpriseFollowUps(d.enterprise.id);
-        } catch (e) {
+          await d.loadEnterpriseFollowUps(enterprise.id);
+        } catch (e: any) {
           message.error(e?.message || '删除失败');
         }
       },
@@ -297,9 +296,9 @@ export function useEnterpriseActions(d: DataState) {
       cancelText: '取消',
       async onOk() {
         try {
-          await productApi.delete(d.enterprise.id, product.id);
+          await productApi.delete(enterprise.id, product.id);
           message.success('产品已删除');
-          const detail = await enterpriseApi.getDetail(d.enterprise.id);
+          const detail = await enterpriseApi.getDetail(enterprise.id);
           if (detail.data) {
             d.setEnterprise((prev) =>
               prev
@@ -312,7 +311,7 @@ export function useEnterpriseActions(d: DataState) {
                 : prev
             );
           }
-        } catch (e) {
+        } catch (e: any) {
           message.error(e?.message || '删除失败');
         }
       },
@@ -359,13 +358,13 @@ export function useEnterpriseActions(d: DataState) {
             : undefined,
       };
       if (d.editingProduct?.id) {
-        await productApi.update(d.enterprise.id, d.editingProduct.id, payload);
+        await productApi.update(enterprise.id, d.editingProduct.id, payload);
         message.success('产品信息更新成功');
       } else {
-        await productApi.create(d.enterprise.id, payload);
+        await productApi.create(enterprise.id, payload);
         message.success('产品添加成功');
       }
-      const detail = await enterpriseApi.getDetail(d.enterprise.id);
+      const detail = await enterpriseApi.getDetail(enterprise.id);
       if (detail.data) {
         d.setEnterprise((prev) =>
           prev
@@ -381,7 +380,7 @@ export function useEnterpriseActions(d: DataState) {
       d.setIsProductModalOpen(false);
       d.productForm.resetFields();
       d.setEditingProduct(null);
-    } catch (e) {
+    } catch (e: any) {
       if (e?.errorFields) return;
       message.error(e?.message || '保存失败');
     }
@@ -392,7 +391,7 @@ export function useEnterpriseActions(d: DataState) {
       const values = await d.brandForm.validateFields();
       const hasOwn = values.has_brand === true ? 1 : 0;
       const names = Array.isArray(values.brand_names) ? values.brand_names.filter(Boolean) : [];
-      await enterpriseApi.update(d.enterprise.id, {
+      await enterpriseApi.update(enterprise.id, {
         hasOwnBrand: hasOwn,
         brandNames: names.length ? names.join(',') : '',
       });
@@ -438,13 +437,13 @@ export function useEnterpriseActions(d: DataState) {
       cancelText: '取消',
       async onOk() {
         try {
-          await patentApi.delete(d.enterprise.id, patent.id);
+          await patentApi.delete(enterprise.id, patent.id);
           message.success('专利已删除');
-          const detail = await enterpriseApi.getDetail(d.enterprise.id);
+          const detail = await enterpriseApi.getDetail(enterprise.id);
           if (detail.data) {
             d.setEnterprise((prev) => (prev ? { ...prev, patents: detail.data.patents || [] } : prev));
           }
-        } catch (e) {
+        } catch (e: any) {
           message.error(e?.message || '删除失败');
         }
       },
@@ -456,20 +455,20 @@ export function useEnterpriseActions(d: DataState) {
       const values = await d.patentForm.validateFields();
       const body = { name: values.name, patentNo: values.patent_no };
       if (d.editingPatent?.id) {
-        await patentApi.update(d.enterprise.id, d.editingPatent.id, body);
+        await patentApi.update(enterprise.id, d.editingPatent.id, body);
         message.success('专利信息更新成功');
       } else {
-        await patentApi.create(d.enterprise.id, body);
+        await patentApi.create(enterprise.id, body);
         message.success('专利添加成功');
       }
-      const detail = await enterpriseApi.getDetail(d.enterprise.id);
+      const detail = await enterpriseApi.getDetail(enterprise.id);
       if (detail.data) {
         d.setEnterprise((prev) => (prev ? { ...prev, patents: detail.data.patents || [] } : prev));
       }
       d.setIsPatentModalOpen(false);
       d.patentForm.resetFields();
       d.setEditingPatent(null);
-    } catch (e) {
+    } catch (e: any) {
       if (e?.errorFields) return;
       message.error(e?.message || '保存失败');
     }
@@ -492,7 +491,7 @@ export function useEnterpriseActions(d: DataState) {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      const fileName = `${d.enterprise?.enterprise_name || '企业'}_调研表_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      const fileName = `${enterprise?.enterprise_name || '企业'}_调研表_${new Date().toISOString().slice(0, 10)}.xlsx`;
       link.download = fileName;
       document.body.appendChild(link);
       link.click();

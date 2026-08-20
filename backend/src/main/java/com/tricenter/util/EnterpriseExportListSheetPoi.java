@@ -11,7 +11,7 @@ import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.VerticalAlignment;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.usermodel.Workbook;
 
 import java.util.List;
 
@@ -34,7 +34,7 @@ public final class EnterpriseExportListSheetPoi {
     private EnterpriseExportListSheetPoi() {
     }
 
-    public static void writeSheet(XSSFWorkbook wb, List<EnterpriseExcelData> rows) {
+    public static void writeSheet(Workbook wb, List<EnterpriseExcelData> rows) {
         Sheet sheet = wb.createSheet("企业列表");
         CellStyle headerStyle = headerStyle(wb);
         CellStyle bodyStyle = bodyStyle(wb);
@@ -82,7 +82,7 @@ public final class EnterpriseExportListSheetPoi {
         cell.setCellStyle(st);
     }
 
-    private static CellStyle headerStyle(XSSFWorkbook wb) {
+    private static CellStyle headerStyle(Workbook wb) {
         CellStyle st = wb.createCellStyle();
         Font font = wb.createFont();
         font.setFontName("微软雅黑");
@@ -100,7 +100,7 @@ public final class EnterpriseExportListSheetPoi {
         return st;
     }
 
-    private static CellStyle bodyStyle(XSSFWorkbook wb) {
+    private static CellStyle bodyStyle(Workbook wb) {
         CellStyle st = wb.createCellStyle();
         Font font = wb.createFont();
         font.setFontName("微软雅黑");

@@ -17,7 +17,7 @@ import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.VerticalAlignment;
 import org.apache.poi.ss.util.CellRangeAddress;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
@@ -44,7 +44,7 @@ public final class EnterpriseExportRequirementMatrixSheet {
     }
 
     public static void append(
-            XSSFWorkbook wb,
+            Workbook wb,
             List<Enterprise> enterprises,
             RequirementConfigResponse reqConfig,
             RequirementMatchEngine requirementMatchEngine,
@@ -176,7 +176,7 @@ public final class EnterpriseExportRequirementMatrixSheet {
         return s != null ? s : "";
     }
 
-    private static CellStyle buildFilterStyle(XSSFWorkbook wb) {
+    private static CellStyle buildFilterStyle(Workbook wb) {
         CellStyle st = wb.createCellStyle();
         Font font = wb.createFont();
         font.setFontName("微软雅黑");
@@ -192,7 +192,7 @@ public final class EnterpriseExportRequirementMatrixSheet {
         return st;
     }
 
-    private static CellStyle buildHeaderStyle(XSSFWorkbook wb) {
+    private static CellStyle buildHeaderStyle(Workbook wb) {
         CellStyle st = wb.createCellStyle();
         Font font = wb.createFont();
         font.setFontName("微软雅黑");
@@ -208,7 +208,7 @@ public final class EnterpriseExportRequirementMatrixSheet {
         return st;
     }
 
-    private static CellStyle buildDataStyle(XSSFWorkbook wb) {
+    private static CellStyle buildDataStyle(Workbook wb) {
         CellStyle st = wb.createCellStyle();
         Font font = wb.createFont();
         font.setFontName("微软雅黑");
@@ -219,7 +219,7 @@ public final class EnterpriseExportRequirementMatrixSheet {
         return st;
     }
 
-    private static CellStyle buildDataAltStyle(XSSFWorkbook wb) {
+    private static CellStyle buildDataAltStyle(Workbook wb) {
         CellStyle st = wb.createCellStyle();
         Font font = wb.createFont();
         font.setFontName("微软雅黑");
@@ -232,14 +232,14 @@ public final class EnterpriseExportRequirementMatrixSheet {
         return st;
     }
 
-    private static CellStyle buildDataWrapStyle(XSSFWorkbook wb) {
+    private static CellStyle buildDataWrapStyle(Workbook wb) {
         CellStyle st = buildDataStyle(wb);
         st.setWrapText(true);
         st.setVerticalAlignment(VerticalAlignment.TOP);
         return st;
     }
 
-    private static CellStyle buildDataWrapAltStyle(XSSFWorkbook wb) {
+    private static CellStyle buildDataWrapAltStyle(Workbook wb) {
         CellStyle st = buildDataAltStyle(wb);
         st.setWrapText(true);
         st.setVerticalAlignment(VerticalAlignment.TOP);

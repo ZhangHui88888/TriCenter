@@ -1,5 +1,4 @@
-// @ts-nocheck
-import { Card, Descriptions, Space, Button, Row, Col, Typography } from 'antd';
+import { Card, Descriptions, Space, Button, Row, Col } from 'antd';
 import {
   EditOutlined,
   PhoneOutlined,
@@ -10,8 +9,6 @@ import {
 import {
   enterpriseDetailCardTitle,
 } from '@/components/enterpriseDetail/EnterpriseDetailSectionHint';
-
-const { Text } = Typography;
 
 interface BasicInfoTabProps {
   enterprise: any;

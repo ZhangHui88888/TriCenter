@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Card, Row, Col, Space, Button, Typography } from 'antd';
 import {
   EditOutlined,

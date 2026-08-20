@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Card, Select, Typography } from 'antd';
 import { EnvironmentOutlined } from '@ant-design/icons';
 import { FUNNEL_STAGES } from '../constants';
