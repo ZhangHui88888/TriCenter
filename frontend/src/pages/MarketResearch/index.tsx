@@ -34,6 +34,7 @@ interface MissingField {
 }
 
 const { Title, Text } = Typography;
+const AI_PROXY_AVAILABLE = false;
 
 /**
  * 第一层：阻断性检查 — 缺了不让生成
@@ -303,6 +304,15 @@ function MarketResearch() {
   };
 
   const handleGenerate = async (version: ReportVersion) => {
+    if (!AI_PROXY_AVAILABLE) {
+      Modal.info({
+        title: 'AI 生成功能维护中',
+        content: '正在升级为后端安全代理。升级完成前不会从浏览器直连第三方 AI 服务。',
+        okText: '知道了',
+      });
+      return;
+    }
+
     if (!selectedEnterpriseId) {
       message.warning('请先选择企业');
       return;
@@ -417,7 +427,7 @@ function MarketResearch() {
     setDeepSeekApiKey(apiKeyInput.trim());
     setHasApiKey(true);
     setApiKeyModalOpen(false);
-    message.success('DeepSeek API Key 已保存');
+    message.success('DeepSeek API Key 已保存在本次页面会话内');
   };
 
   const handleExportPDF = async () => {
@@ -672,7 +682,7 @@ function MarketResearch() {
         cancelText="取消"
       >
         <p style={{ color: '#666', fontSize: 13, marginBottom: 12 }}>
-          用于 AI 联网查询生成报告中数据库缺失的字段信息。API Key 仅保存在浏览器本地，不会上传到服务器。
+          API Key 仅保存在当前页面内存中；安全代理上线前不会向第三方服务发起请求。
         </p>
         <Input.Password
           value={apiKeyInput}

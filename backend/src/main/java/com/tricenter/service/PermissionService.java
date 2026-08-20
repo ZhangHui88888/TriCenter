@@ -27,6 +27,11 @@ public class PermissionService {
                 permissions.add("enterprise:import");
                 permissions.add("enterprise:export");
                 permissions.add("followup:manage");
+                permissions.add("provider:view");
+                permissions.add("provider:manage");
+                permissions.add("audit:view");
+                permissions.add("report:view");
+                permissions.add("report:generate");
             }
             case "manager" -> {
                 permissions.add("enterprise:view");
@@ -37,11 +42,18 @@ public class PermissionService {
                 permissions.add("enterprise:import");
                 permissions.add("enterprise:export");
                 permissions.add("followup:manage");
+                permissions.add("provider:view");
+                permissions.add("provider:manage");
+                permissions.add("report:view");
+                permissions.add("report:generate");
             }
             case "user" -> {
                 permissions.add("enterprise:view");
                 permissions.add("enterprise:edit");
                 permissions.add("followup:manage");
+                permissions.add("provider:view");
+                permissions.add("report:view");
+                permissions.add("report:generate");
             }
             default -> {
                 // 系统账号只通过 ROLE_SYSTEM 授权。

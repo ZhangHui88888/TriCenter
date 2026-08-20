@@ -37,7 +37,7 @@ public class ApiKeyAuthenticationFilter extends OncePerRequestFilter {
     private static final Pattern ENTERPRISE_BY_ID_PATH =
             Pattern.compile("/api/enterprises/\\d+");
 
-    @Value("${tricenter.api-key:booking-to-tricenter-secret-key}")
+    @Value("${tricenter.api-key}")
     private String validApiKey;
 
     @Value("${tricenter.booking-city-code:changzhou}")

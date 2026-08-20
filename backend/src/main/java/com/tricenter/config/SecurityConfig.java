@@ -46,7 +46,7 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // 公开接口
-                .requestMatchers("/api/auth/login").permitAll()
+                .requestMatchers("/api/auth/login", "/api/system/identity").permitAll()
                 // Swagger文档
                 .requestMatchers("/doc.html", "/swagger-ui/**", "/v3/api-docs/**", 
                     "/swagger-resources/**", "/webjars/**").permitAll()

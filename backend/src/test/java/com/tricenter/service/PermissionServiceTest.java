@@ -11,7 +11,13 @@ class PermissionServiceTest {
     @Test
     void regularUserCanEditButCannotCreateDeleteImportOrExportEnterprises() {
         assertThat(permissionService.getPermissions("user"))
-                .contains("enterprise:view", "enterprise:edit", "followup:manage")
+                .contains(
+                        "enterprise:view",
+                        "enterprise:edit",
+                        "followup:manage",
+                        "provider:view",
+                        "report:view",
+                        "report:generate")
                 .doesNotContain(
                         "enterprise:create",
                         "enterprise:delete",
@@ -19,7 +25,9 @@ class PermissionServiceTest {
                         "enterprise:import",
                         "enterprise:export",
                         "user:manage",
-                        "dictionary:manage");
+                        "dictionary:manage",
+                        "provider:manage",
+                        "audit:view");
     }
 
     @Test
@@ -30,13 +38,24 @@ class PermissionServiceTest {
                         "enterprise:delete",
                         "enterprise:batch",
                         "enterprise:import",
-                        "enterprise:export")
-                .doesNotContain("user:manage", "dictionary:manage");
+                        "enterprise:export",
+                        "provider:view",
+                        "provider:manage",
+                        "report:view",
+                        "report:generate")
+                .doesNotContain("user:manage", "dictionary:manage", "audit:view");
     }
 
     @Test
     void adminCanManageUsersAndDictionaries() {
         assertThat(permissionService.getPermissions("admin"))
-                .contains("user:manage", "dictionary:manage");
+                .contains(
+                        "user:manage",
+                        "dictionary:manage",
+                        "provider:view",
+                        "provider:manage",
+                        "audit:view",
+                        "report:view",
+                        "report:generate");
     }
 }

@@ -1,12 +1,7 @@
-import axios from 'axios';
-
-const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
-
-let apiKey = localStorage.getItem('deepseek_api_key') || '';
+let apiKey = '';
 
 export function setDeepSeekApiKey(key: string) {
   apiKey = key;
-  localStorage.setItem('deepseek_api_key', key);
 }
 
 export function getDeepSeekApiKey(): string {
@@ -22,14 +17,6 @@ interface DeepSeekMessage {
   content: string;
 }
 
-interface DeepSeekResponse {
-  choices: Array<{
-    message: {
-      content: string;
-    };
-  }>;
-}
-
 export async function chatWithDeepSeek(
   messages: DeepSeekMessage[],
   options?: { temperature?: number; maxTokens?: number }
@@ -38,25 +25,9 @@ export async function chatWithDeepSeek(
     throw new Error('请先设置 DeepSeek API Key');
   }
 
-  const response = await axios.post<DeepSeekResponse>(
-    DEEPSEEK_API_URL,
-    {
-      model: 'deepseek-chat',
-      messages,
-      temperature: options?.temperature ?? 0.7,
-      max_tokens: options?.maxTokens ?? 4096,
-      stream: false,
-    },
-    {
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      timeout: 120000,
-    }
-  );
-
-  return response.data.choices[0]?.message?.content || '';
+  void messages;
+  void options;
+  throw new Error('AI 生成功能正在升级为安全代理，请稍后再试');
 }
 
 export async function generateReportSection(

@@ -60,7 +60,7 @@ public class TreeCategoryController {
         return Result.success(null);
     }
 
-    @Operation(summary = "恢复默认数据（清空并重新插入种子数据）")
+    @Operation(summary = "已停用：破坏性分类重置")
     @PostMapping("/{type}/reset")
     @PreAuthorize("hasAuthority('dictionary:manage')")
     public Result<List<TreeCategoryResponse>> resetToDefault(@PathVariable String type) {

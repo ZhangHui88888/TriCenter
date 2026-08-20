@@ -1,7 +1,14 @@
 # Module 6: Dashboard Statistics API Test Script
 # Tests 5 APIs: Overview, Funnel, Districts, Industries, Pending Follow-ups
 
-$baseUrl = "http://localhost:8080/api"
+param(
+    [string]$ServerUrl = "http://localhost:8081",
+    [switch]$AllowRemote
+)
+
+. "$PSScriptRoot\test-safety.ps1"
+Assert-TriCenterTestTarget -ServerUrl $ServerUrl -AllowRemote:$AllowRemote
+$baseUrl = "$($ServerUrl.TrimEnd('/'))/api"
 $token = ""
 
 # Color output functions

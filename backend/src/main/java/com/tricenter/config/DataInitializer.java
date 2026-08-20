@@ -10,6 +10,7 @@ import com.tricenter.mapper.UserCityMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component;
  */
 @Slf4j
 @Component
+@Profile({"dev", "test"})
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
@@ -71,7 +73,7 @@ public class DataInitializer implements CommandLineRunner {
             
             userMapper.insert(admin);
             ensureChangzhouAccess(admin.getId());
-            log.info("初始化管理员用户成功: admin / admin123");
+            log.info("开发环境管理员用户初始化完成");
         } else {
             log.debug("管理员用户已存在，跳过初始化（不覆盖密码）");
         }

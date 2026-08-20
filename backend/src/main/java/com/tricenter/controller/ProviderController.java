@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -23,6 +24,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/providers")
 @RequiredArgsConstructor
+@PreAuthorize("hasAuthority('provider:view')")
 public class ProviderController {
 
     private final ProviderService providerService;
@@ -44,6 +46,7 @@ public class ProviderController {
 
     @Operation(summary = "新增服务商", description = "创建新服务商记录")
     @PostMapping
+    @PreAuthorize("hasAuthority('provider:manage')")
     public Result<Provider> createProvider(@Valid @RequestBody ProviderCreateRequest request) {
         Provider provider = providerService.createProvider(request);
         return Result.success(provider);
@@ -51,6 +54,7 @@ public class ProviderController {
 
     @Operation(summary = "编辑服务商", description = "更新服务商信息")
     @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('provider:manage')")
     public Result<Provider> updateProvider(
             @Parameter(description = "服务商ID") @PathVariable Integer id,
             @Valid @RequestBody ProviderUpdateRequest request) {
@@ -60,6 +64,7 @@ public class ProviderController {
 
     @Operation(summary = "删除服务商", description = "软删除服务商记录")
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('provider:manage')")
     public Result<Void> deleteProvider(
             @Parameter(description = "服务商ID") @PathVariable Integer id) {
         providerService.deleteProvider(id);

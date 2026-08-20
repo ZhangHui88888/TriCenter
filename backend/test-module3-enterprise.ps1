@@ -3,7 +3,16 @@
 # Usage: Run .\test-module3-enterprise.ps1 in backend directory
 # ============================================================
 
-$BaseUrl = "http://localhost:8080"
+param(
+    [string]$BaseUrl = "http://localhost:8081",
+    [switch]$AllowWriteTests,
+    [switch]$AllowRemote
+)
+
+. "$PSScriptRoot\test-safety.ps1"
+Assert-TriCenterTestTarget -ServerUrl $BaseUrl -AllowRemote:$AllowRemote `
+    -RequireWritePermission -AllowWriteTests:$AllowWriteTests
+
 $Token = ""
 $TestResults = @()
 $PassCount = 0

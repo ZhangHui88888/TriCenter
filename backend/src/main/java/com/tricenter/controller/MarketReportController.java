@@ -9,6 +9,7 @@ import com.tricenter.service.CityAccessService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -26,6 +27,7 @@ public class MarketReportController {
 
     @Operation(summary = "查询企业已有报告")
     @GetMapping("/{enterpriseId}")
+    @PreAuthorize("hasAuthority('report:view')")
     public Result<MarketReport> getReport(@PathVariable Integer enterpriseId) {
         cityAccessService.requireEnterprise(enterpriseId, cityContext.requireCityId());
         MarketReport report = reportMapper.selectOne(
@@ -36,6 +38,7 @@ public class MarketReportController {
 
     @Operation(summary = "保存/覆盖报告")
     @PutMapping("/{enterpriseId}/{version}")
+    @PreAuthorize("hasAuthority('report:generate')")
     public Result<Void> saveReport(@PathVariable Integer enterpriseId,
                                    @PathVariable String version,
                                    @RequestBody Map<String, Object> reportData) {

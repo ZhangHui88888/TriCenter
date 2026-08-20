@@ -1,5 +1,14 @@
 # Module 4: Enterprise Product Management API Test Script
-$baseUrl = "http://localhost:8080/api"
+param(
+    [string]$ServerUrl = "http://localhost:8081",
+    [switch]$AllowWriteTests,
+    [switch]$AllowRemote
+)
+
+. "$PSScriptRoot\test-safety.ps1"
+Assert-TriCenterTestTarget -ServerUrl $ServerUrl -AllowRemote:$AllowRemote `
+    -RequireWritePermission -AllowWriteTests:$AllowWriteTests
+$baseUrl = "$($ServerUrl.TrimEnd('/'))/api"
 
 function Write-Success { param($msg) Write-Host $msg -ForegroundColor Green }
 function Write-Error { param($msg) Write-Host $msg -ForegroundColor Red }

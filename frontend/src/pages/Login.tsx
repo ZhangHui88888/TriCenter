@@ -201,7 +201,7 @@ function Login() {
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, marginTop: 2 }}>
                 <Checkbox style={{ color: '#7a7a7a', fontSize: 12 }}>记住登录</Checkbox>
-                <span style={{ color: '#9a9a9a', fontSize: 12 }}>默认账号：admin / admin123</span>
+                <span style={{ color: '#9a9a9a', fontSize: 12 }}>请使用已分配的账号登录</span>
               </div>
 
               <Form.Item style={{ marginBottom: 0 }}>
