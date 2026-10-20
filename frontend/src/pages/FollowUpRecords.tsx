@@ -27,7 +27,8 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { useNavigate } from 'react-router-dom';
-import { followUpApi, enterpriseApi } from '@/services/api';
+import { followUpApi } from '@/services/api';
+import EnterpriseSearchSelect from '@/components/EnterpriseSearchSelect';
 import { FOLLOW_UP_TYPES } from '@/utils/constants';
 import type { FollowUpRecord } from '@/types';
 import { useAntFormCitySwitchGuard } from '@/hooks/useCitySwitchGuard';
@@ -72,7 +73,6 @@ function FollowUpRecords() {
   // API数据状态
   const [loading, setLoading] = useState(true);
   const [followUpRecords, setFollowUpRecords] = useState<any[]>([]);
-  const [enterprises, setEnterprises] = useState<any[]>([]);
   const [stats, setStats] = useState({
     monthCount: 0,
     weekCount: 0,
@@ -116,21 +116,6 @@ function FollowUpRecords() {
     }
   };
   
-  // 加载企业列表（用于新增跟进时选择）
-  const fetchEnterprises = async () => {
-    try {
-      const response = await enterpriseApi.getList({ pageSize: 1000 });
-      if (response.data?.list) {
-        setEnterprises(response.data.list.map((e: any) => ({
-          id: e.id,
-          enterprise_name: e.name,
-        })));
-      }
-    } catch (error) {
-      console.error('Failed to fetch enterprises:', error);
-    }
-  };
-  
   // 加载统计数据
   const fetchStats = async () => {
     try {
@@ -149,7 +134,6 @@ function FollowUpRecords() {
   };
   
   useEffect(() => {
-    fetchEnterprises();
     fetchStats();
   }, []);
   
@@ -418,14 +402,7 @@ function FollowUpRecords() {
           <Row gutter={16}>
             <Col span={24}>
               <Form.Item name="enterprise_id" label="选择企业" rules={[{ required: true, message: '请选择企业' }]}>
-                <Select
-                  placeholder="请选择企业"
-                  showSearch
-                  filterOption={(input, option) =>
-                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                  }
-                  options={enterprises.map(e => ({ label: e.enterprise_name, value: e.id }))}
-                />
+                <EnterpriseSearchSelect placeholder="输入名称搜索企业" />
               </Form.Item>
             </Col>
             <Col span={12}>

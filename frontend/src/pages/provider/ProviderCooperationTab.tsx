@@ -31,7 +31,7 @@ export default function ProviderCooperationTab({ provider, onRecordsChanged }: P
     try {
       const res = await serviceRecordApi.getGlobalList({
         page: 1,
-        pageSize: 1000,
+        pageSize: 100, // 后端分页上限
         providerId: provider.id,
       });
       setServiceRecords(res.data?.list || []);

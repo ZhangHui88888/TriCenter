@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, DatePicker, Row, Col, Rate, Collapse, message } from 'antd';
 import { CustomerServiceOutlined, StarOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { enterpriseApi, serviceRecordApi, optionsApi } from '@/services/api';
+import { serviceRecordApi, optionsApi } from '@/services/api';
+import EnterpriseSearchSelect from '@/components/EnterpriseSearchSelect';
 import {
   ASSESSMENT_DIMENSIONS, SERVICE_TYPES_DATA, SERVICE_STATUSES_DATA, FUNNEL_STAGES,
   calcFeasibilityScore, calcProjectLevel,
@@ -27,7 +28,6 @@ export default function ServiceRecordModal({ open, enterpriseId, providerId, edi
   const [submitting, setSubmitting] = useState(false);
   const [userOptions, setUserOptions] = useState<{ label: string; value: number }[]>([]);
   const [providerOptions, setProviderOptions] = useState<{ label: string; value: number }[]>([]);
-  const [enterpriseOptions, setEnterpriseOptions] = useState<{ label: string; value: number }[]>([]);
   const [attachments, setAttachments] = useState<AttachmentMeta[]>([]);
   useAntFormCitySwitchGuard({
     id: 'enterprise-service-record',
@@ -46,13 +46,7 @@ export default function ServiceRecordModal({ open, enterpriseId, providerId, edi
     optionsApi.getProviders().then(res => {
       if (res.data) setProviderOptions(res.data.map((p: any) => ({ label: p.label, value: Number(p.value) })));
     }).catch(() => {});
-    if (enterpriseId == null) {
-      enterpriseApi.getList({ page: 1, pageSize: 9999 }).then(res => {
-        const list = res.data?.list || [];
-        setEnterpriseOptions(list.map((item: any) => ({ label: item.name, value: item.id })));
-      }).catch(() => {});
-    }
-  }, [open, enterpriseId]);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -160,7 +154,13 @@ export default function ServiceRecordModal({ open, enterpriseId, providerId, edi
           {enterpriseId == null && (
             <Col span={24}>
               <Form.Item name="enterpriseId" label="合作企业" rules={[{ required: true, message: '请选择企业' }]}>
-                <Select placeholder="请选择企业" showSearch optionFilterProp="label" options={enterpriseOptions} disabled={editingRecord != null} />
+                <EnterpriseSearchSelect
+                  placeholder="输入名称搜索企业"
+                  disabled={editingRecord != null}
+                  selectedOption={editingRecord?.enterpriseId != null
+                    ? { label: editingRecord.enterpriseName ?? String(editingRecord.enterpriseId), value: editingRecord.enterpriseId }
+                    : undefined}
+                />
               </Form.Item>
             </Col>
           )}

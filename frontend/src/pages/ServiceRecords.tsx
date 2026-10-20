@@ -30,6 +30,7 @@ import {
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import { serviceRecordApi, enterpriseApi, optionsApi } from '@/services/api';
+import EnterpriseSearchSelect from '@/components/EnterpriseSearchSelect';
 
 const { Title, Text } = Typography;
 
@@ -117,7 +118,7 @@ export default function ServiceRecords() {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [loading, setLoading] = useState(false);
-  const [enterprises, setEnterprises] = useState<{ id: number; name: string }[]>([]);
+  const [currentEnterprise, setCurrentEnterprise] = useState<{ id: number; name: string } | null>(null);
   const [providerOptions, setProviderOptions] = useState<{ label: string; value: number }[]>([]);
   const [filterType, setFilterType] = useState<string | undefined>();
   const [filterStatus, setFilterStatus] = useState<string | undefined>();
@@ -153,11 +154,19 @@ export default function ServiceRecords() {
     fetchRecords();
   }, [fetchRecords]);
 
+  // 只取当前筛选企业的名称，用于标题和下拉回显
   useEffect(() => {
-    enterpriseApi.getList({ page: 1, pageSize: 9999 }).then(res => {
-      const list = res.data?.list || [];
-      setEnterprises(list.map((e: any) => ({ id: e.id, name: e.name })));
+    if (filterEnterpriseId == null) {
+      setCurrentEnterprise(null);
+      return;
+    }
+    if (currentEnterprise?.id === filterEnterpriseId) return;
+    enterpriseApi.getDetail(filterEnterpriseId).then(res => {
+      if (res.data) setCurrentEnterprise({ id: filterEnterpriseId, name: res.data.name });
     }).catch(() => {});
+  }, [filterEnterpriseId]);
+
+  useEffect(() => {
     optionsApi.getProviders().then(res => {
       if (res.data) setProviderOptions(res.data.map((p: any) => ({ label: p.label, value: Number(p.value) })));
     }).catch(() => {});
@@ -173,10 +182,6 @@ export default function ServiceRecords() {
     setter(v);
     setCurrentPage(1);
   };
-
-  const currentEnterprise = filterEnterpriseId
-    ? enterprises.find(e => e.id === filterEnterpriseId)
-    : null;
 
   const currentProvider = filterProviderId
     ? providerOptions.find(p => p.value === filterProviderId)
@@ -414,15 +419,13 @@ export default function ServiceRecords() {
             </Radio.Group>
             
             <Space wrap size={16}>
-              <Select
+              <EnterpriseSearchSelect
                 placeholder="按企业筛选"
                 style={{ width: 200, borderRadius: 12, background: '#F5F7FA', border: 'none' }}
                 allowClear
-                showSearch
-                optionFilterProp="label"
                 value={filterEnterpriseId}
                 onChange={handleFilterChange(setFilterEnterpriseId)}
-                options={enterprises.map(e => ({ label: e.name, value: e.id }))}
+                selectedOption={currentEnterprise ? { label: currentEnterprise.name, value: currentEnterprise.id } : undefined}
               />
               <Select
                 placeholder="服务商"
