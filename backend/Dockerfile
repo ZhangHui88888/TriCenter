@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-FROM eclipse-temurin:17-jdk-jammy AS build
+FROM eclipse-temurin:25-jdk-jammy AS build
 WORKDIR /workspace/backend
 
 COPY backend/.mvn .mvn
@@ -10,7 +10,7 @@ COPY migrations /workspace/migrations
 COPY backend/src src
 RUN ./mvnw -B -ntp clean package -DskipTests
 
-FROM eclipse-temurin:17-jre-jammy AS runtime
+FROM eclipse-temurin:25-jre-jammy AS runtime
 RUN apt-get update \
     && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/* \
