@@ -34,19 +34,6 @@ services:
       retries: 10
     networks: [data]
 
-  clamav:
-    image: clamav/clamav:1.4
-    restart: unless-stopped
-    volumes:
-      - clamav-data:/var/lib/clamav
-    healthcheck:
-      test: ["CMD-SHELL", "clamdscan --ping 3"]
-      interval: 30s
-      timeout: 10s
-      retries: 10
-      start_period: 90s
-    networks: [data]
-
   backend:
     build:
       context: .
@@ -61,8 +48,6 @@ services:
       REDIS_DATABASE: 1
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
       TRICENTER_API_KEY: ${TRICENTER_API_KEY:?set TRICENTER_API_KEY}
-      CLAMAV_HOST: clamav
-      CLAMAV_PORT: 3310
       TRICENTER_UPLOAD_DIR: /var/lib/tricenter/uploads
       TRICENTER_QUARANTINE_DIR: /var/lib/tricenter/quarantine
     volumes:
@@ -71,7 +56,6 @@ services:
     depends_on:
       mysql: { condition: service_healthy }
       redis: { condition: service_healthy }
-      clamav: { condition: service_healthy }
     networks: [edge, data]
 
   frontend:
@@ -92,6 +76,5 @@ networks:
 volumes:
   mysql-data: {}
   redis-data: {}
-  clamav-data: {}
   uploads: {}
   quarantine: {}

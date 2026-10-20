@@ -4,7 +4,6 @@ import com.tricenter.common.exception.BusinessException;
 import com.tricenter.entity.City;
 import com.tricenter.mapper.EnterpriseServiceRecordMapper;
 import com.tricenter.security.CityContext;
-import com.tricenter.security.ClamAvScanner;
 import com.tricenter.service.impl.CooperationUploadServiceImpl;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -14,9 +13,7 @@ import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CooperationUploadServiceTest {
@@ -25,33 +22,29 @@ class CooperationUploadServiceTest {
     Path tempDir;
 
     @Test
-    void validMagicBytesAreScannedBeforePersistence() throws Exception {
-        ClamAvScanner scanner = mock(ClamAvScanner.class);
-        CooperationUploadServiceImpl service = service(scanner);
+    void validMagicBytesArePersistedWithoutLeavingStagingFile() throws Exception {
+        CooperationUploadServiceImpl service = service();
         byte[] png = new byte[]{(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1};
 
         var result = service.store(new MockMultipartFile("file", "proof.png", "text/plain", png));
 
         assertThat(result.get("contentType")).isEqualTo("image/png");
-        verify(scanner).assertClean(org.mockito.ArgumentMatchers.any(Path.class));
+        assertThat(tempDir.resolve("uploads/changzhou").resolve((String) result.get("storedFileName"))).exists();
+        assertThat(tempDir.resolve("quarantine/changzhou").toFile().listFiles()).isEmpty();
     }
 
     @Test
-    void scannerFailureRejectsUploadAndLeavesNoPersistentFile() {
-        ClamAvScanner scanner = mock(ClamAvScanner.class);
-        doThrow(new BusinessException(503, "scanner down"))
-                .when(scanner).assertClean(org.mockito.ArgumentMatchers.any(Path.class));
-        CooperationUploadServiceImpl service = service(scanner);
-        byte[] pdf = "%PDF-1.7".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+    void mismatchedMagicBytesRejectUploadAndLeaveNoPersistentFile() {
+        CooperationUploadServiceImpl service = service();
+        byte[] notPdf = "plain text".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
 
         assertThatThrownBy(() -> service.store(
-                new MockMultipartFile("file", "proof.pdf", "application/pdf", pdf)))
-                .isInstanceOf(BusinessException.class)
-                .hasMessage("scanner down");
-        assertThat(tempDir.resolve("uploads/changzhou").toFile().listFiles()).isEmpty();
+                new MockMultipartFile("file", "proof.pdf", "application/pdf", notPdf)))
+                .isInstanceOf(BusinessException.class);
+        assertThat(tempDir.resolve("uploads/changzhou")).doesNotExist();
     }
 
-    private CooperationUploadServiceImpl service(ClamAvScanner scanner) {
+    private CooperationUploadServiceImpl service() {
         CityContext cityContext = mock(CityContext.class);
         CityAccessService cityAccessService = mock(CityAccessService.class);
         City city = new City();
@@ -63,7 +56,6 @@ class CooperationUploadServiceTest {
                 tempDir.resolve("quarantine").toString(),
                 cityContext,
                 cityAccessService,
-                mock(EnterpriseServiceRecordMapper.class),
-                scanner);
+                mock(EnterpriseServiceRecordMapper.class));
     }
 }

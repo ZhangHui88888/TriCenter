@@ -116,7 +116,6 @@ jobs:
           REDIS_PASSWORD: ""
           JWT_SECRET: integration-only-jwt-secret-at-least-32-bytes
           TRICENTER_API_KEY: integration-only-booking-key
-          CLAMAV_HOST: 127.0.0.1
         run: |
           set -euo pipefail
           export DB_URL='jdbc:mysql://127.0.0.1:3306/tricenter?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai'
@@ -129,7 +128,7 @@ jobs:
             test "$attempt" -lt 60 || { cat empty-db.log; exit 1; }
             sleep 2
           done
-          test "$(mysql -h127.0.0.1 -uroot -pintegration-root -Nse 'SELECT MAX(CAST(version AS UNSIGNED)) FROM tricenter.flyway_schema_history WHERE success=1')" = "4"
+          test "$(mysql -h127.0.0.1 -uroot -pintegration-root -Nse 'SELECT MAX(CAST(version AS UNSIGNED)) FROM tricenter.flyway_schema_history WHERE success=1')" = "5"
           kill "$app_pid"
           wait "$app_pid" || true
           trap - EXIT
@@ -141,7 +140,6 @@ jobs:
           REDIS_PASSWORD: ""
           JWT_SECRET: integration-only-jwt-secret-at-least-32-bytes
           TRICENTER_API_KEY: integration-only-booking-key
-          CLAMAV_HOST: 127.0.0.1
         run: |
           set -euo pipefail
           mysql -h127.0.0.1 -uroot -pintegration-root -e 'CREATE DATABASE tricenter_existing CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci'
@@ -159,4 +157,4 @@ jobs:
             test "$attempt" -lt 60 || { cat baseline.log; exit 1; }
             sleep 2
           done
-          test "$(mysql -h127.0.0.1 -uroot -pintegration-root -Nse 'SELECT MAX(CAST(version AS UNSIGNED)) FROM tricenter_existing.flyway_schema_history WHERE success=1')" = "4"
+          test "$(mysql -h127.0.0.1 -uroot -pintegration-root -Nse 'SELECT MAX(CAST(version AS UNSIGNED)) FROM tricenter_existing.flyway_schema_history WHERE success=1')" = "5"

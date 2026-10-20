@@ -7,7 +7,6 @@ import com.tricenter.entity.EnterpriseServiceRecord;
 import com.tricenter.mapper.EnterpriseServiceRecordMapper;
 import com.tricenter.security.CityContext;
 import com.tricenter.service.CityAccessService;
-import com.tricenter.security.ClamAvScanner;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
@@ -42,7 +41,6 @@ public class CooperationUploadServiceImpl implements CooperationUploadService {
     private final CityContext cityContext;
     private final CityAccessService cityAccessService;
     private final EnterpriseServiceRecordMapper serviceRecordMapper;
-    private final ClamAvScanner clamAvScanner;
 
     private static final long MAX_FILE_SIZE = 30L * 1024 * 1024;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
@@ -53,14 +51,12 @@ public class CooperationUploadServiceImpl implements CooperationUploadService {
             @Value("${tricenter.upload-quarantine-dir:./data/upload-quarantine}") String quarantineDir,
             CityContext cityContext,
             CityAccessService cityAccessService,
-            EnterpriseServiceRecordMapper serviceRecordMapper,
-            ClamAvScanner clamAvScanner) {
+            EnterpriseServiceRecordMapper serviceRecordMapper) {
         this.cooperationDir = Paths.get(baseDir).toAbsolutePath().normalize();
         this.quarantineDir = Paths.get(quarantineDir).toAbsolutePath().normalize();
         this.cityContext = cityContext;
         this.cityAccessService = cityAccessService;
         this.serviceRecordMapper = serviceRecordMapper;
-        this.clamAvScanner = clamAvScanner;
     }
 
     @Override
@@ -100,9 +96,9 @@ public class CooperationUploadServiceImpl implements CooperationUploadService {
         if (!target.startsWith(cityDir) || !quarantined.startsWith(quarantineCityDir)) {
             throw new BusinessException("非法路径");
         }
+        // 内部系统不做病毒扫描；先写临时文件再原子移动，避免留下半截附件
         try {
             file.transferTo(quarantined.toFile());
-            clamAvScanner.assertClean(quarantined);
             try {
                 Files.move(quarantined, target, StandardCopyOption.ATOMIC_MOVE);
             } catch (java.nio.file.AtomicMoveNotSupportedException e) {
