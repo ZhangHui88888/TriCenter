@@ -82,6 +82,11 @@
             <groupId>org.flywaydb</groupId>
             <artifactId>flyway-core</artifactId>
         </dependency>
+        <!-- Flyway 9+ 将 MySQL 支持拆为独立模块，缺失时启动报 Unsupported Database -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+        </dependency>
 
         <!-- Redis -->
         <dependency>
