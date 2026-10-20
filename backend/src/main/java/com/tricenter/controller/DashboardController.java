@@ -44,6 +44,12 @@ public class DashboardController {
     public Result<List<DistrictStatsResponse>> getDistrictStats() {
         return Result.success(dashboardService.getDistrictStats());
     }
+
+    @Operation(summary = "企业类型分布", description = "获取当前城市各企业类型的企业数量")
+    @GetMapping("/enterprise-types")
+    public Result<List<DistrictStatsResponse>> getEnterpriseTypeStats() {
+        return Result.success(dashboardService.getEnterpriseTypeStats());
+    }
     
     @Operation(summary = "6.4 行业分布", description = "获取各行业企业数量及占比")
     @GetMapping("/industries")

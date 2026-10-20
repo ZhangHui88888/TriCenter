@@ -84,13 +84,11 @@ function WorldMap({ data, style }: Props) {
     if (!el) return;
 
     let cancelled = false;
-    let resizeHandler: (() => void) | null = null;
+    let resizeObserver: ResizeObserver | null = null;
 
     const teardown = () => {
-      if (resizeHandler) {
-        window.removeEventListener('resize', resizeHandler);
-        resizeHandler = null;
-      }
+      resizeObserver?.disconnect();
+      resizeObserver = null;
       // 必须按 DOM 销毁：init 可能产生实例而 ref 未同步，残留实例会导致「叠多层点」
       echarts.dispose(el);
     };
@@ -131,7 +129,7 @@ function WorldMap({ data, style }: Props) {
             textStyle: { color: '#CED8E1', fontSize: 13 },
             formatter: (params: any) => {
               if (params.seriesType === 'effectScatter') {
-                return `<b>${params.name}</b><br/>企业客户: ${params.value[2]} 家`;
+                return `<b>${params.name}</b><br/>覆盖企业: ${params.value[2]} 家`;
               }
               if (params.seriesType === 'lines') {
                 return `常州 → ${params.data.toName}`;
@@ -142,19 +140,21 @@ function WorldMap({ data, style }: Props) {
           geo: {
             map: 'world',
             roam: true,
-            zoom: 1.2,
-            center: [60, 25],
+            zoom: 1.15,
+            // 排除南极留白，让有销售分布的大陆充分占据画面。
+            boundingCoords: [[-180, 85], [180, -60]],
+            aspectScale: 0.95,
             scaleLimit: { min: 1, max: 8 },
             silent: false,
             itemStyle: {
-              areaColor: '#151A22',
-              borderColor: '#2A3345',
-              borderWidth: 0.5,
+              areaColor: '#20324a',
+              borderColor: '#38516d',
+              borderWidth: 0.65,
             },
             emphasis: {
               itemStyle: {
-                areaColor: '#1C2535',
-                borderColor: '#4361EE',
+                areaColor: '#2a4260',
+                borderColor: '#7395bc',
               },
               label: { show: false },
             },
@@ -238,11 +238,13 @@ function WorldMap({ data, style }: Props) {
         return;
       }
 
-      resizeHandler = () => {
+      resizeObserver = new ResizeObserver(() => {
+        // 筛选加载时节点会被卸载，忽略零尺寸通知，避免飞线画布缩成 0 后绘制失败。
+        if (cancelled || !dom.isConnected || dom.clientWidth === 0 || dom.clientHeight === 0) return;
         const inst = echarts.getInstanceByDom(dom);
-        inst?.resize();
-      };
-      window.addEventListener('resize', resizeHandler);
+        if (inst && (inst.getWidth() !== dom.clientWidth || inst.getHeight() !== dom.clientHeight)) inst.resize();
+      });
+      resizeObserver.observe(dom);
     };
 
     void run();

@@ -47,7 +47,7 @@ public class DashboardServiceImpl implements DashboardService {
     private final AtomicLong redisRetryAfterNanos = new AtomicLong(0);
     private static final long REDIS_RETRY_DELAY_NANOS = TimeUnit.SECONDS.toNanos(5);
     private static final List<String> CACHE_SUFFIXES = List.of(
-            "overview", "funnel", "districts", "industries:l1-full",
+            "overview", "funnel", "districts", "enterprise-types", "industries:l1-full",
             "pending-follow-ups", "monthly-trend");
     
     // 漏斗阶段配置
@@ -209,12 +209,26 @@ public class DashboardServiceImpl implements DashboardService {
         List<Map<String, Object>> districtCounts = enterpriseMapper.countByDistrict(
                 cityContext.requireCityId());
         return districtCounts.stream()
-            .filter(item -> item.get("district") != null)
             .map(item -> new DistrictStatsResponse(
                 (String) item.get("district"),
-                ((Long) item.get("count")).intValue()
+                ((Number) item.get("count")).intValue()
             ))
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<DistrictStatsResponse> getEnterpriseTypeStats() {
+        String key = cacheKey("enterprise-types");
+        List<DistrictStatsResponse> cached = getCachedValue(key, new TypeReference<List<DistrictStatsResponse>>() {});
+        if (cached != null) return cached;
+
+        List<DistrictStatsResponse> result = enterpriseMapper.countByEnterpriseType(cityContext.requireCityId())
+                .stream()
+                .map(item -> new DistrictStatsResponse(
+                        (String) item.get("name"), ((Number) item.get("count")).intValue()))
+                .collect(Collectors.toList());
+        setCachedValue(key, result);
+        return result;
     }
     
     @Override

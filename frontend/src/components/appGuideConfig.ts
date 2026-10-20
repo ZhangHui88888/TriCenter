@@ -32,19 +32,19 @@ export const GUIDE_MODULES: GuideModuleConfig[] = [
     steps: [
       {
         title: '先看整体经营概况',
-        description: '这里汇总了企业总数、待跟进提醒和核心经营指标，适合快速了解当前工作盘面。',
+        description: '这里汇总企业总数、潜在企业、有明确需求和已签约入驻数量，下方可查看趋势与待跟进提醒。',
         selector: '[data-tour="dashboard-overview"]',
         placement: 'bottom',
       },
       {
         title: '看板图表用于判断结构',
-        description: '这里重点看漏斗阶段分布和行业分布，便于判断企业结构和当前重点方向。',
+        description: '这里可以查看漏斗阶段、行业、企业类型和区域分布，便于判断企业结构和当前重点方向。',
         selector: '[data-tour="dashboard-charts"]',
         placement: 'top',
       },
       {
         title: '快捷操作可直接跳转',
-        description: '如果要继续录入企业、补跟进或查看分析，可以从这里直接进入对应模块。',
+        description: '页面顶部提供新增企业和添加跟进入口，按当前账号权限显示；企业分布右上方可进入完整分析。',
         selector: '[data-tour="dashboard-actions"]',
         placement: 'top',
       },

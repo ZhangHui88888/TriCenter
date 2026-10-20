@@ -42,6 +42,10 @@ export const enterpriseApi = {
     crossBorderRevenueMinWan?: number;
     crossBorderRevenueMaxWan?: number;
     sourceId?: number;
+    sourceIds?: string;
+    productCategoryIds?: string;
+    targetRegionIds?: string;
+    productCertificationIds?: string;
     hasCrossBorder?: number;
     transformationWillingness?: string;
     usingErp?: number;
@@ -186,6 +190,9 @@ export const dashboardApi = {
 
   // 获取区域分布
   getDistrictStats: () => request.get('/dashboard/districts'),
+
+  // 获取企业类型分布
+  getEnterpriseTypeStats: () => request.get('/dashboard/enterprise-types'),
 
   // 获取行业分布
   getIndustryStats: () => request.get('/dashboard/industries'),

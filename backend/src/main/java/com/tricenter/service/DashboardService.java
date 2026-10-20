@@ -22,6 +22,9 @@ public interface DashboardService {
      * 获取区域分布
      */
     List<DistrictStatsResponse> getDistrictStats();
+
+    /** 获取企业类型分布 */
+    List<DistrictStatsResponse> getEnterpriseTypeStats();
     
     /**
      * 获取行业分布
