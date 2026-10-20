@@ -38,9 +38,8 @@ tricenter:
     secure-cookie: true
     accept-bearer: false
   cors:
-    allowed-origins:
-      - https://czcrop.top
-      - https://www.czcrop.top
+    # @Value 注入 List 需要逗号分隔字符串，YAML 列表无法解析
+    allowed-origins: https://czcrop.top,https://www.czcrop.top
 
 springdoc:
   api-docs:

@@ -59,10 +59,8 @@ tricenter:
     secure-cookie: false
     accept-bearer: false
   cors:
-    allowed-origins:
-      - http://localhost:5173
-      - http://localhost:3000
-      - http://localhost:3001
+    # @Value 注入 List 需要逗号分隔字符串，YAML 列表无法解析
+    allowed-origins: http://localhost:5173,http://localhost:3000,http://localhost:3001
 
 jwt:
   access-expiration: 1800000
