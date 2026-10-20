@@ -4,6 +4,7 @@ import com.tricenter.mapper.CategoryMapper;
 import com.tricenter.mapper.EnterpriseContactMapper;
 import com.tricenter.mapper.EnterpriseMapper;
 import com.tricenter.mapper.EnterpriseProductMapper;
+import com.tricenter.mapper.ProviderMapper;
 import com.tricenter.mapper.SystemOptionMapper;
 import com.tricenter.security.CityContext;
 import com.tricenter.service.AuditOutboxService;
@@ -32,7 +33,7 @@ class SurveyExcelTransactionBoundaryTest {
         SurveyExcelServiceImpl service = new SurveyExcelServiceImpl(
                 mock(EnterpriseMapper.class), mock(EnterpriseContactMapper.class),
                 mock(EnterpriseProductMapper.class), mock(CategoryMapper.class),
-                mock(SystemOptionMapper.class), mock(OptionsService.class),
+                mock(SystemOptionMapper.class), mock(ProviderMapper.class), mock(OptionsService.class),
                 mock(RequirementMatchEngine.class), mock(CityContext.class),
                 mock(CityAccessService.class), mock(DashboardCacheInvalidator.class),
                 mock(AuditOutboxService.class), transactionManager);

@@ -5,6 +5,7 @@ import com.tricenter.entity.StageChangeLog;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 import java.util.List;
 
@@ -13,6 +14,10 @@ import java.util.List;
  */
 @Mapper
 public interface StageChangeLogMapper extends BaseMapper<StageChangeLog> {
+
+    /** 保留阶段变更历史，同时解除已删除跟进记录的外键关联。 */
+    @Update("UPDATE stage_change_logs SET follow_up_id = NULL WHERE follow_up_id = #{followUpId}")
+    int unlinkFollowUp(@Param("followUpId") Integer followUpId);
     
     /**
      * 获取企业的阶段变更历史

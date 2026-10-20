@@ -233,7 +233,7 @@ export function useEnterpriseData(id: string | undefined) {
           await Promise.all([
             optionsApi.getOptions('staff_size'),
             optionsApi.getOptions('source'),
-            optionsApi.getOptions('source_provider'),
+            optionsApi.getProviders(),
             optionsApi.getOptions('region'),
             optionsApi.getOptions('trade_mode'),
             optionsApi.getOptions('trade_team_mode'),

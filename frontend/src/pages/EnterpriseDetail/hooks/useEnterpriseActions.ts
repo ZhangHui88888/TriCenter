@@ -250,7 +250,7 @@ export function useEnterpriseActions(d: DataState) {
           message.success('跟进记录删除成功');
           await d.loadEnterpriseFollowUps(enterprise.id);
         } catch (e: any) {
-          message.error(e?.message || '删除失败');
+          if (!e?.response) message.error(e?.message || '删除失败');
         }
       },
     });

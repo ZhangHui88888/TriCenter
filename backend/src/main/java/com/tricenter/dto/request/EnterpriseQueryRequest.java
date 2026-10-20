@@ -35,7 +35,7 @@ public class EnterpriseQueryRequest {
     /** 其他资质证书（模糊） */
     private String otherCertificationsKeyword;
     
-    /** 漏斗阶段 */
+    /** 漏斗阶段，多个逗号分隔，匹配任一值 */
     private String stage;
     
     /** 所属区域 */
@@ -67,6 +67,9 @@ public class EnterpriseQueryRequest {
     
     /** 企业来源ID */
     private Integer sourceId;
+
+    /** 企业来源ID，多个逗号分隔，兼容 sourceId 单选参数 */
+    private String sourceIds;
     
     /** 是否开展跨境电商 */
     private Integer hasCrossBorder;
@@ -89,14 +92,23 @@ public class EnterpriseQueryRequest {
     /** 产品品类ID（关联 categories 表） */
     private Integer productCategoryId;
 
+    /** 产品品类ID，多个逗号分隔，包含各选中品类的子类 */
+    private String productCategoryIds;
+
     /** 主要销售区域ID：企业主表 target_region_ids 含该 ID（与数据分析地图统计口径一致） */
     private Integer targetRegionId;
+
+    /** 主要销售区域ID，多个逗号分隔，匹配任一值 */
+    private String targetRegionIds;
 
     /** 主要销售国家，多个逗号分隔：企业主表 target_country_ids 含任一值（与数据分析地图统计口径一致） */
     private String targetCountryCode;
 
     /** 产品认证ID（JSON_CONTAINS 匹配 enterprise_products.certification_ids） */
     private Integer productCertificationId;
+
+    /** 产品认证ID，多个逗号分隔，匹配任一值 */
+    private String productCertificationIds;
 
     /** 最近跟进时间筛选，正数表示X天内，负数表示超过X天 */
     private Integer lastFollowupDays;

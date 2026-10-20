@@ -182,6 +182,7 @@ public class FollowUpServiceImpl implements FollowUpService {
         }
         cityAccessService.requireEnterprise(record.getEnterpriseId(), cityContext.requireCityId());
         
+        stageChangeLogMapper.unlinkFollowUp(id);
         followUpRecordMapper.deleteById(id);
         dashboardCacheInvalidator.evictAfterCommit();
     }

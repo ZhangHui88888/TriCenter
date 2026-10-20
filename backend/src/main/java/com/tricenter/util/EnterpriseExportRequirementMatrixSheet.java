@@ -281,9 +281,13 @@ public final class EnterpriseExportRequirementMatrixSheet {
             parts.add("其他资质(含)：" + request.getOtherCertificationsKeyword());
         }
         if (StringUtils.hasText(request.getStage())) {
-            String code = StageCodeUtil.normalize(request.getStage());
-            SystemOption opt = dict.getOptionByValue("stage", code);
-            parts.add("漏斗阶段：" + (opt != null ? opt.getLabel() : request.getStage()));
+            List<String> labels = Arrays.stream(request.getStage().split(","))
+                    .map(String::trim).filter(StringUtils::hasText).distinct()
+                    .map(stage -> {
+                        SystemOption opt = dict.getOptionByValue("stage", StageCodeUtil.normalize(stage));
+                        return opt != null ? opt.getLabel() : stage;
+                    }).toList();
+            parts.add("漏斗阶段：" + String.join("、", labels));
         }
         if (StringUtils.hasText(request.getDistrict())) {
             parts.add("区域：" + request.getDistrict());
@@ -325,11 +329,21 @@ public final class EnterpriseExportRequirementMatrixSheet {
             String hi = request.getCrossBorderRevenueMaxWan() != null ? request.getCrossBorderRevenueMaxWan().toPlainString() : "—";
             parts.add("跨境营收(万元)：" + lo + "～" + hi);
         }
+        List<String> sourceLabels = new ArrayList<>();
+        String sources = request.getSourceIds();
         if (request.getSourceId() != null && request.getSourceId() > 0) {
-            String label = dict.getOptionLabel(request.getSourceId());
-            if (StringUtils.hasText(label)) {
-                parts.add("企业来源：" + label);
+            sources = (StringUtils.hasText(sources) ? sources + "," : "") + request.getSourceId();
+        }
+        if (StringUtils.hasText(sources)) {
+            for (String source : sources.split(",")) {
+                try {
+                    String label = dict.getOptionLabel(Integer.parseInt(source.trim()));
+                    if (StringUtils.hasText(label) && !sourceLabels.contains(label)) sourceLabels.add(label);
+                } catch (NumberFormatException ignored) {
+                    // 与查询一致，忽略无效 ID。
+                }
             }
+            if (!sourceLabels.isEmpty()) parts.add("企业来源：" + String.join("、", sourceLabels));
         }
         if (request.getHasCrossBorder() != null) {
             parts.add("是否跨境：" + (request.getHasCrossBorder() == 1 ? "是" : "否"));

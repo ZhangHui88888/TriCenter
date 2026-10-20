@@ -67,8 +67,12 @@ public class Enterprise {
     /** 企业来源ID */
     private Integer sourceId;
     
-    /** 企业来源-服务商二级分类ID(仅source为"服务商"时使用) */
-    @TableField(updateStrategy = FieldStrategy.ALWAYS)
+    /** 历史企业来源-服务商字典选项ID，仅用于兼容旧数据 */
+    @TableField(value = "source_provider_id", updateStrategy = FieldStrategy.ALWAYS)
+    private Integer legacySourceProviderOptionId;
+
+    /** 企业来源对应的服务商档案ID */
+    @TableField(value = "source_provider_record_id", updateStrategy = FieldStrategy.ALWAYS)
     private Integer sourceProviderId;
     
     /** 漏斗阶段 */

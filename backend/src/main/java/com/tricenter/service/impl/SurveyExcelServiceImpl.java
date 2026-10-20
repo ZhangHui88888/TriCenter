@@ -29,6 +29,7 @@ import com.tricenter.security.CityContext;
 import com.tricenter.service.DashboardCacheInvalidator;
 import com.tricenter.service.AuditOutboxService;
 import com.tricenter.security.LoginUser;
+import com.tricenter.util.StageCodeUtil;
 
 import java.io.ByteArrayInputStream;
 import java.math.BigDecimal;
@@ -51,6 +52,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
     private final CategoryMapper categoryMapper;
     private final SystemOptionMapper systemOptionMapper;
+    private final ProviderMapper providerMapper;
     private final OptionsService optionsService;
     private final RequirementMatchEngine requirementMatchEngine;
     private final CityContext cityContext;
@@ -155,7 +157,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             basicHint.setSource("可选：" + String.join("/", optionLabels.getOrDefault("source", List.of())));
             basicHint.setHasOwnBrand("填：是/否");
             basicHint.setBrandNames("自由填写，多个用逗号分隔");
-            basicHint.setStageName("【仅展示，勿修改】");
+            basicHint.setStageName("可选：" + StageCodeUtil.importLabels()
+                    + "；留空保留原阶段，新企业默认为潜在企业");
             // 示例行
             SurveyBasicInfoData basicExample = new SurveyBasicInfoData();
             basicExample.setEnterpriseId(null);
@@ -618,6 +621,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         data.add(Arrays.asList("跨境营收", "企业基本信息", "数字(万元)或旧档位", "数值示例：350；档位：" + String.join("、", optionLabels.getOrDefault("cross_border_revenue", List.of()))));
         data.add(Arrays.asList("企业来源", "企业基本信息", "单选", String.join("、", optionLabels.getOrDefault("source", List.of()))));
         data.add(Arrays.asList("是否有自主品牌", "企业基本信息", "单选", "是、否"));
+        data.add(Arrays.asList("漏斗阶段", "企业基本信息",
+                "单选；留空保留原阶段，新企业默认为潜在企业", StageCodeUtil.importLabels()));
 
         // ── 联系人信息 ──
         data.add(Arrays.asList("── 联系人信息 ──", "", "", ""));
@@ -717,11 +722,15 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 SystemOption opt = systemOptionMapper.selectById(e.getSourceId());
                 if (opt != null) {
                     String sourceLabel = opt.getLabel();
-                    if (e.getSourceProviderId() != null) {
-                        SystemOption providerOpt = systemOptionMapper.selectById(e.getSourceProviderId());
-                        if (providerOpt != null) {
-                            sourceLabel = sourceLabel + " - " + providerOpt.getLabel();
-                        }
+                    Provider sourceProvider = e.getSourceProviderId() == null
+                            ? null : providerMapper.selectById(e.getSourceProviderId());
+                    String providerName = sourceProvider != null ? sourceProvider.getName() : null;
+                    if (providerName == null && e.getLegacySourceProviderOptionId() != null) {
+                        SystemOption providerOpt = systemOptionMapper.selectById(e.getLegacySourceProviderOptionId());
+                        if (providerOpt != null) providerName = providerOpt.getLabel();
+                    }
+                    if (providerName != null) {
+                        sourceLabel = sourceLabel + " - " + providerName;
                     }
                     data.setSource(sourceLabel);
                 }
@@ -1117,8 +1126,11 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         if (basic == null && bundle.enterpriseId == null && !StringUtils.hasText(bundle.enterpriseName)) {
             throw BusinessException.badRequest("缺少企业ID或企业名称");
         }
-        if (basic != null && resolveEnterpriseForImport(basic) == null) {
-            validateBasicInfoForInsert(basic);
+        if (basic != null) {
+            StageCodeUtil.parseImportValue(basic.getStageName());
+            if (resolveEnterpriseForImport(basic) == null) {
+                validateBasicInfoForInsert(basic);
+            }
         }
         for (SurveyContactData contact : bundle.contacts) {
             if (StringUtils.hasText(contact.getName()) && contact.getName().trim().length() > 100) {
@@ -1327,6 +1339,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     // ==================== 导入各Sheet数据 ====================
 
     private void updateBasicInfo(Enterprise enterprise, SurveyBasicInfoData data) {
+        String stage = StageCodeUtil.parseImportValue(data.getStageName());
+        if (stage != null) enterprise.setStage(stage);
         if (StringUtils.hasText(data.getName())) enterprise.setName(data.getName());
         if (StringUtils.hasText(data.getCreditCode())) enterprise.setCreditCode(data.getCreditCode());
         if (StringUtils.hasText(data.getEstablishedDate())) {

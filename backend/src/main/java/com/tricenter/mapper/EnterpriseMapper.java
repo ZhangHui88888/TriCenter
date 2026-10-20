@@ -48,8 +48,16 @@ public interface EnterpriseMapper extends BaseMapper<Enterprise> {
     /**
      * 统计各区域企业数量
      */
-    @Select("SELECT district, COUNT(*) as count FROM enterprises WHERE is_deleted = 0 AND city_id = #{cityId} GROUP BY district ORDER BY count DESC")
+    @Select("SELECT COALESCE(NULLIF(TRIM(district), ''), '未填写') AS district, COUNT(*) AS count " +
+            "FROM enterprises WHERE is_deleted = 0 AND city_id = #{cityId} " +
+            "GROUP BY COALESCE(NULLIF(TRIM(district), ''), '未填写') ORDER BY count DESC, 1")
     List<Map<String, Object>> countByDistrict(@Param("cityId") Integer cityId);
+
+    /** 统计各企业类型数量（包含未填写类型） */
+    @Select("SELECT COALESCE(NULLIF(TRIM(enterprise_type), ''), '未分类') AS name, COUNT(*) AS count " +
+            "FROM enterprises WHERE is_deleted = 0 AND city_id = #{cityId} " +
+            "GROUP BY COALESCE(NULLIF(TRIM(enterprise_type), ''), '未分类') ORDER BY count DESC, 1")
+    List<Map<String, Object>> countByEnterpriseType(@Param("cityId") Integer cityId);
     
     /**
      * 统计各行业企业数量

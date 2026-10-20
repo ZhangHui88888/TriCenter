@@ -281,7 +281,15 @@ export default function EditEnterpriseModal({
           {isProviderSource && (
             <Col span={6}>
               <Form.Item name="source_provider_id" label="服务商">
-                <Select placeholder="请选择服务商" options={sourceProviderOptions} allowClear />
+                <Select
+                  placeholder={enterprise.source_provider && enterprise.source_provider_id == null
+                    ? `历史来源：${enterprise.source_provider}，请重新选择`
+                    : '请选择服务商'}
+                  options={sourceProviderOptions}
+                  allowClear
+                  showSearch
+                  optionFilterProp="label"
+                />
               </Form.Item>
             </Col>
           )}

@@ -49,6 +49,7 @@ import {
 import ReactECharts from '@/components/CoreChart';
 import { enterpriseApi, optionsApi, surveyExcelApi, dashboardApi } from '@/services/api';
 import { toXlsxBlobFromResponse } from '@/utils/excelDownloadResponse';
+import { serializeFilterValues, serializeCategoryPaths } from '@/utils/multiSelectFilters';
 import { getCountryOptions } from '@/data/countries';
 import EnterpriseSearch from '@/components/EnterpriseSearch';
 import type { Enterprise } from '@/types';
@@ -77,7 +78,7 @@ type EnterpriseListQueryParams = {
   domesticRevenueId?: number;
   crossBorderRevenueMinWan?: number;
   crossBorderRevenueMaxWan?: number;
-  sourceId?: number;
+  sourceIds?: string;
   creditCodeKeyword?: string;
   addressKeyword?: string;
   websiteKeyword?: string;
@@ -103,10 +104,10 @@ type EnterpriseListQueryParams = {
   crossBorderTeamSize?: string;
   logisticsMode?: string;
   paymentMethod?: string;
-  productCategoryId?: number;
-  targetRegionId?: number;
+  productCategoryIds?: string;
+  targetRegionIds?: string;
   targetCountryCode?: string;
-  productCertificationId?: number;
+  productCertificationIds?: string;
   customsDeclarationMode?: string;
   hasDomesticEcommerce?: number;
   hasOverseasDistributors?: number;
@@ -422,7 +423,7 @@ function EnterpriseList() {
     page: currentPage,
     pageSize: currentPageSize,
     keyword: nameKw,
-    stage: filters.funnel_stage || stageFilter || undefined,
+    stage: serializeFilterValues(filters.funnel_stage) || stageFilter || undefined,
     district: filters.district || districtFilter || undefined,
     industryId: (() => {
       const path = filters.industry_id ?? industryFilter;
@@ -437,7 +438,7 @@ function EnterpriseList() {
     domesticRevenueId: filters.domestic_revenue || undefined,
     crossBorderRevenueMinWan: filters.crossborder_revenue_min_wan != null ? Number(filters.crossborder_revenue_min_wan) : undefined,
     crossBorderRevenueMaxWan: filters.crossborder_revenue_max_wan != null ? Number(filters.crossborder_revenue_max_wan) : undefined,
-    sourceId: filters.source || undefined,
+    sourceIds: serializeFilterValues(filters.source),
     creditCodeKeyword:
       typeof filters.unified_credit_code === 'string' && filters.unified_credit_code.trim() !== ''
         ? filters.unified_credit_code.trim()
@@ -503,17 +504,12 @@ function EnterpriseList() {
     paymentMethod: Array.isArray(filters.payment_method) && filters.payment_method.length > 0
       ? filters.payment_method.join(',')
       : undefined,
-    productCategoryId: (() => {
-      const path = filters.product_category_id;
-      if (Array.isArray(path) && path.length > 0) return Number(path[path.length - 1]);
-      if (path != null && path !== '') return Number(path);
-      return undefined;
-    })(),
-    targetRegionId: filters.target_region_id || undefined,
+    productCategoryIds: serializeCategoryPaths(filters.product_category_id),
+    targetRegionIds: serializeFilterValues(filters.target_region_id),
     targetCountryCode: Array.isArray(filters.target_country_code) && filters.target_country_code.length > 0
       ? filters.target_country_code.join(',')
       : undefined,
-    productCertificationId: filters.product_certification_id || undefined,
+    productCertificationIds: serializeFilterValues(filters.product_certification_id),
     customsDeclarationMode: filters.customs_declaration_mode || undefined,
     hasDomesticEcommerce: typeof filters.has_domestic_ecommerce === 'boolean'
       ? (filters.has_domestic_ecommerce ? 1 : 0)
@@ -1048,7 +1044,7 @@ function EnterpriseList() {
 
   // 应用高级筛选
   const handleApplyFilters = () => {
-    const values = filterForm.getFieldsValue();
+    const values = filterForm.getFieldsValue(true);
     const normalizedValues = {
       ...values,
       entry_date_range: normalizeEntryDateRange(values.entry_date_range),
@@ -2012,7 +2008,7 @@ function EnterpriseList() {
                     </Col>
                     <Col span={8}>
                       <Form.Item name="source" label="企业来源">
-                        <Select placeholder="请选择" allowClear options={sourceOptions} />
+                        <Select mode="multiple" maxTagCount="responsive" placeholder="请选择" allowClear options={sourceOptions} />
                       </Form.Item>
                     </Col>
                     <Col span={8}>
@@ -2050,7 +2046,7 @@ function EnterpriseList() {
                   <Row gutter={16}>
                     <Col span={8}>
                       <Form.Item name="target_region_id" label="主要销售区域">
-                        <Select
+                        <Select mode="multiple" maxTagCount="responsive"
                           placeholder="请选择"
                           allowClear
                           options={regionOptions}
@@ -2084,17 +2080,19 @@ function EnterpriseList() {
                     <Col span={8}>
                       <Form.Item name="product_category_id" label="产品品类">
                         <Cascader
+                          multiple
+                          maxTagCount="responsive"
                           placeholder="请选择"
                           allowClear
                           options={productCategoryOptions}
-                          changeOnSelect
+                          showCheckedStrategy={Cascader.SHOW_PARENT}
                           showSearch={{ filter: (input: string, path: any[]) => path.some((opt: any) => (opt.label as string).toLowerCase().includes(input.toLowerCase())) }}
                         />
                       </Form.Item>
                     </Col>
                     <Col span={8}>
                       <Form.Item name="product_certification_id" label="产品认证">
-                        <Select
+                        <Select mode="multiple" maxTagCount="responsive"
                           placeholder="请选择"
                           allowClear
                           options={certificationOptions}
@@ -2339,7 +2337,7 @@ function EnterpriseList() {
                   <Row gutter={16}>
                     <Col span={8}>
                       <Form.Item name="funnel_stage" label="漏斗阶段">
-                        <Select 
+                        <Select mode="multiple" maxTagCount="responsive"
                           placeholder="请选择" 
                           allowClear 
                           options={FUNNEL_STAGES.map(s => ({ label: s.name, value: s.code }))} 
