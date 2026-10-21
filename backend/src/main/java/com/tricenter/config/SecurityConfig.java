@@ -20,6 +20,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
+import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -49,6 +51,7 @@ public class SecurityConfig {
         http
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .csrfTokenRequestHandler(csrfTokenRequestHandler())
                 .ignoringRequestMatchers("/api/auth/login", "/api/auth/refresh")
                 .ignoringRequestMatchers(apiKeyAuthenticationFilter::isCsrfExemptBookingRequest))
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
@@ -69,6 +72,14 @@ public class SecurityConfig {
             .addFilterAfter(csrfCookieFilter, CitySelectionFilter.class);
         
         return http.build();
+    }
+
+    /**
+     * 前端（axios）把 XSRF-TOKEN Cookie 原值放进请求头；Spring Security 6 默认的 XOR 处理器
+     * 只认掩码后的 token，会让所有写请求 403，所以这里用不做掩码的处理器。
+     */
+    static CsrfTokenRequestHandler csrfTokenRequestHandler() {
+        return new CsrfTokenRequestAttributeHandler();
     }
 
     @Bean
