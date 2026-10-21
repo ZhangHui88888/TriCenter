@@ -4,6 +4,7 @@ import com.tricenter.security.ApiKeyAuthenticationFilter;
 import com.tricenter.security.JwtAuthenticationFilter;
 import com.tricenter.security.CitySelectionFilter;
 import com.tricenter.security.CsrfCookieFilter;
+import com.tricenter.security.JsonAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -42,6 +43,7 @@ public class SecurityConfig {
     private final ApiKeyAuthenticationFilter apiKeyAuthenticationFilter;
     private final CitySelectionFilter citySelectionFilter;
     private final CsrfCookieFilter csrfCookieFilter;
+    private final JsonAuthenticationEntryPoint jsonAuthenticationEntryPoint;
 
     @Value("${tricenter.cors.allowed-origins}")
     private List<String> corsAllowedOrigins;
@@ -66,6 +68,7 @@ public class SecurityConfig {
                     "/swagger-resources/**", "/webjars/**").permitAll()
                 // 其他接口需要认证（JWT 或 API Key）
                 .anyRequest().authenticated())
+            .exceptionHandling(ex -> ex.authenticationEntryPoint(jsonAuthenticationEntryPoint))
             .addFilterBefore(apiKeyAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterAfter(citySelectionFilter, JwtAuthenticationFilter.class)
