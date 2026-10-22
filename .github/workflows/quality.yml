@@ -29,7 +29,7 @@ jobs:
       - run: npm run quality:type-debt
       - run: npm run knip
       - run: npm run jscpd
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: frontend-coverage
           path: frontend/coverage
@@ -48,7 +48,7 @@ jobs:
           cache: maven
       - run: chmod +x mvnw
       - run: ./mvnw -B -ntp -Pquality-gate clean verify
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: backend-quality-reports
           path: |
