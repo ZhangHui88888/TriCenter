@@ -26,7 +26,7 @@
         <sonar.tests>src/test/java</sonar.tests>
         <sonar.java.binaries>target/classes</sonar.java.binaries>
         <mybatis-plus.version>3.5.5</mybatis-plus.version>
-        <jjwt.version>0.12.3</jjwt.version>
+        <jjwt.version>0.13.0</jjwt.version>
         <knife4j.version>4.3.0</knife4j.version>
         <hutool.version>5.8.25</hutool.version>
         <easyexcel.version>3.3.3</easyexcel.version>
