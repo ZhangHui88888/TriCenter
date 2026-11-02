@@ -20,6 +20,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.session.NullAuthenticatedSessionStrategy;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.CsrfTokenRequestHandler;
@@ -50,15 +51,12 @@ public class SecurityConfig {
 
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        configureStatelessCsrf(http);
         http
             .csrf(csrf -> csrf
-                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .csrfTokenRequestHandler(csrfTokenRequestHandler())
                 .ignoringRequestMatchers("/api/auth/login", "/api/auth/refresh")
                 .ignoringRequestMatchers(apiKeyAuthenticationFilter::isCsrfExemptBookingRequest))
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .sessionManagement(session -> 
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // 公开接口
                 .requestMatchers("/api/auth/login", "/api/auth/refresh", "/api/system/identity").permitAll()
@@ -75,6 +73,22 @@ public class SecurityConfig {
             .addFilterAfter(csrfCookieFilter, CitySelectionFilter.class);
         
         return http.build();
+    }
+
+    /**
+     * 无状态会话 + Cookie 双提交 CSRF。
+     * 每个请求都由 JWT 过滤器重新认证，SessionManagementFilter 会把它当成“新登录”并调用
+     * CsrfAuthenticationStrategy，清掉请求带来的 XSRF-TOKEN（响应里 Max-Age=0）。下一个写请求
+     * 就没有 Cookie 可比对，被拒后经 /error 变成 401。这里关掉这一步，token 保持稳定。
+     */
+    static void configureStatelessCsrf(HttpSecurity http) throws Exception {
+        http
+            .csrf(csrf -> csrf
+                .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .csrfTokenRequestHandler(csrfTokenRequestHandler())
+                .sessionAuthenticationStrategy(new NullAuthenticatedSessionStrategy()))
+            .sessionManagement(session ->
+                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
     }
 
     /**
