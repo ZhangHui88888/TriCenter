@@ -10,6 +10,7 @@ import com.tricenter.security.CityContext;
 import com.tricenter.service.AuditOutboxService;
 import com.tricenter.service.CityAccessService;
 import com.tricenter.service.DashboardCacheInvalidator;
+import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.service.OptionsService;
 import com.tricenter.service.RequirementMatchEngine;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,7 @@ class SurveyExcelTransactionBoundaryTest {
                 mock(SystemOptionMapper.class), mock(ProviderMapper.class), mock(OptionsService.class),
                 mock(RequirementMatchEngine.class), mock(CityContext.class),
                 mock(CityAccessService.class), mock(DashboardCacheInvalidator.class),
-                mock(AuditOutboxService.class), transactionManager);
+                mock(AuditOutboxService.class), transactionManager, mock(DictionaryCacheService.class));
 
         assertThatThrownBy(() -> service.inEnterpriseTransaction(() -> {
             throw new IllegalStateException("product insert failed");

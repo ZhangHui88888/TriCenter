@@ -29,6 +29,7 @@ import com.tricenter.service.CityAccessService;
 import com.tricenter.security.CityContext;
 import com.tricenter.service.DashboardCacheInvalidator;
 import com.tricenter.service.AuditOutboxService;
+import com.tricenter.service.DictionaryCacheService;
 import com.tricenter.security.LoginUser;
 import com.tricenter.util.StageCodeUtil;
 
@@ -61,6 +62,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     private final DashboardCacheInvalidator dashboardCacheInvalidator;
     private final AuditOutboxService auditOutboxService;
     private final PlatformTransactionManager transactionManager;
+    /** 导出时按 ID 查字典/分类走缓存；逐行 selectById 会让上千家企业的批量导出跑上几分钟 */
+    private final DictionaryCacheService dictionaryCache;
 
     // ==================== 导出 ====================
 
@@ -683,6 +686,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     // ==================== 构建各Sheet数据 ====================
 
     private List<SurveyBasicInfoData> buildBasicInfoData(List<Enterprise> enterprises) {
+        Map<String, SystemOption> stageByValue = new HashMap<>();
+        Map<Integer, Provider> providerById = new HashMap<>();
         return enterprises.stream().map(e -> {
             SurveyBasicInfoData data = new SurveyBasicInfoData();
             data.setEnterpriseId(e.getId());
@@ -697,19 +702,19 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
             // 行业名称
             if (e.getIndustryId() != null) {
-                Category industry = categoryMapper.selectById(e.getIndustryId());
+                Category industry = dictionaryCache.getCategoryById(e.getIndustryId());
                 if (industry != null) data.setIndustryName(industry.getName());
             }
 
             // 人员规模
             if (e.getStaffSizeId() != null) {
-                SystemOption opt = systemOptionMapper.selectById(e.getStaffSizeId());
+                SystemOption opt = dictionaryCache.getOptionById(e.getStaffSizeId());
                 if (opt != null) data.setStaffSize(opt.getLabel());
             }
 
             // 国内营收
             if (e.getDomesticRevenueId() != null) {
-                SystemOption opt = systemOptionMapper.selectById(e.getDomesticRevenueId());
+                SystemOption opt = dictionaryCache.getOptionById(e.getDomesticRevenueId());
                 if (opt != null) data.setDomesticRevenue(opt.getLabel());
             }
 
@@ -720,14 +725,14 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
             // 企业来源
             if (e.getSourceId() != null) {
-                SystemOption opt = systemOptionMapper.selectById(e.getSourceId());
+                SystemOption opt = dictionaryCache.getOptionById(e.getSourceId());
                 if (opt != null) {
                     String sourceLabel = opt.getLabel();
                     Provider sourceProvider = e.getSourceProviderId() == null
-                            ? null : providerMapper.selectById(e.getSourceProviderId());
+                            ? null : providerById.computeIfAbsent(e.getSourceProviderId(), providerMapper::selectById);
                     String providerName = sourceProvider != null ? sourceProvider.getName() : null;
                     if (providerName == null && e.getLegacySourceProviderOptionId() != null) {
-                        SystemOption providerOpt = systemOptionMapper.selectById(e.getLegacySourceProviderOptionId());
+                        SystemOption providerOpt = dictionaryCache.getOptionById(e.getLegacySourceProviderOptionId());
                         if (providerOpt != null) providerName = providerOpt.getLabel();
                     }
                     if (providerName != null) {
@@ -742,7 +747,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             data.setBrandNames(e.getBrandNames());
 
             // 漏斗阶段
-            SystemOption stageOpt = getOptionByValue("stage", e.getStage());
+            SystemOption stageOpt = e.getStage() == null
+                    ? null : stageByValue.computeIfAbsent(e.getStage(), v -> getOptionByValue("stage", v));
             if (stageOpt != null) data.setStageName(stageOpt.getLabel());
 
             // 资质认证
@@ -756,8 +762,12 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
     private List<SurveyContactData> buildContactData(List<Enterprise> enterprises) {
         List<SurveyContactData> result = new ArrayList<>();
+        // 一次查出全部联系人（同样按 is_primary DESC, id ASC），按企业分组保持顺序
+        Map<Integer, List<EnterpriseContact>> contactsByEnterprise = enterprises.isEmpty() ? Map.of()
+                : contactMapper.selectByEnterpriseIds(enterprises.stream().map(Enterprise::getId).toList()).stream()
+                        .collect(Collectors.groupingBy(EnterpriseContact::getEnterpriseId, LinkedHashMap::new, Collectors.toList()));
         for (Enterprise e : enterprises) {
-            List<EnterpriseContact> contacts = contactMapper.selectByEnterpriseId(e.getId());
+            List<EnterpriseContact> contacts = contactsByEnterprise.get(e.getId());
             if (contacts != null && !contacts.isEmpty()) {
                 for (EnterpriseContact c : contacts) {
                     SurveyContactData data = new SurveyContactData();
@@ -785,10 +795,17 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
     private List<SurveyProductData> buildProductData(List<Enterprise> enterprises) {
         List<SurveyProductData> result = new ArrayList<>();
-        for (Enterprise e : enterprises) {
+        Map<Integer, List<EnterpriseProduct>> productsByEnterprise = new HashMap<>();
+        if (!enterprises.isEmpty()) {
             LambdaQueryWrapper<EnterpriseProduct> wrapper = new LambdaQueryWrapper<>();
-            wrapper.eq(EnterpriseProduct::getEnterpriseId, e.getId());
-            List<EnterpriseProduct> products = productMapper.selectList(wrapper);
+            wrapper.in(EnterpriseProduct::getEnterpriseId, enterprises.stream().map(Enterprise::getId).toList())
+                    .orderByAsc(EnterpriseProduct::getId);
+            for (EnterpriseProduct p : productMapper.selectList(wrapper)) {
+                productsByEnterprise.computeIfAbsent(p.getEnterpriseId(), k -> new ArrayList<>()).add(p);
+            }
+        }
+        for (Enterprise e : enterprises) {
+            List<EnterpriseProduct> products = productsByEnterprise.get(e.getId());
             if (products != null && !products.isEmpty()) {
                 for (EnterpriseProduct p : products) {
                     SurveyProductData data = new SurveyProductData();
@@ -803,7 +820,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
                     // 品类名称
                     if (p.getCategoryId() != null) {
-                        Category cat = categoryMapper.selectById(p.getCategoryId());
+                        Category cat = dictionaryCache.getCategoryById(p.getCategoryId());
                         if (cat != null) data.setCategoryName(cat.getName());
                     }
 
@@ -811,7 +828,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                     if (p.getCertificationIds() != null && !p.getCertificationIds().isEmpty()) {
                         List<String> names = new ArrayList<>();
                         for (Integer certId : p.getCertificationIds()) {
-                            SystemOption opt = systemOptionMapper.selectById(certId);
+                            SystemOption opt = dictionaryCache.getOptionById(certId);
                             if (opt != null) names.add(opt.getLabel());
                         }
                         data.setCertifications(String.join("、", names));
@@ -821,7 +838,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                     if (p.getTargetRegionIds() != null && !p.getTargetRegionIds().isEmpty()) {
                         List<String> names = new ArrayList<>();
                         for (Integer regionId : p.getTargetRegionIds()) {
-                            SystemOption opt = systemOptionMapper.selectById(regionId);
+                            SystemOption opt = dictionaryCache.getOptionById(regionId);
                             if (opt != null) names.add(opt.getLabel());
                         }
                         data.setTargetRegions(String.join("、", names));
@@ -829,7 +846,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
                     // 自动化程度
                     if (p.getAutomationLevelId() != null) {
-                        SystemOption opt = systemOptionMapper.selectById(p.getAutomationLevelId());
+                        SystemOption opt = dictionaryCache.getOptionById(p.getAutomationLevelId());
                         if (opt != null) data.setAutomationLevel(opt.getLabel());
                     }
 
@@ -855,7 +872,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             if (e.getTargetRegionIds() != null && !e.getTargetRegionIds().isEmpty()) {
                 List<String> names = new ArrayList<>();
                 for (Integer regionId : e.getTargetRegionIds()) {
-                    SystemOption opt = systemOptionMapper.selectById(regionId);
+                    SystemOption opt = dictionaryCache.getOptionById(regionId);
                     if (opt != null) names.add(opt.getLabel());
                 }
                 data.setTargetRegions(String.join("、", names));
@@ -868,7 +885,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
             // 外贸模式
             if (e.getTradeModeId() != null) {
-                SystemOption opt = systemOptionMapper.selectById(e.getTradeModeId());
+                SystemOption opt = dictionaryCache.getOptionById(e.getTradeModeId());
                 if (opt != null) data.setTradeMode(opt.getLabel());
             }
 
@@ -878,7 +895,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
             // 外贸团队模式
             if (e.getTradeTeamModeId() != null) {
-                SystemOption opt = systemOptionMapper.selectById(e.getTradeTeamModeId());
+                SystemOption opt = dictionaryCache.getOptionById(e.getTradeTeamModeId());
                 if (opt != null) data.setTradeTeamMode(opt.getLabel());
             }
 
@@ -903,7 +920,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                 List<String> names = new ArrayList<>();
                 for (Object item : platformList) {
                     if (item instanceof Integer) {
-                        SystemOption opt = systemOptionMapper.selectById((Integer) item);
+                        SystemOption opt = dictionaryCache.getOptionById((Integer) item);
                         if (opt != null) names.add(opt.getLabel());
                     } else if (item instanceof String) {
                         names.add((String) item);
@@ -953,6 +970,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     }
 
     private List<SurveyCooperationData> buildCooperationData(List<Enterprise> enterprises) {
+        Map<String, Optional<SystemOption>> policyByValue = new HashMap<>();
         return enterprises.stream().map(e -> {
             SurveyCooperationData data = new SurveyCooperationData();
             data.setEnterpriseId(e.getId());
@@ -970,7 +988,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
             if (e.getEnjoyedPolicies() != null && !e.getEnjoyedPolicies().isEmpty()) {
                 List<String> names = new ArrayList<>();
                 for (String policyValue : e.getEnjoyedPolicies()) {
-                    SystemOption opt = getOptionByValue("enjoyed_policy", policyValue);
+                    SystemOption opt = policyValue == null ? null : policyByValue.computeIfAbsent(policyValue,
+                            v -> Optional.ofNullable(getOptionByValue("enjoyed_policy", v))).orElse(null);
                     if (opt != null) names.add(opt.getLabel());
                     else names.add(policyValue);
                 }
@@ -1887,7 +1906,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         for (String idStr : idStrs) {
             try {
                 Integer id = Integer.parseInt(idStr.trim());
-                SystemOption opt = systemOptionMapper.selectById(id);
+                SystemOption opt = dictionaryCache.getOptionById(id);
                 if (opt != null) labels.add(opt.getLabel());
             } catch (NumberFormatException ignored) {
                 // 可能已经是label了

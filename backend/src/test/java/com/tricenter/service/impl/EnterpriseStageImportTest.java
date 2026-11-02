@@ -69,7 +69,7 @@ class EnterpriseStageImportTest {
                 mock(EnterpriseProductMapper.class), mock(CategoryMapper.class), mock(SystemOptionMapper.class),
                 mock(ProviderMapper.class),
                 optionsService, mock(RequirementMatchEngine.class), cityContext, cityAccessService,
-                cacheInvalidator, mock(AuditOutboxService.class), transactionManager);
+                cacheInvalidator, mock(AuditOutboxService.class), transactionManager, mock(DictionaryCacheService.class));
         enterpriseService = new EnterpriseServiceImpl(enterpriseMapper, mock(EnterpriseContactMapper.class),
                 mock(EnterpriseProductMapper.class), mock(EnterprisePatentMapper.class), mock(CategoryMapper.class),
                 mock(StageChangeLogMapper.class), mock(FollowUpRecordMapper.class), cacheInvalidator,
