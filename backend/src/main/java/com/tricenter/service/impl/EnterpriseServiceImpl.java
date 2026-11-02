@@ -1552,10 +1552,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         }
         LambdaQueryWrapper<Enterprise> wrapper = buildFilterWrapper(request, matchedIds);
         wrapper.orderByDesc(Enterprise::getCreatedAt);
-        wrapper.last("LIMIT 1001");
+        wrapper.last("LIMIT " + (MAX_EXPORT_ENTERPRISES + 1));
         List<Enterprise> enterprises = enterpriseMapper.selectList(wrapper);
-        if (enterprises.size() > 1000) {
-            throw BusinessException.badRequest("企业导出最多支持 1000 条，请缩小筛选范围");
+        if (enterprises.size() > MAX_EXPORT_ENTERPRISES) {
+            throw BusinessException.badRequest("企业导出最多支持 " + MAX_EXPORT_ENTERPRISES + " 条，请缩小筛选范围");
         }
 
         // 批量查主联系人

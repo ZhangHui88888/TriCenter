@@ -1796,10 +1796,12 @@ function EnterpriseList() {
               window.URL.revokeObjectURL(url);
               message.success('导出成功（含企业列表与需求分析矩阵）');
             } else {
-              // 调研表导出
-              const ids = selectedRowKeys.length > 0
-                ? selectedRowKeys
-                : filteredEnterprises.map((e: any) => e.id);
+              // 调研表导出：未勾选时导出当前筛选条件下的全部企业，不受每页条数限制
+              let ids: number[] = selectedRowKeys.map(Number);
+              if (ids.length === 0) {
+                const allRes: any = await enterpriseApi.getList(buildListParams(1, -1));
+                ids = (allRes?.data?.list || []).map((e: any) => Number(e.id));
+              }
               if (ids.length === 0) {
                 message.warning('没有可导出的企业');
                 return;
@@ -1851,7 +1853,7 @@ function EnterpriseList() {
               <Text>
                 {selectedRowKeys.length > 0
                   ? <>将导出选中的 <Text strong>{selectedRowKeys.length}</Text> 家企业的调研表</>
-                  : <>将导出当前已加载的 <Text strong>{filteredEnterprises.length}</Text> 家企业的调研表；选择“全部”后可导出所有筛选结果</>
+                  : <>将导出当前筛选条件下全部 <Text strong>{_total}</Text> 家企业的调研表</>
                 }
               </Text>
               <div style={{ marginTop: 12 }}>

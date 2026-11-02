@@ -18,7 +18,10 @@ import java.util.List;
  * 企业服务接口
  */
 public interface EnterpriseService {
-    
+
+    /** 企业列表导出、调研表批量导出单次最多企业数（防止内存溢出的兜底上限） */
+    int MAX_EXPORT_ENTERPRISES = 10000;
+
     /**
      * 分页查询企业列表
      */

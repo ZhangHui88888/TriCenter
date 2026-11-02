@@ -11,6 +11,7 @@ import com.tricenter.dto.response.RequirementConfigResponse;
 import com.tricenter.entity.*;
 import com.tricenter.mapper.*;
 import com.tricenter.service.SurveyExcelService;
+import static com.tricenter.service.EnterpriseService.MAX_EXPORT_ENTERPRISES;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,8 +76,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         if (enterpriseIds == null || enterpriseIds.isEmpty()) {
             throw BusinessException.badRequest("请选择要导出的企业");
         }
-        if (enterpriseIds.size() > 1000) {
-            throw BusinessException.badRequest("批量导出最多支持 1000 个企业");
+        if (enterpriseIds.size() > MAX_EXPORT_ENTERPRISES) {
+            throw BusinessException.badRequest("批量导出最多支持 " + MAX_EXPORT_ENTERPRISES + " 个企业");
         }
         List<Enterprise> enterprises = enterpriseMapper.selectList(
                 new LambdaQueryWrapper<Enterprise>()
@@ -96,8 +97,8 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     }
 
     private void exportToResponse(List<Enterprise> enterprises, String fileNamePrefix, HttpServletResponse response) {
-        if (enterprises.size() > 1000) {
-            throw BusinessException.badRequest("批量导出最多支持 1000 个企业");
+        if (enterprises.size() > MAX_EXPORT_ENTERPRISES) {
+            throw BusinessException.badRequest("批量导出最多支持 " + MAX_EXPORT_ENTERPRISES + " 个企业");
         }
         try {
             String fileName = URLEncoder.encode(fileNamePrefix, "UTF-8").replaceAll("\\+", "%20");
