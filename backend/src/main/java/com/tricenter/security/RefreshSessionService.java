@@ -6,6 +6,8 @@ import com.tricenter.mapper.UserMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -13,6 +15,7 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -23,6 +26,10 @@ public class RefreshSessionService {
     private static final Duration SESSION_TTL = Duration.ofDays(7);
     private static final String REFRESH_PREFIX = "auth:refresh:";
     private static final String USER_PREFIX = "auth:user-sessions:";
+    /** 原子地读取并删除 refresh session；生产 Redis 6.0 不支持 GETDEL（6.2+），故用 Lua */
+    static final RedisScript<String> GET_AND_DELETE = new DefaultRedisScript<>(
+            "local v = redis.call('GET', KEYS[1]) if v then redis.call('DEL', KEYS[1]) end return v",
+            String.class);
     private final StringRedisTemplate redisTemplate;
     private final UserMapper userMapper;
     private final SecureRandom secureRandom = new SecureRandom();
@@ -55,7 +62,7 @@ public class RefreshSessionService {
         }
         try {
             String tokenHash = sha256(rawToken);
-            String value = redisTemplate.opsForValue().getAndDelete(REFRESH_PREFIX + tokenHash);
+            String value = redisTemplate.execute(GET_AND_DELETE, List.of(REFRESH_PREFIX + tokenHash));
             if (value == null) {
                 throw BusinessException.unauthorized("refresh session 已失效");
             }
