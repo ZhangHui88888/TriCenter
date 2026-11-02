@@ -97,7 +97,10 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         Page<Enterprise> page = new Page<>(request.getPage(), request.getPageSize());
         Page<Enterprise> result = enterpriseMapper.selectPage(page, wrapper);
         List<EnterpriseListResponse> list = batchConvertToListResponse(result.getRecords());
-        return PageResult.of(list, result.getTotal(), request.getPage(), request.getPageSize());
+        // 不分页（“全部”）时 MyBatis-Plus 不执行 count，total 为 0，用实际条数代替
+        long total = request.getPageSize() != null && request.getPageSize() == EnterpriseQueryRequest.ALL_ROWS
+                ? list.size() : result.getTotal();
+        return PageResult.of(list, total, request.getPage(), request.getPageSize());
     }
 
     @Override
