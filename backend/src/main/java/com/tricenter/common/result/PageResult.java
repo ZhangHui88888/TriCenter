@@ -21,7 +21,8 @@ public class PageResult<T> {
         result.setTotal(total);
         result.setPage(page);
         result.setPageSize(pageSize);
-        result.setPages((int) Math.ceil((double) total / pageSize));
+        // pageSize < 1（如 -1 “全部”）时不分页，全部结果算作一页
+        result.setPages(pageSize > 0 ? (int) Math.ceil((double) total / pageSize) : 1);
         return result;
     }
 }

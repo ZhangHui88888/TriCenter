@@ -1,6 +1,7 @@
 package com.tricenter.dto.request;
 
 import lombok.Data;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -176,8 +177,15 @@ public class EnterpriseQueryRequest {
     @Min(value = 1, message = "page 必须大于等于 1")
     private Integer page = 1;
     
-    /** 每页数量 */
-    @Min(value = 1, message = "pageSize 必须大于等于 1")
+    /** pageSize 取此值时不分页，返回全部筛选结果（企业列表的“全部”选项） */
+    public static final int ALL_ROWS = -1;
+
+    /** 每页数量；可为 ALL_ROWS */
     @Max(value = 100, message = "pageSize 不能超过 100")
     private Integer pageSize = 10;
+
+    @AssertTrue(message = "pageSize 必须大于等于 1，或为 -1（全部）")
+    public boolean isPageSizeValid() {
+        return pageSize == null || pageSize == ALL_ROWS || pageSize >= 1;
+    }
 }

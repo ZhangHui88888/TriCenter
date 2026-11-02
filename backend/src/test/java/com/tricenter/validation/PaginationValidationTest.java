@@ -31,4 +31,23 @@ class PaginationValidationTest {
         assertThat(validator.validate(followUp)).hasSize(2);
         assertThat(validator.validate(provider)).hasSize(2);
     }
+
+    @Test
+    void enterpriseQueryAcceptsMinusOneForAllRowsButRejectsZeroAndOtherNegatives() {
+        EnterpriseQueryRequest all = new EnterpriseQueryRequest();
+        all.setPageSize(EnterpriseQueryRequest.ALL_ROWS);
+        assertThat(validator.validate(all)).isEmpty();
+
+        EnterpriseQueryRequest zero = new EnterpriseQueryRequest();
+        zero.setPageSize(0);
+        assertThat(validator.validate(zero)).hasSize(1);
+
+        EnterpriseQueryRequest minusTwo = new EnterpriseQueryRequest();
+        minusTwo.setPageSize(-2);
+        assertThat(validator.validate(minusTwo)).hasSize(1);
+
+        FollowUpQueryRequest followUp = new FollowUpQueryRequest();
+        followUp.setPageSize(-1);
+        assertThat(validator.validate(followUp)).hasSize(1);
+    }
 }
