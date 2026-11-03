@@ -778,7 +778,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
                     data.setPosition(c.getPosition());
                     data.setEmail(c.getEmail());
                     data.setWechat(c.getWechat());
-                    data.setIsPrimary(c.getIsPrimary() == 1 ? "是" : "否");
+                    data.setIsPrimary(Integer.valueOf(1).equals(c.getIsPrimary()) ? "是" : "否");
                     data.setRemark(c.getRemark());
                     result.add(data);
                 }

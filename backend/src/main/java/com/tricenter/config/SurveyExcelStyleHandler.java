@@ -7,6 +7,7 @@ import com.alibaba.excel.write.metadata.holder.WriteSheetHolder;
 import com.alibaba.excel.write.metadata.holder.WriteTableHolder;
 import org.apache.poi.ss.usermodel.*;
 
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ import java.util.Map;
 public class SurveyExcelStyleHandler implements CellWriteHandler {
 
     private final Map<Workbook, CachedStyles> styleCache = new IdentityHashMap<>();
+    private final Map<Sheet, Map<Integer, Integer>> columnWidthCache = new IdentityHashMap<>();
 
     @Override
     @SuppressWarnings("PMD.CloseResource") // EasyExcel owns and closes the workbook after handlers finish.
@@ -146,27 +148,23 @@ public class SurveyExcelStyleHandler implements CellWriteHandler {
     }
 
     /**
-     * 根据单元格内容动态计算行高
-     * 遍历当前行所有单元格，取最大需要行高
+     * 根据单元格内容动态计算行高（只增大不缩小）。
+     * 每个单元格写完都会调用一次，所以只算当前单元格即可，行高最终等于整行最大值。
+     * 不能每次重扫整行：需求分析 Sheet 每个企业一列，1080 家时整行重扫加上 POI
+     * getColumnWidth 的线性查找是立方级，导出要跑十几分钟。
      */
     private void adjustRowHeight(Cell cell, Sheet sheet, int fontSize, float minHeight) {
         Row row = cell.getRow();
-        float maxHeight = minHeight;
-
-        for (int i = 0; i <= row.getLastCellNum(); i++) {
-            Cell c = row.getCell(i);
-            if (c == null) continue;
-            String content = "";
-            try {
-                content = c.getStringCellValue();
-            } catch (Exception e) {
-                continue;
-            }
-            if (content == null || content.isEmpty()) continue;
-
+        float neededHeight = minHeight;
+        String content = null;
+        try {
+            content = cell.getStringCellValue();
+        } catch (Exception ignored) {
+            // 非字符串单元格不参与行高计算
+        }
+        if (content != null && !content.isEmpty()) {
             // 获取列宽（单位：1/256字符宽度），转换为字符数
-            int colWidthUnits = sheet.getColumnWidth(i);
-            int colChars = Math.max(colWidthUnits / 256, 8);
+            int colChars = Math.max(columnWidth(sheet, cell.getColumnIndex()) / 256, 8);
 
             // 计算需要的行数：换行符 + 文字自动换行
             int lines = 1;
@@ -179,17 +177,18 @@ public class SurveyExcelStyleHandler implements CellWriteHandler {
                 lines += Math.max(0, (int) Math.ceil((double) partLen / colChars) - 1);
             }
             lines += parts.length - 1; // 换行符本身的行数
-
-            float neededHeight = (float) lines * (fontSize + 5);
-            if (neededHeight > maxHeight) {
-                maxHeight = neededHeight;
-            }
+            neededHeight = Math.max(neededHeight, (float) lines * (fontSize + 5));
         }
 
-        // 只增大不缩小
-        if (maxHeight > row.getHeightInPoints()) {
-            row.setHeightInPoints(maxHeight);
+        if (neededHeight > row.getHeightInPoints()) {
+            row.setHeightInPoints(neededHeight);
         }
+    }
+
+    /** 列宽在 afterSheetCreate 里就设好了，写数据期间不变，按 Sheet 缓存避免 POI 的线性查找。 */
+    private int columnWidth(Sheet sheet, int columnIndex) {
+        return columnWidthCache.computeIfAbsent(sheet, s -> new HashMap<>())
+                .computeIfAbsent(columnIndex, sheet::getColumnWidth);
     }
 
     private static class CachedStyles {
