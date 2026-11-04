@@ -23,6 +23,7 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.tricenter.config.SurveyExcelStyleHandler;
+import com.tricenter.config.SurveyImportStringConverter;
 import com.tricenter.service.OptionsService;
 import com.tricenter.service.RequirementMatchEngine;
 import com.tricenter.service.CityAccessService;
@@ -1079,6 +1080,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
     private <T> List<T> readSheet(byte[] workbook, Class<T> headType, String sheetName) {
         return EasyExcel.read(new ByteArrayInputStream(workbook))
                 .head(headType)
+                .registerConverter(new SurveyImportStringConverter())
                 .sheet(sheetName)
                 .doReadSync();
     }
@@ -1093,7 +1095,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         Map<String, EnterpriseImportBundle> bundles = new LinkedHashMap<>();
         for (SurveyBasicInfoData row : basics) {
             if (row.getEnterpriseId() == null && (!StringUtils.hasText(row.getName())
-                    || row.getName().startsWith("【") || row.getName().startsWith("示例"))) continue;
+                    || isTemplateRowName(row.getName()))) continue;
             bundle(bundles, row.getEnterpriseId(), row.getName()).basics.add(row);
         }
         for (SurveyContactData row : contacts) {
@@ -1126,8 +1128,14 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
 
     private EnterpriseImportBundle optionalBundle(
             Map<String, EnterpriseImportBundle> bundles, Integer enterpriseId, String name) {
-        if (enterpriseId == null && !StringUtils.hasText(name)) return null;
+        if (enterpriseId == null && (!StringUtils.hasText(name) || isTemplateRowName(name))) return null;
         return bundle(bundles, enterpriseId, name);
+    }
+
+    /** 每个 Sheet 第 2 行提示行（【请勿修改企业ID】）和第 3 行示例行（示例：…）不是企业数据。 */
+    private static boolean isTemplateRowName(String name) {
+        String trimmed = name.trim();
+        return trimmed.startsWith("【") || trimmed.startsWith("示例");
     }
 
     private EnterpriseImportBundle bundle(
@@ -1460,9 +1468,6 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         if (!StringUtils.hasText(data.getDistrict())) {
             missingFields.add("所属区域");
         }
-        if (!StringUtils.hasText(data.getEnterpriseType())) {
-            missingFields.add("企业类型");
-        }
 
         if (!missingFields.isEmpty()) {
             throw new BusinessException("无法新建企业，缺少必填字段: " + String.join("、", missingFields)
@@ -1474,7 +1479,7 @@ public class SurveyExcelServiceImpl implements SurveyExcelService {
         if (data.getDistrict().trim().length() > 20) {
             throw BusinessException.badRequest("所属区域不能超过20个字符");
         }
-        if (data.getEnterpriseType().trim().length() > 20) {
+        if (StringUtils.hasText(data.getEnterpriseType()) && data.getEnterpriseType().trim().length() > 20) {
             throw BusinessException.badRequest("企业类型不能超过20个字符");
         }
     }
