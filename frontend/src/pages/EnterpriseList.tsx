@@ -1783,8 +1783,13 @@ function EnterpriseList() {
           setExporting(true);
           try {
             if (exportType === 'list') {
-              const { page: _page, pageSize: _pageSize, ...params } = buildListParams(1, 1);
-              const response = await enterpriseApi.export(params);
+              // 和调研表一致：勾选了就只导勾选的企业，否则导出当前筛选条件下的全部企业
+              const response = selectedRowKeys.length > 0
+                ? await enterpriseApi.exportSelected(selectedRowKeys.map(Number))
+                : await (() => {
+                    const { page: _page, pageSize: _pageSize, ...params } = buildListParams(1, 1);
+                    return enterpriseApi.export(params);
+                  })();
               const blob = await toXlsxBlobFromResponse(response);
               const url = window.URL.createObjectURL(blob);
               const link = document.createElement('a');
@@ -1840,7 +1845,12 @@ function EnterpriseList() {
           </div>
           {exportType === 'list' ? (
             <>
-              <Text>将导出当前筛选条件下的全部企业（与列表统计口径一致）</Text>
+              <Text>
+                {selectedRowKeys.length > 0
+                  ? <>将导出选中的 <Text strong>{selectedRowKeys.length}</Text> 家企业</>
+                  : <>将导出当前筛选条件下全部 <Text strong>{_total}</Text> 家企业（与列表统计口径一致）</>
+                }
+              </Text>
               <div style={{ marginTop: 12 }}>
                 <Text type="secondary">
                   Excel（.xlsx）双 Sheet：① 企业列表（导入模板同结构字段）；②

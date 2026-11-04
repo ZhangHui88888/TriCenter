@@ -18,6 +18,9 @@ public class EnterpriseQueryRequest {
     /** 关键词（企业名称模糊搜索） */
     private String keyword;
 
+    /** 只取这些企业（列表里勾选后导出）；为空表示不限 */
+    private java.util.List<Integer> ids;
+
     /** 统一社会信用代码（模糊） */
     private String creditCodeKeyword;
 

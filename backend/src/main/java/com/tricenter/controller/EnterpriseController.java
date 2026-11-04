@@ -3,6 +3,7 @@ package com.tricenter.controller;
 import com.tricenter.common.result.PageResult;
 import com.tricenter.common.result.Result;
 import com.tricenter.annotation.OpLog;
+import com.tricenter.common.exception.BusinessException;
 import com.tricenter.dto.request.*;
 import com.tricenter.dto.response.EnterpriseDetailResponse;
 import com.tricenter.dto.response.EnterpriseListResponse;
@@ -152,6 +153,18 @@ public class EnterpriseController {
     @GetMapping("/export")
     @PreAuthorize("hasAuthority('enterprise:export')")
     public void exportEnterprises(EnterpriseQueryRequest request, HttpServletResponse response) {
+        enterpriseService.exportEnterprises(request, response);
+    }
+
+    @Operation(summary = "导出勾选的企业", description = "只导出列表里勾选的企业；ID 放在请求体里，勾选上千家也不会超出 URL 长度")
+    @PostMapping("/export/selected")
+    @PreAuthorize("hasAuthority('enterprise:export')")
+    public void exportSelectedEnterprises(@RequestBody List<Integer> ids, HttpServletResponse response) {
+        if (ids == null || ids.isEmpty()) {
+            throw BusinessException.badRequest("请选择要导出的企业");
+        }
+        EnterpriseQueryRequest request = new EnterpriseQueryRequest();
+        request.setIds(ids);
         enterpriseService.exportEnterprises(request, response);
     }
 

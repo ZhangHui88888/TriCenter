@@ -91,6 +91,10 @@ export const enterpriseApi = {
   export: (params?: Record<string, unknown>) =>
     request.get('/enterprises/export', { params, responseType: 'blob', timeout: 0 }),
 
+  // 只导出勾选的企业（ID 放请求体，勾选很多家也不会超出 URL 长度）
+  exportSelected: (enterpriseIds: number[]) =>
+    request.post('/enterprises/export/selected', enterpriseIds, { responseType: 'blob', timeout: 0 }),
+
   // 下载导入模板
   downloadTemplate: () =>
     request.get('/enterprises/template', { responseType: 'blob' }),

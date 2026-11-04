@@ -262,6 +262,9 @@ public class EnterpriseServiceImpl implements EnterpriseService {
         if (matchedIds != null) {
             wrapper.in(Enterprise::getId, matchedIds);
         }
+        if (request.getIds() != null && !request.getIds().isEmpty()) {
+            wrapper.in(Enterprise::getId, request.getIds());
+        }
         if (StringUtils.hasText(request.getKeyword())) wrapper.like(Enterprise::getName, request.getKeyword());
         if (StringUtils.hasText(request.getCreditCodeKeyword())) {
             wrapper.like(Enterprise::getCreditCode, request.getCreditCodeKeyword());
